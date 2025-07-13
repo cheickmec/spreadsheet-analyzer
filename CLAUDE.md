@@ -113,6 +113,90 @@ Based on the comprehensive system design document:
 - Type hints encouraged but not required
 - Comprehensive pre-commit hooks for quality assurance
 
+### Important Linting Rules to Follow
+
+To avoid common pre-commit hook failures, follow these patterns:
+
+#### Logging Best Practices
+
+```python
+# ✅ DO: Use logger instance, not root logger
+logger = logging.getLogger(__name__)
+logger.info("Found version: %s", version)
+
+# ❌ DON'T: Use root logger or f-strings in logging
+logging.info(f"Found version: {version}")
+```
+
+#### Exception Handling
+
+```python
+# ✅ DO: Use specific exceptions and logger.exception() without redundant error info
+try:
+    risky_operation()
+except (OSError, IOError):
+    logger.exception("Operation failed")
+
+# ❌ DON'T: Catch generic Exception or include exception in message
+except Exception as e:
+    logger.error(f"Operation failed: {e}")
+```
+
+#### Function Arguments
+
+```python
+# ✅ DO: Use keyword-only for boolean parameters
+def setup_logging(*, verbose: bool = False) -> None:
+    pass
+
+# ❌ DON'T: Use positional boolean parameters
+def setup_logging(verbose: bool = False) -> None:
+    pass
+```
+
+#### Control Flow
+
+```python
+# ✅ DO: Use else block with try/except for success path
+try:
+    result = operation()
+except ValueError:
+    logger.error("Failed")
+    return None
+else:
+    logger.info("Success")
+    return result
+
+# ❌ DON'T: Return directly from try block
+try:
+    result = operation()
+    return result  # Ruff wants this in else block
+```
+
+#### Simplifications
+
+```python
+# ✅ DO: Use ternary operators for simple conditionals
+output_file = output_dir / f"{name}.md" if output_dir else None
+
+# ❌ DON'T: Use verbose if/else blocks for simple assignments
+if output_dir:
+    output_file = output_dir / f"{name}.md"
+else:
+    output_file = None
+```
+
+#### String Formatting
+
+```python
+# ✅ DO: Use % formatting for logging, f-strings elsewhere
+logger.info("Processing %d files in %s", count, directory)
+print(f"Processing {count} files")
+
+# ❌ DON'T: Use f-strings in logging calls
+logger.info(f"Processing {count} files")
+```
+
 ## Commit Message Convention
 
 Uses conventional commits format:
