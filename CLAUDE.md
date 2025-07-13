@@ -47,9 +47,28 @@ uv run pre-commit run mypy --all-files   # Run only type checking
 
 ### Documentation Tools
 
+#### HTML to Markdown Converter
+
+Convert HTML files to well-formatted Markdown using pypandoc:
+
 ```bash
-uv run tools/html_to_markdown_converter.py <html_file> [output_file]
+# Basic conversion (creates .md file with same name)
+uv run tools/html_to_markdown_converter.py input.html
+
+# Specify output file
+uv run tools/html_to_markdown_converter.py input.html output.md
+
+# Use inline links instead of reference-style links
+uv run tools/html_to_markdown_converter.py input.html --inline-links
+
+# Batch convert multiple files to a directory
+uv run tools/html_to_markdown_converter.py *.html -o output_dir/
+
+# Verbose mode for debugging
+uv run tools/html_to_markdown_converter.py input.html -v
 ```
+
+**Note**: Requires pandoc to be installed (`brew install pandoc` on macOS)
 
 ## Project Architecture
 
@@ -114,3 +133,4 @@ All development tools are specified in `pyproject.toml` under `[project.optional
 - ruff for linting/formatting
 - bandit for security scanning
 - pre-commit for automated checks
+- pypandoc for HTML to Markdown conversion

@@ -1,133 +1,284 @@
 #!/usr/bin/env python3
 """
-HTML to Markdown Converter
-Extracts content from HTML and converts to well-formatted markdown.
+HTML to Markdown Converter using pypandoc.
+A robust converter that handles various HTML formats and edge cases.
 """
 
+import argparse
+import logging
 import re
 import sys
 from pathlib import Path
 
-import html2text
-from bs4 import BeautifulSoup
-
-MIN_ARGS = 2
-MAX_ARGS = 3
+import pypandoc
 
 
-def convert_html_to_markdown(html_file_path, output_file_path=None):
+def setup_logging(*, verbose: bool = False) -> logging.Logger:
+    """Set up logging configuration."""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    return logging.getLogger(__name__)
+
+
+def validate_pandoc_installation() -> bool:
+    """Check if pandoc is installed and accessible."""
+    logger = logging.getLogger(__name__)
+    try:
+        version = pypandoc.get_pandoc_version()
+    except OSError:
+        logger.error("Pandoc is not installed. Please install it first:")  # noqa: TRY400
+        logger.error("  - macOS: brew install pandoc")  # noqa: TRY400
+        logger.error("  - Ubuntu/Debian: sudo apt-get install pandoc")  # noqa: TRY400
+        logger.error("  - Windows: Download from https://pandoc.org/installing.html")  # noqa: TRY400
+        return False
+    else:
+        logger.info("Found pandoc version: %s", version)
+        return True
+
+
+def clean_html_content(html_content: str) -> str:
+    """Pre-process HTML content to handle common issues."""
+    # Remove zero-width spaces and other invisible characters
+    html_content = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", html_content)
+
+    # Fix common HTML entity issues
+    html_content = html_content.replace("&nbsp;", " ")
+
+    # Remove empty paragraphs and divs
+    html_content = re.sub(r"<p>\s*</p>", "", html_content)
+    return re.sub(r"<div>\s*</div>", "", html_content)
+
+
+def post_process_markdown(content: str) -> str:
+    """Clean up the markdown content after conversion."""
+    # Remove excessive blank lines (more than 2 consecutive)
+    content = re.sub(r"\n{3,}", "\n\n", content)
+
+    # Fix spacing around headers
+    content = re.sub(r"(^|\n)(#{1,6}\s+.*?)(\n|$)", r"\1\n\2\n", content, flags=re.MULTILINE)
+
+    # Clean up escaped characters that shouldn't be escaped
+    content = re.sub(r"\\([#*_`'])", r"\1", content)
+
+    # Fix overly escaped angle brackets and quotes in regular text
+    content = re.sub(r"\\([<>\"'])", r"\1", content)
+
+    # Fix code block formatting
+    content = re.sub(r"``` (.*?)\n", r"```\1\n", content)
+
+    # Ensure proper list formatting
+    content = re.sub(r"^(\s*)([-*+])\s+", r"\1\2 ", content, flags=re.MULTILINE)
+    content = re.sub(r"^(\s*)(\d+)\.\s+", r"\1\2. ", content, flags=re.MULTILINE)
+
+    # Remove trailing whitespace
+    content = re.sub(r" +$", "", content, flags=re.MULTILINE)
+
+    # Remove YAML frontmatter if it only contains title
+    # (since we usually want clean markdown without metadata)
+    content = re.sub(r"^---\ntitle: .*\n---\n\n", "", content)
+
+    # Ensure document ends with single newline
+    return content.strip() + "\n"
+
+
+def convert_html_to_markdown(
+    html_file_path: Path,
+    output_file_path: Path | None = None,
+    format_options: list[str] | None = None,
+) -> bool:
     """
-    Convert HTML file to markdown format while preserving all content.
+    Convert HTML file to markdown format using pypandoc.
 
     Args:
-        html_file_path (str): Path to the HTML file
-        output_file_path (str): Path for the output markdown file
+        html_file_path: Path to the HTML file
+        output_file_path: Path for the output markdown file (optional)
+        format_options: Additional pandoc options
+
+    Returns:
+        bool: True if conversion successful, False otherwise
     """
+    logger = logging.getLogger(__name__)
 
-    # Read the HTML file
-    try:
-        with Path(html_file_path).open(encoding="utf-8") as file:
-            html_content = file.read()
-    except OSError as e:
-        print(f"Error reading HTML file: {e}")
+    # Validate input file
+    if not html_file_path.exists():
+        logger.error("HTML file not found: %s", html_file_path)
         return False
 
-    # Parse HTML with BeautifulSoup for better structure
-    soup = BeautifulSoup(html_content, "html.parser")
+    if html_file_path.suffix.lower() not in [".html", ".htm"]:
+        logger.warning("File may not be HTML: %s", html_file_path)
 
-    # Remove script and style elements
-    for script in soup(["script", "style"]):
-        script.decompose()
-
-    # Configure html2text converter
-    h = html2text.HTML2Text()
-    h.ignore_links = False  # Preserve links
-    h.ignore_images = False  # Preserve images
-    h.ignore_tables = False  # Preserve tables
-    h.body_width = 0  # No line wrapping
-    h.unicode_snob = True  # Use unicode characters
-    h.mark_code = True  # Mark code blocks
-    h.wrap_links = False  # Don't wrap links
-    h.inline_links = True  # Use inline links format
-    h.use_automatic_links = True  # Convert URLs to links
-    h.protect_links = True  # Protect existing links
-    h.single_line_break = False  # Use double line breaks for paragraphs
-
-    # Convert HTML to markdown
+    # Read HTML content
     try:
-        markdown_content = h.handle(str(soup))
-    except html2text.Html2TextException as e:
-        print(f"Error converting HTML to markdown: {e}")
+        html_content = html_file_path.read_text(encoding="utf-8")
+        logger.info("Read HTML file: %s (%d bytes)", html_file_path, len(html_content))
+    except OSError:
+        logger.exception("Error reading HTML file")
         return False
 
-    # Clean up the markdown
-    markdown_content = clean_markdown(markdown_content)
+    # Pre-process HTML
+    html_content = clean_html_content(html_content)
 
-    # Determine output file path
+    # Determine output path
     if output_file_path is None:
-        html_path = Path(html_file_path)
-        output_file_path = html_path.parent / f"{html_path.stem}.md"
+        output_file_path = html_file_path.with_suffix(".md")
 
-    # Write the markdown file
+    # Set up pandoc options
+    default_options = [
+        "--wrap=none",  # No line wrapping
+        "--strip-comments",  # Remove HTML comments
+        "--markdown-headings=atx",  # Use ATX-style headers (## instead of underlines)
+        "--standalone",  # Produce complete document
+    ]
+
+    extra_args = default_options.copy()
+    if format_options:
+        extra_args.extend(format_options)
+
+    # Convert using pypandoc
     try:
-        with Path(output_file_path).open("w", encoding="utf-8") as file:
-            file.write(markdown_content)
-        print(f"Successfully converted HTML to markdown: {output_file_path}")
-    except OSError as e:
-        print(f"Error writing markdown file: {e}")
+        logger.info("Converting HTML to Markdown...")
+        markdown_content = pypandoc.convert_text(
+            html_content,
+            "markdown",
+            format="html",
+            extra_args=extra_args,
+        )
+
+        # Post-process the markdown
+        markdown_content = post_process_markdown(markdown_content)
+
+        # Write output
+        output_file_path.write_text(markdown_content, encoding="utf-8")
+        logger.info("Successfully converted to: %s", output_file_path)
+    except (RuntimeError, ValueError):
+        logger.exception("Error during conversion")
         return False
     else:
         return True
 
 
-def clean_markdown(content):
+def convert_batch(
+    html_files: list[Path],
+    output_dir: Path | None = None,
+    format_options: list[str] | None = None,
+) -> dict[Path, bool]:
     """
-    Clean up the markdown content to improve formatting.
+    Convert multiple HTML files to markdown.
 
     Args:
-        content (str): Raw markdown content
+        html_files: List of HTML file paths
+        output_dir: Directory for output files (optional)
+        format_options: Additional pandoc options
 
     Returns:
-        str: Cleaned markdown content
+        dict: Mapping of input files to conversion success status
     """
+    results = {}
 
-    # Remove excessive blank lines (more than 2 consecutive)
-    content = re.sub(r"\n{3,}", "\n\n", content)
+    for html_file in html_files:
+        output_file = output_dir / f"{html_file.stem}.md" if output_dir else None
 
-    # Fix spacing around headers
-    content = re.sub(r"\n(#{1,6}\s+.*?)\n", r"\n\n\1\n\n", content)
+        success = convert_html_to_markdown(html_file, output_file, format_options)
+        results[html_file] = success
 
-    # Fix spacing around list items
-    content = re.sub(r"\n(\s*[-*+]\s+.*?)\n", r"\n\1\n", content)
-    content = re.sub(r"\n(\s*\d+\.\s+.*?)\n", r"\n\1\n", content)
-
-    # Fix spacing around code blocks
-    content = re.sub(r"\n(```.*?```)\n", r"\n\n\1\n\n", content, flags=re.DOTALL)
-
-    # Fix spacing around blockquotes
-    content = re.sub(r"\n(>\s+.*?)\n", r"\n\n\1\n\n", content)
-
-    # Clean up whitespace at the beginning and end
-    content = content.strip()
-
-    # Ensure document ends with single newline
-    return content.rstrip() + "\n"
+    return results
 
 
 def main():
-    if len(sys.argv) < MIN_ARGS:
-        print("Usage: python html_to_markdown_converter.py <html_file> [output_file]")
+    """Main entry point for command-line usage."""
+    parser = argparse.ArgumentParser(
+        description="Convert HTML files to well-formatted Markdown using pypandoc",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s input.html                    # Convert to input.md
+  %(prog)s input.html output.md          # Convert to specific output file
+  %(prog)s *.html -o output_dir/         # Batch convert to directory
+  %(prog)s input.html --reference-links  # Use reference-style links
+  %(prog)s input.html -v                 # Verbose output
+        """,
+    )
+
+    parser.add_argument(
+        "input_files",
+        nargs="+",
+        type=Path,
+        help="HTML file(s) to convert",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="Output file or directory (for batch conversion)",
+    )
+
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging",
+    )
+
+    parser.add_argument(
+        "--inline-links",
+        action="store_true",
+        help="Use inline links instead of reference links",
+    )
+
+    parser.add_argument(
+        "--no-wrap",
+        action="store_true",
+        help="Disable text wrapping (default: enabled)",
+    )
+
+    args = parser.parse_args()
+
+    # Set up logging
+    logger = setup_logging(verbose=args.verbose)
+
+    # Check pandoc installation
+    if not validate_pandoc_installation():
         sys.exit(1)
 
-    html_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > MIN_ARGS else None
+    # Prepare format options
+    format_options = []
+    # Only add reference-links if NOT using inline links
+    # (by default pandoc uses inline links)
+    if not args.inline_links:
+        format_options.append("--reference-links")
 
-    if not Path(html_file).exists():
-        print(f"Error: HTML file '{html_file}' not found.")
+    # Handle single file vs batch conversion
+    input_files = [f for f in args.input_files if f.exists()]
+    if not input_files:
+        logger.error("No valid input files found")
         sys.exit(1)
 
-    success = convert_html_to_markdown(html_file, output_file)
-    sys.exit(0 if success else 1)
+    if len(input_files) == 1:
+        # Single file conversion
+        output_path = args.output if args.output and not args.output.is_dir() else None
+
+        success = convert_html_to_markdown(
+            input_files[0],
+            output_path,
+            format_options,
+        )
+        sys.exit(0 if success else 1)
+    else:
+        # Batch conversion
+        output_dir = args.output if args.output and args.output.is_dir() else None
+        results = convert_batch(input_files, output_dir, format_options)
+
+        # Report results
+        successful = sum(1 for success in results.values() if success)
+        failed = len(results) - successful
+
+        logger.info("Conversion complete: %d successful, %d failed", successful, failed)
+        sys.exit(0 if failed == 0 else 1)
 
 
 if __name__ == "__main__":
