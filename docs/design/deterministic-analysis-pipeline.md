@@ -87,11 +87,16 @@ def stage_0_integrity_probe(file_path: Path) -> Dict[str, Any]:
         'application/zip'  # Sometimes .xlsx appears as zip
     ]
 
-    # Additional OOXML validation for .xlsx files
+    # OOXML validation for .xlsx files with structure verification
     is_ooxml = False
     if is_excel and mime_type != 'application/vnd.ms-excel':
         try:
             is_ooxml = zipfile.is_zipfile(file_path)
+            # Verify required OOXML structure components exist
+            if is_ooxml:
+                with zipfile.ZipFile(file_path, 'r') as zip_file:
+                    required_files = ['[Content_Types].xml', 'xl/workbook.xml']
+                    is_ooxml = all(f in zip_file.namelist() for f in required_files)
         except Exception:
             is_ooxml = False
 
@@ -119,14 +124,28 @@ def stage_0_integrity_probe(file_path: Path) -> Dict[str, Any]:
 
 def determine_processing_class(
     file_size: int,
-    mime_type: str
+    mime_type: str,
+    file_path: Path = None
 ) -> Literal["STANDARD", "HEAVY", "BLOCKED"]:
-    """Classify file for appropriate processing pipeline."""
+    """Classify file for appropriate processing pipeline with format-specific limits."""
 
-    # Size-based classification
-    if file_size > 100 * 1024 * 1024:  # 100MB
-        return "HEAVY"
-    elif file_size < 1024:  # Less than 1KB
+    # Format-specific size thresholds
+    if file_path:
+        file_ext = file_path.suffix.lower()
+        if file_ext == '.xls':
+            # Legacy .xls files have lower threshold due to BIFF parsing complexity
+            if file_size > 30 * 1024 * 1024:  # 30MB for .xls
+                return "HEAVY"
+        elif file_ext == '.xlsb':
+            # Binary format can handle larger sizes efficiently
+            if file_size > 200 * 1024 * 1024:  # 200MB for .xlsb
+                return "HEAVY"
+        else:  # .xlsx and other formats
+            if file_size > 100 * 1024 * 1024:  # 100MB for .xlsx
+                return "HEAVY"
+
+    # General size validation
+    if file_size < 1024:  # Less than 1KB
         return "BLOCKED"
 
     # MIME type validation
@@ -235,6 +254,14 @@ def stage_1_security_scan(file_path: Path) -> Dict[str, Any]:
             security_report["security_flags"].append("EXTERNAL_LINKS_FOUND")
             security_report["risk_score"] += len(external_links)
 
+    # XLM (Excel 4.0) macro detection
+    if file_path.suffix.lower() in ['.xlsx', '.xlsm', '.xlsb']:
+        xlm_results = detect_xlm_macros(file_path)
+        if xlm_results["has_xlm_macros"]:
+            security_report["xlm_macros"] = xlm_results
+            security_report["security_flags"].append("XLM_MACROS_DETECTED")
+            security_report["risk_score"] += 3
+
     # OLE embedded objects scan
     ole_objects = scan_ole_objects(file_path)
     security_report["ole_objects"] = ole_objects
@@ -293,6 +320,53 @@ def analyze_vba_macros(vba_parser) -> Dict[str, Any]:
         macro_info["analysis_error"] = str(e)
 
     return macro_info
+
+def detect_xlm_macros(file_path: Path) -> Dict[str, Any]:
+    """
+    Detect Excel 4.0 (XLM) macros in addition to VBA.
+    XLM macros can be hidden in cells and are a security risk.
+    """
+    xlm_results = {
+        "has_xlm_macros": False,
+        "xlm_macro_sheets": [],
+        "suspicious_xlm_patterns": [],
+        "analysis_method": "static"
+    }
+
+    try:
+        # Note: In production, use XLMMacroDeobfuscator library
+        # from XLMMacroDeobfuscator import XLMMacroDeobfuscator
+        # For now, we'll do basic detection
+
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=False)
+
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            # Check for macro sheet type (very hidden sheets are suspicious)
+            if hasattr(ws, 'sheet_state') and ws.sheet_state == 'veryHidden':
+                xlm_results["xlm_macro_sheets"].append(sheet_name)
+                xlm_results["has_xlm_macros"] = True
+
+            # Look for XLM function patterns in formulas
+            xlm_patterns = ['EXEC', 'CALL', 'REGISTER', 'ALERT', 'RUN']
+            for row in ws.iter_rows(max_row=100):  # Sample first 100 rows
+                for cell in row:
+                    if cell.value and isinstance(cell.value, str) and cell.value.startswith('='):
+                        formula_upper = cell.value.upper()
+                        for pattern in xlm_patterns:
+                            if pattern in formula_upper:
+                                xlm_results["suspicious_xlm_patterns"].append({
+                                    "sheet": sheet_name,
+                                    "cell": cell.coordinate,
+                                    "pattern": pattern
+                                })
+                                xlm_results["has_xlm_macros"] = True
+                                break
+
+    except Exception as e:
+        xlm_results["analysis_error"] = str(e)
+
+    return xlm_results
 
 def scan_external_links_xlsx(file_path: Path) -> List[Dict[str, str]]:
     """Scan .xlsx file for external links without following them."""
@@ -465,25 +539,51 @@ def stage_2_structural_mapper(file_path: Path) -> Dict[str, Any]:
         }
 
 def analyze_worksheet_structure(ws, sheet_name: str) -> Dict[str, Any]:
-    """Analyze individual worksheet structure."""
+    """Analyze individual worksheet structure with graceful degradation."""
 
     sheet_data = {
         "name": sheet_name,
-        "visible": ws.sheet_state == 'visible',
-        "sheet_state": ws.sheet_state,  # visible, hidden, veryHidden
-        "dimensions": analyze_sheet_dimensions(ws),
-        "cell_statistics": analyze_cell_types(ws),
-        "merged_cells": extract_merged_cells(ws),
-        "tables": extract_tables(ws),
-        "charts": extract_charts(ws),
-        "images": extract_images(ws),
-        "pivot_tables": extract_pivot_tables(ws),
-        "conditional_formats": extract_conditional_formatting(ws),
-        "data_validations": extract_data_validations(ws),
-        "hyperlinks": extract_hyperlinks(ws),
-        "named_ranges": extract_sheet_names(ws),
-        "protection": analyze_sheet_protection(ws)
+        "accessible": True,
+        "errors": [],
+        "visible": ws.sheet_state == 'visible' if hasattr(ws, 'sheet_state') else True,
+        "sheet_state": ws.sheet_state if hasattr(ws, 'sheet_state') else 'visible'
     }
+
+    # Each analysis component wrapped for graceful degradation
+    analysis_components = [
+        ("dimensions", lambda: analyze_sheet_dimensions(ws)),
+        ("cell_statistics", lambda: analyze_cell_types(ws)),
+        ("merged_cells", lambda: extract_merged_cells(ws)),
+        ("tables", lambda: extract_tables(ws)),
+        ("charts", lambda: extract_charts(ws)),
+        ("images", lambda: extract_images(ws)),
+        ("pivot_tables", lambda: extract_pivot_tables(ws)),
+        ("conditional_formats", lambda: extract_conditional_formatting(ws)),
+        ("data_validations", lambda: extract_data_validations(ws)),
+        ("hyperlinks", lambda: extract_hyperlinks(ws)),
+        ("named_ranges", lambda: extract_sheet_names(ws)),
+        ("protection", lambda: analyze_sheet_protection(ws))
+    ]
+
+    for component_name, analyzer_func in analysis_components:
+        try:
+            sheet_data[component_name] = analyzer_func()
+        except Exception as e:
+            # Log error but continue with other components
+            sheet_data["errors"].append({
+                "component": component_name,
+                "error": str(e),
+                "error_type": type(e).__name__
+            })
+            # Provide sensible default
+            if component_name == "dimensions":
+                sheet_data[component_name] = {"error": str(e), "max_row": 0, "max_column": 0}
+            else:
+                sheet_data[component_name] = []
+
+    # Mark sheet as partially accessible if any errors occurred
+    if sheet_data["errors"]:
+        sheet_data["accessible"] = "partial"
 
     return sheet_data
 
@@ -793,8 +893,13 @@ def stage_3_formula_analysis(file_path: Path) -> Dict[str, Any]:
             ws = wb[sheet_name]
             extract_sheet_formulas(ws, sheet_name, formula_graph, formula_data)
 
-        # Analyze graph properties
-        analyze_dependency_graph(formula_graph, formula_data)
+        # Analyze graph properties with optimization for large graphs
+        if formula_graph.number_of_nodes() > 50000:
+            # For very large graphs, use hierarchical approach
+            analyze_large_dependency_graph(formula_graph, formula_data)
+        else:
+            # Standard analysis for manageable graphs
+            analyze_dependency_graph(formula_graph, formula_data)
 
         # Save graph for agent consumption
         graph_path = save_formula_graph(formula_graph, file_path.stem)
@@ -1028,6 +1133,87 @@ def identify_critical_paths(graph: nx.DiGraph) -> Dict[str, Any]:
         pass
 
     return critical_paths
+
+def analyze_large_dependency_graph(graph: nx.DiGraph, formula_data: Dict[str, Any]) -> None:
+    """
+    Analyze very large dependency graphs using hierarchical approach.
+    For graphs > 50k nodes, build sheet-level summaries first.
+    """
+
+    # Build sheet-level meta-graph
+    meta_graph = nx.DiGraph()
+    sheet_stats = {}
+
+    # Group nodes by sheet
+    for node in graph.nodes():
+        sheet = node.split('!')[0] if '!' in node else 'Unknown'
+        if sheet not in sheet_stats:
+            sheet_stats[sheet] = {
+                "node_count": 0,
+                "internal_edges": 0,
+                "external_edges": 0
+            }
+        sheet_stats[sheet]["node_count"] += 1
+
+    # Count edges and build meta-graph
+    for source, target in graph.edges():
+        source_sheet = source.split('!')[0] if '!' in source else 'Unknown'
+        target_sheet = target.split('!')[0] if '!' in target else 'Unknown'
+
+        if source_sheet == target_sheet:
+            sheet_stats[source_sheet]["internal_edges"] += 1
+        else:
+            sheet_stats[source_sheet]["external_edges"] += 1
+            # Add edge in meta-graph
+            if not meta_graph.has_edge(source_sheet, target_sheet):
+                meta_graph.add_edge(source_sheet, target_sheet, weight=0)
+            meta_graph[source_sheet][target_sheet]['weight'] += 1
+
+    # Store hierarchical analysis
+    formula_data["complexity_metrics"] = {
+        "total_nodes": graph.number_of_nodes(),
+        "total_edges": graph.number_of_edges(),
+        "sheet_count": len(sheet_stats),
+        "sheet_statistics": sheet_stats,
+        "cross_sheet_dependencies": meta_graph.number_of_edges(),
+        "analysis_method": "hierarchical",
+        "highly_connected_sheets": sorted(
+            sheet_stats.items(),
+            key=lambda x: x[1]["external_edges"],
+            reverse=True
+        )[:10]
+    }
+
+    # Sample-based circular reference detection for large graphs
+    formula_data["circular_references"] = detect_cycles_sample(graph, sample_size=1000)
+
+def detect_cycles_sample(graph: nx.DiGraph, sample_size: int = 1000) -> List[str]:
+    """Detect cycles in large graphs using sampling."""
+
+    # Sample nodes for cycle detection
+    import random
+    nodes = list(graph.nodes())
+    if len(nodes) > sample_size:
+        sampled_nodes = random.sample(nodes, sample_size)
+        subgraph = graph.subgraph(sampled_nodes)
+
+        if nx.is_directed_acyclic_graph(subgraph):
+            return ["No cycles detected in sample"]
+        else:
+            try:
+                cycles = list(nx.simple_cycles(subgraph))
+                return cycles[:5] if cycles else ["Cycles detected but enumeration failed"]
+            except:
+                return ["Cycle analysis failed on sample"]
+    else:
+        # Small enough to analyze completely
+        if not nx.is_directed_acyclic_graph(graph):
+            try:
+                cycles = list(nx.simple_cycles(graph))
+                return cycles[:10]
+            except:
+                return ["Cycle analysis failed"]
+        return []
 
 def save_formula_graph(graph: nx.DiGraph, file_stem: str) -> str:
     """Save graph to file for agent consumption."""
@@ -1470,6 +1656,7 @@ The deterministic analysis results are packaged into a comprehensive context tha
 # === AGENT BOOTSTRAP CELL (Idempotent) ===
 import json
 import logging
+import warnings
 from pathlib import Path
 from typing import Dict, Any, Optional
 from functools import lru_cache
@@ -1482,6 +1669,9 @@ import networkx as nx
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Suppress openpyxl warnings for cleaner output
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 # === ORCHESTRATOR-INJECTED CONSTANTS ===
 EXCEL_FILE = Path("{{ excel_path }}")
@@ -1515,14 +1705,25 @@ def load_workbook() -> openpyxl.Workbook:
     """
     Load workbook once per agent, cached in memory.
     Uses read-only mode for performance and security.
+    Leverages OS page caching for efficient multi-agent access.
     """
     logger.info(f"Loading workbook: {EXCEL_FILE}")
-    return openpyxl.load_workbook(
-        EXCEL_FILE,
-        read_only=True,      # Performance: streaming mode
-        data_only=True,      # Get calculated values, not formulas
-        keep_links=False     # Security: don't follow external links
-    )
+
+    # Note: For optimization with shared memory across agents
+    # Could use memory-mapped files for very large workbooks:
+    # with open(EXCEL_FILE, 'rb') as f:
+    #     mmapped = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    #     return openpyxl.load_workbook(filename=io.BytesIO(mmapped.read()))
+
+    with warnings.catch_warnings():
+        # Suppress style warnings during load
+        warnings.simplefilter("ignore", UserWarning)
+        return openpyxl.load_workbook(
+            EXCEL_FILE,
+            read_only=True,      # Performance: streaming mode
+            data_only=True,      # Get calculated values, not formulas
+            keep_links=False     # Security: don't follow external links
+        )
 
 def load_sheet_data(
     range_spec: Optional[str] = None,
