@@ -3,7 +3,9 @@ name = "spreadsheet-analyzer"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "openpyxl>=3.1.5",
+]
 
 [project.optional-dependencies]
 dev = [
