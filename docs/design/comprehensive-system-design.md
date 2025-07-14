@@ -696,17 +696,25 @@ Gemini's insight about maintaining pointers to detailed data provides an elegant
 
 The cost optimization strategy, primarily championed by Grok but refined through synthesis with other approaches, recognizes that not all analytical tasks require the full power of large language models. By implementing a multi-tier approach to model usage, we can dramatically reduce costs while maintaining analytical quality.
 
+#### 4.6.1 Deterministic-First Processing
+
 The foundation of cost optimization is maximizing deterministic analysis. Traditional parsing and calculation methods handle the bulk of structural analysis at zero marginal cost. Only when these deterministic methods reach their limits do we escalate to AI-powered analysis. This principle extends throughout the system—always prefer the simplest, cheapest method that can reliably accomplish the task.
+
+#### 4.6.2 Model Tier Strategy
 
 Small Language Models serve as the workhorses for routine analytical tasks. Pattern matching, simple classification, and basic text analysis can often be accomplished by models with billions rather than hundreds of billions of parameters. These smaller models run faster and cheaper while providing adequate performance for many tasks. The key is intelligent routing—understanding which tasks truly require large model capabilities.
 
 Large Language Models are reserved for complex reasoning tasks that require deep understanding, sophisticated pattern recognition, or creative problem-solving. By concentrating LLM usage on high-value tasks, we ensure that the increased cost delivers commensurate value. The system tracks which types of analyses benefit most from large models, continuously refining its routing decisions.
 
+#### 4.6.3 Caching and Reuse Strategies
+
 Caching and result reuse provide another layer of cost optimization. When agents encounter similar analytical challenges, the system can often reuse or adapt previous results rather than performing redundant analysis. This caching operates at multiple levels—from individual tool results to complete analytical conclusions.
+
+#### 4.6.4 Budget Management
 
 Budget limits provide hard stops to prevent runaway costs. Administrators can set budgets at various granularities—per analysis, per user, per time period—ensuring that costs remain predictable and controlled. The system provides real-time cost tracking and projections, allowing users to make informed decisions about resource usage.
 
-#### Performance Acceleration with GPU Computing
+#### 4.6.5 Performance Acceleration with GPU Computing
 
 For computationally intensive operations, the system can leverage GPU acceleration through RAPIDS cuDF, achieving up to 150x speedup for:
 
@@ -717,7 +725,7 @@ For computationally intensive operations, the system can leverage GPU accelerati
 
 This GPU acceleration is particularly valuable when analyzing massive financial models or scientific datasets where traditional CPU-based processing would be prohibitively slow.
 
-#### Real-Time Cost Tracking Dashboard
+#### 4.6.6 Real-Time Cost Tracking Dashboard
 
 The system implements comprehensive cost monitoring with metrics including:
 
@@ -818,17 +826,476 @@ graph TB
     class THREAT1,THREAT2,THREAT3,THREAT4 threat
 ```
 
+#### 4.7.1 Input Validation and Sanitization
+
 Input validation and sanitization form the first line of defense. Before any processing begins, the system validates file formats, scans for known malicious patterns, and sanitizes inputs to prevent injection attacks. This validation extends beyond simple file format checks to include analysis of embedded content, external references, and potentially dangerous formulas.
+
+#### 4.7.2 Sandboxed Execution Environment
 
 The sandboxed execution environment provides the primary security boundary for agent operations. By executing all agent code within strictly controlled Jupyter kernels, we prevent malicious or misbehaving code from accessing system resources or sensitive data. The sandbox enforces strict limits on CPU, memory, and execution time while completely blocking network access and restricting filesystem operations to designated directories.
 
+#### 4.7.3 Least Privilege Access Control
+
 The principle of least privilege extends throughout the system. Agents only receive access to the specific tools and data required for their analysis. The Tool Bus enforces these restrictions, logging all access attempts and blocking unauthorized operations. This granular access control prevents lateral movement if any component is compromised.
+
+#### 4.7.4 Output Protection and Sanitization
 
 Output sanitization ensures that analysis results don't inadvertently expose sensitive information or enable attacks on downstream systems. The system scrubs outputs for potential data leaks, validates that all external references are properly documented, and ensures that generated reports don't include executable content.
 
+#### 4.7.5 Comprehensive Audit and Monitoring
+
 Comprehensive audit logging provides both security monitoring and compliance support. Every significant operation—from file upload to tool execution to result generation—is logged with sufficient detail to support security investigations and regulatory audits. These logs are tamper-resistant and retained according to configurable policies.
 
-## 5. Implementation Plan
+## 5. Development Environment Setup
+
+The development environment design emerged from extensive discussions across multiple AI assistants, each contributing unique insights that collectively shaped our approach. The synthesis revealed strong consensus on core principles—the need for isolated agent execution, efficient resource utilization, and seamless local-to-production transitions—while highlighting important trade-offs in implementation approaches. This section captures the unified development strategy that balances developer productivity with architectural integrity.
+
+### 5.1 Development Philosophy
+
+The local development environment embodies a "production-faithful but developer-friendly" philosophy. While production deployments may utilize microservices, message queues, and distributed storage, the local environment consolidates these into a monolithic application that preserves architectural boundaries without operational complexity. This approach emerged from recognizing that developers need rapid iteration cycles and comprehensive debugging capabilities during the experimental phase of spreadsheet analyzer development.
+
+The key insight from our design synthesis is that architectural patterns matter more than deployment topology. A well-structured monolithic application can evolve into microservices when needed, but a poorly structured system remains problematic regardless of deployment model. Therefore, our local setup maintains clean interfaces between components, uses the same configuration patterns as production, and implements identical security boundaries—just within a single process rather than across network boundaries.
+
+### 5.2 Local Architecture Overview
+
+The local development architecture centers on a Python application managed by `uv`, leveraging its superior performance on Apple Silicon and modern dependency resolution capabilities. The application runs as a single process but spawns multiple Jupyter kernels for agent isolation, achieving concurrent analysis without the complexity of distributed systems.
+
+```mermaid
+graph TB
+    subgraph "Local Development Environment"
+        subgraph "Main Process"
+            CLI[CLI Interface<br/>Rich + Typer]
+            ORCH[Orchestrator<br/>LangGraph]
+            KM[Kernel Manager<br/>jupyter_client]
+            TB[Tool Bus<br/>Governed Registry]
+        end
+
+        subgraph "Agent Kernels"
+            K1[Sheet1 Agent<br/>Jupyter Kernel]
+            K2[Sheet2 Agent<br/>Jupyter Kernel]
+            K3[Formula Agent<br/>Jupyter Kernel]
+            KN[... More Agents]
+        end
+
+        subgraph "Shared Resources"
+            FILE[(Excel File<br/>mmap/OS Cache)]
+            CTX[(Context Store<br/>SQLite)]
+            CACHE[(Analysis Cache<br/>Redis/SQLite)]
+        end
+
+        subgraph "External Services"
+            LLM[LLM APIs<br/>OpenAI/Anthropic]
+        end
+    end
+
+    %% Connections
+    CLI --> ORCH
+    ORCH --> KM
+    KM --> K1
+    KM --> K2
+    KM --> K3
+    KM --> KN
+
+    K1 --> TB
+    K2 --> TB
+    K3 --> TB
+    KN --> TB
+
+    TB --> FILE
+    TB --> CTX
+    TB --> CACHE
+    TB --> LLM
+
+    %% Styling
+    classDef main fill:#e3f2fd,stroke:#1976d2
+    classDef kernel fill:#f3e5f5,stroke:#7b1fa2
+    classDef storage fill:#e8f5e9,stroke:#388e3c
+    classDef external fill:#fff3e0,stroke:#f57c00
+
+    class CLI,ORCH,KM,TB main
+    class K1,K2,K3,KN kernel
+    class FILE,CTX,CACHE storage
+    class LLM external
+```
+
+### 5.3 Core Technology Stack
+
+The technology stack leverages modern Python tooling optimized for Apple Silicon while maintaining compatibility with production Linux environments:
+
+```yaml
+# Development Environment Stack
+language: Python 3.12+
+package_manager: uv
+project_layout: src/
+
+# Core Dependencies
+framework:
+  orchestration: langraph>=0.1.0
+  api_layer: fastapi>=0.109.0
+  cli: typer[all]>=0.9.0
+  async: asyncio, uvloop  # uvloop for 2x performance on macOS
+
+# Excel Processing
+excel:
+  primary: openpyxl>=3.1.0  # Comprehensive parsing
+  legacy: xlrd>=2.0.1      # For .xls files
+  pandas_integration: pandas>=2.2.0
+
+# Jupyter Integration
+jupyter:
+  kernel_management: jupyter_client>=8.6.0
+  notebook_format: nbformat>=5.9.0
+  kernel: ipykernel>=6.29.0
+
+# LLM Integration
+llm:
+  openai: openai>=1.12.0
+  anthropic: anthropic>=0.18.0
+  langchain: langchain>=0.1.0
+  langchain_community: langchain-community>=0.0.20
+
+# Storage & Caching
+storage:
+  embedded_db: sqlite3  # Built-in
+  cache: diskcache>=5.6.0  # Pure Python, no Redis needed for dev
+  vector_store: chromadb>=0.4.0  # Optional, for RAG
+
+# Development Tools
+dev:
+  testing: pytest>=8.0.0, pytest-asyncio>=0.23.0
+  linting: ruff>=0.3.0  # Replacing black, isort, flake8
+  type_checking: mypy>=1.9.0
+  pre_commit: pre-commit>=3.6.0
+  documentation: mkdocs>=1.5.0, mkdocs-material>=9.5.0
+```
+
+### 5.4 Jupyter Kernel Management
+
+The kernel management strategy balances isolation with efficiency, drawing from the consensus that each agent requires its own execution environment while avoiding resource duplication. The implementation uses `jupyter_client` for programmatic kernel management, providing fine-grained control over kernel lifecycle and communication.
+
+```python
+# Kernel Manager Implementation
+from jupyter_client import AsyncMultiKernelManager
+from contextlib import asynccontextmanager
+import asyncio
+from typing import Dict, Optional
+
+class AgentKernelManager:
+    """Manages Jupyter kernels for agent isolation with resource pooling."""
+
+    def __init__(self, max_kernels: int = 10):
+        self.mkm = AsyncMultiKernelManager()
+        self.max_kernels = max_kernels
+        self.kernel_pool: asyncio.Queue = asyncio.Queue(maxsize=max_kernels)
+        self.kernel_assignments: Dict[str, str] = {}
+
+    async def initialize(self):
+        """Pre-warm kernel pool for better performance."""
+        await self.mkm.start()
+        for _ in range(min(3, self.max_kernels)):  # Pre-warm 3 kernels
+            kernel_id = await self.mkm.start_kernel(
+                kernel_name='python3',
+                extra_arguments=['--MatplotlibBackend=Agg'],  # Headless mode
+                env={
+                    'PYDEVD_DISABLE_FILE_VALIDATION': '1',  # Faster startup
+                    'PYTHONUNBUFFERED': '1'
+                }
+            )
+            await self.kernel_pool.put(kernel_id)
+
+    @asynccontextmanager
+    async def get_kernel_for_agent(self, agent_id: str):
+        """Get or create a kernel for an agent with automatic cleanup."""
+        # Reuse existing kernel if agent already has one
+        if agent_id in self.kernel_assignments:
+            kernel_id = self.kernel_assignments[agent_id]
+        else:
+            # Get from pool or create new
+            try:
+                kernel_id = await asyncio.wait_for(
+                    self.kernel_pool.get(), timeout=0.1
+                )
+            except asyncio.TimeoutError:
+                kernel_id = await self.mkm.start_kernel(kernel_name='python3')
+
+            self.kernel_assignments[agent_id] = kernel_id
+
+        km = self.mkm.get_kernel(kernel_id)
+        kc = km.client()
+        kc.start_channels()
+
+        try:
+            yield kc
+        finally:
+            kc.stop_channels()
+            # Return to pool for reuse
+            if self.kernel_pool.full():
+                await self.mkm.shutdown_kernel(kernel_id)
+                del self.kernel_assignments[agent_id]
+            else:
+                await self.kernel_pool.put(kernel_id)
+```
+
+### 5.5 File Handling and Caching Strategy
+
+The file handling approach emerged from the recognition that Excel files are read-heavy workloads where OS-level caching provides excellent performance without complex shared memory implementations. Each agent kernel can independently open the Excel file, relying on macOS's unified memory architecture and page cache for efficiency.
+
+```python
+# Idempotent Agent Bootstrap Cell Template
+AGENT_BOOTSTRAP_TEMPLATE = '''
+# --- Agent Bootstrap Cell (Idempotent) ---
+from pathlib import Path
+import openpyxl
+import pandas as pd
+import numpy as np
+import json
+from functools import lru_cache
+
+# Constants injected by orchestrator
+EXCEL_FILE = Path("{excel_path}")
+SHEET_NAME = "{sheet_name}"
+AGENT_ID = "{agent_id}"
+DETERMINISTIC_CONTEXT = json.loads('{context_json}')
+
+# Cached file access - OS page cache handles deduplication
+@lru_cache(maxsize=1)
+def load_workbook():
+    """Load workbook with openpyxl - cached in agent memory."""
+    return openpyxl.load_workbook(
+        EXCEL_FILE,
+        read_only=True,    # Streaming mode
+        data_only=True,    # Values, not formulas
+        keep_links=False   # Security: don't follow external links
+    )
+
+def load_sheet_range(range_spec: str = None, **pandas_kwargs):
+    """Load specific range with pandas - agent decides what to load."""
+    return pd.read_excel(
+        EXCEL_FILE,
+        sheet_name=SHEET_NAME,
+        usecols=range_spec,
+        engine='openpyxl',
+        **pandas_kwargs
+    )
+
+def get_cell_value(cell_ref: str):
+    """Get individual cell value - for surgical operations."""
+    wb = load_workbook()
+    return wb[SHEET_NAME][cell_ref].value
+
+def get_formula(cell_ref: str):
+    """Get cell formula if present."""
+    wb = openpyxl.load_workbook(EXCEL_FILE, read_only=True, data_only=False)
+    cell = wb[SHEET_NAME][cell_ref]
+    return getattr(cell, 'formula', None)
+
+# Agent ready
+print(f"Agent {AGENT_ID} initialized for {SHEET_NAME}")
+print(f"Sheet dimensions: {DETERMINISTIC_CONTEXT['sheets'][SHEET_NAME]['dimensions']}")
+'''
+```
+
+### 5.6 Project Structure
+
+The project structure follows modern Python practices with clear separation between library code and application code:
+
+```
+spreadsheet-analyzer/
+├── .python-version          # Python 3.12
+├── pyproject.toml          # uv-managed dependencies
+├── README.md               # Project overview
+├── CLAUDE.md               # AI assistant instructions
+│
+├── src/
+│   └── spreadsheet_analyzer/
+│       ├── __init__.py
+│       ├── __main__.py     # CLI entry point
+│       ├── agents/         # Agent implementations
+│       │   ├── __init__.py
+│       │   ├── base.py     # Base agent class
+│       │   ├── sheet.py    # Per-sheet analyzer
+│       │   └── formula.py  # Formula specialist
+│       ├── core/           # Core analysis logic
+│       │   ├── __init__.py
+│       │   ├── deterministic.py  # Non-AI analysis
+│       │   ├── patterns.py       # Pattern detection
+│       │   └── validation.py     # Verification chains
+│       ├── orchestration/  # Control plane
+│       │   ├── __init__.py
+│       │   ├── manager.py  # Agent orchestration
+│       │   ├── context.py  # Context management
+│       │   └── tools.py    # Tool registry
+│       ├── kernels/        # Jupyter integration
+│       │   ├── __init__.py
+│       │   ├── manager.py  # Kernel lifecycle
+│       │   └── templates.py # Notebook templates
+│       └── utils/          # Shared utilities
+│
+├── tests/                  # Comprehensive test suite
+│   ├── conftest.py        # Pytest configuration
+│   ├── unit/              # Unit tests
+│   ├── integration/       # Integration tests
+│   └── fixtures/          # Test Excel files
+│
+├── notebooks/             # Development notebooks
+│   ├── experiments/       # Experimental analysis
+│   └── examples/          # Usage examples
+│
+├── docs/                  # All documentation
+│   ├── design/           # This document and others
+│   ├── api/              # API documentation
+│   └── guides/           # User guides
+│
+└── runtime/              # Runtime artifacts (gitignored)
+    ├── agent_notebooks/  # Agent execution notebooks
+    ├── cache/           # Analysis cache
+    └── logs/            # Execution logs
+```
+
+### 5.7 Local Development Workflow
+
+The development workflow emphasizes rapid iteration and comprehensive testing:
+
+```bash
+# Initial setup (one time)
+curl -LsSf https://astral.sh/uv/install.sh | sh  # Install uv
+uv venv                                           # Create virtual environment
+source .venv/bin/activate                         # Activate it
+uv sync                                          # Install all dependencies
+
+# Development cycle
+uv run python -m spreadsheet_analyzer analyze path/to/excel.xlsx  # Run analysis
+uv run pytest tests/unit -v                                       # Run tests
+uv run ruff check src/ --fix                                      # Lint and fix
+
+# Advanced debugging
+SPREADSHEET_ANALYZER_DEBUG=1 uv run python -m spreadsheet_analyzer analyze \
+  --keep-notebooks \
+  --verbose \
+  path/to/excel.xlsx
+
+# Jupyter notebook inspection
+jupyter lab runtime/agent_notebooks/  # Inspect agent execution
+```
+
+### 5.8 Configuration Management
+
+Configuration follows the 12-factor app principles with environment-based overrides:
+
+```python
+# src/spreadsheet_analyzer/config.py
+from pydantic_settings import BaseSettings
+from typing import Optional, Dict
+from pathlib import Path
+
+class Settings(BaseSettings):
+    """Application settings with environment variable support."""
+
+    # Execution settings
+    max_agents: int = 10
+    agent_timeout: int = 300  # seconds
+    max_kernel_memory: str = "512M"
+
+    # File handling
+    max_file_size: int = 100 * 1024 * 1024  # 100MB
+    allowed_extensions: set = {".xlsx", ".xls", ".xlsm"}
+    temp_dir: Path = Path("runtime/temp")
+
+    # LLM settings
+    openai_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    default_llm_provider: str = "openai"
+    llm_temperature: float = 0.1
+    max_tokens: int = 4096
+
+    # Caching
+    enable_cache: bool = True
+    cache_ttl: int = 3600  # 1 hour
+    cache_dir: Path = Path("runtime/cache")
+
+    # Development settings
+    debug: bool = False
+    keep_notebooks: bool = False
+    log_level: str = "INFO"
+    profile_performance: bool = False
+
+    class Config:
+        env_file = ".env"
+        env_prefix = "SPREADSHEET_ANALYZER_"
+        case_sensitive = False
+
+# Usage
+settings = Settings()
+```
+
+### 5.9 Performance Optimization for Apple Silicon
+
+The M2 Max chip with 32GB unified memory enables specific optimizations:
+
+```python
+# Platform-specific optimizations
+import platform
+import multiprocessing
+
+def get_optimal_settings():
+    """Get platform-optimized settings."""
+    settings = {}
+
+    if platform.processor() == 'arm' and platform.system() == 'Darwin':
+        # Apple Silicon optimizations
+        settings['use_accelerate'] = True  # Use Apple's Accelerate framework
+        settings['worker_count'] = min(8, multiprocessing.cpu_count() - 2)
+        settings['memory_mapped_files'] = True  # Leverage unified memory
+
+        # Use native arm64 libraries
+        import os
+        os.environ['ARCHFLAGS'] = '-arch arm64'
+
+        # Enable Metal for any GPU operations (future)
+        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+
+    return settings
+```
+
+### 5.10 Transition to Production
+
+The local development environment is designed to transition smoothly to production deployments:
+
+```yaml
+# docker-compose.yml for local production-like testing
+version: '3.8'
+
+services:
+  analyzer:
+    build: .
+    environment:
+      - SPREADSHEET_ANALYZER_CACHE_TYPE=redis
+      - SPREADSHEET_ANALYZER_DB_TYPE=postgres
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./runtime:/app/runtime
+
+  redis:
+    image: redis:alpine
+    command: redis-server --appendonly yes
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: spreadsheet_analyzer
+      POSTGRES_PASSWORD: development
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+This development environment setup provides the foundation for rapid experimentation while maintaining architectural integrity. The monolithic local deployment preserves the boundaries and patterns necessary for future microservices deployment, while the comprehensive tooling ensures developer productivity throughout the implementation phases.
+
+## 6. Implementation Plan
 
 The implementation strategy follows a carefully orchestrated five-phase approach, designed to deliver incremental value while building toward the complete system. Each phase builds upon the previous, allowing for early validation of architectural decisions and continuous refinement based on real-world testing. The 15-week timeline balances ambition with pragmatism, providing sufficient time for quality implementation while maintaining momentum toward production deployment.
 
@@ -969,41 +1436,67 @@ Production deployment represents the culmination of the implementation effort. T
 
 The final deliverable is a production-ready Excel Analyzer system with comprehensive documentation, monitoring, and extensibility features. The system is prepared for real-world deployment and ongoing evolution based on user needs.
 
-## 6. Open Issues
+## 7. Open Issues
 
 While the synthesis of the three design discussions produced remarkable consensus on many aspects of the system architecture, several important questions remain unresolved. These open issues represent areas where additional research, experimentation, or real-world experience will be necessary to determine optimal approaches. Rather than viewing these as weaknesses in the design, we see them as opportunities for continued innovation and refinement as the system evolves.
 
-### 6.1 Unresolved Design Questions
+### 7.1 Unresolved Design Questions
+
+#### 7.1.1 LLM Selection and Routing Strategy
 
 The selection of Large Language Models represents one of the most impactful decisions for system performance and cost, yet the optimal strategy remains unclear. While all three discussions acknowledged the importance of LLM selection, none provided definitive guidance on choosing between Claude, GPT-4, and Gemini for different task types. Each model exhibits unique strengths—Claude excels at complex reasoning and maintains strong context coherence, GPT-4 demonstrates superior general knowledge and code generation, while Gemini offers impressive context windows and multimodal capabilities. The challenge lies not just in selecting a primary model but in developing criteria for routing different types of analytical tasks to the most appropriate model. This decision impacts not only analytical quality but also operational costs and system latency. Comprehensive benchmarking across representative Excel analysis tasks will be necessary to develop evidence-based routing strategies.
 
+#### 7.1.2 Inter-Agent Communication Protocols
+
 Inter-agent communication interrupts present a fascinating architectural challenge that touches on fundamental questions of agent autonomy versus coordination. When an agent discovers information relevant to another agent's analysis, should it interrupt the recipient immediately, queue the information for later delivery, or use some priority-based system? The interrupt model ensures timely information sharing but risks disrupting focused analysis. The queuing model preserves agent focus but might delay critical insights. A priority system offers a middle ground but requires sophisticated classification of information importance. Furthermore, timeout handling adds another layer of complexity—when an agent doesn't respond to a query, the system must decide whether to retry, escalate, or proceed with partial information. These decisions significantly impact both analysis quality and system performance.
+
+#### 7.1.3 Context Window Optimization
 
 Context window management emerges as a critical challenge that grows more complex as analyses deepen. While our hybrid compression strategy provides a solid foundation, determining optimal compression ratios remains an empirical question. Too aggressive compression risks losing critical details, while insufficient compression limits analysis depth. The decision of when to use full versus compressed context depends on factors we don't yet fully understand—task complexity, data patterns, and the specific capabilities of different LLMs. Graceful handling of context overflow represents another challenge. When even compressed context exceeds limits, the system must intelligently partition the analysis, but the optimal partitioning strategy remains unclear.
 
+#### 7.1.4 Error Recovery Boundaries
+
 Error recovery boundaries require careful calibration between persistence and efficiency. When an agent encounters an error, how many retry attempts are appropriate before escalating? The answer likely varies based on error type, task criticality, and resource availability. Similarly, determining when to involve human operators requires balancing automation goals with practical limitations. Some errors might indicate fundamental issues requiring human insight, while others represent transient failures best handled automatically. The handling of partial success—when some aspects of analysis succeed while others fail—demands sophisticated strategies for result aggregation and quality assessment.
 
-### 6.2 Technical Challenges
+### 7.2 Technical Challenges
+
+#### 7.2.1 Performance at Scale
 
 Performance at scale represents perhaps the most significant technical hurdle for production deployment. While our architecture theoretically supports workbooks with thousands of sheets, practical limitations emerge from memory constraints, concurrent execution limits, and coordination overhead. Real-world Excel files can reach gigabytes in size with complex interdependencies that strain even well-designed systems. Memory management strategies must balance the need to maintain analytical context with finite system resources. The optimal number of concurrent agents depends on factors including available CPU cores, memory capacity, and LLM rate limits. Finding the sweet spot that maximizes throughput without overwhelming system resources requires extensive performance testing and optimization.
 
+#### 7.2.2 Semantic Understanding Accuracy
+
 Semantic understanding accuracy touches on fundamental limitations of current AI technology. While LLMs demonstrate impressive capabilities in understanding text and code, interpreting business logic embedded in Excel formulas requires domain-specific knowledge that general models may lack. A formula calculating return on investment might be obvious to a financial analyst but opaque to an AI without appropriate context. Integrating domain-specific knowledge without sacrificing generality represents an ongoing challenge. Handling ambiguous data—where multiple interpretations are plausible—requires sophisticated strategies for uncertainty quantification and user interaction.
+
+#### 7.2.3 Cost Predictability
 
 Cost predictability remains elusive in LLM-based systems where token usage can vary dramatically based on file complexity and analysis depth. Providing accurate cost estimates before analysis requires predictive models that don't yet exist. When analyses exceed budget limits, the system must gracefully degrade functionality while still providing value. Demonstrating return on investment requires not just cost tracking but value quantification—how do we measure the value of insights discovered or errors prevented? These economic considerations will largely determine enterprise adoption.
 
-### 6.3 Operational Considerations
+### 7.3 Operational Considerations
+
+#### 7.3.1 Deployment Complexity
 
 Deployment complexity emerges from the intersection of sophisticated architecture with production requirements. Managing Jupyter kernels in production environments presents unique challenges around resource allocation, process isolation, and failure recovery. Unlike traditional web services, Jupyter kernels maintain state and consume resources even when idle. Dynamic resource allocation for agents must balance responsiveness with efficiency, scaling up for complex analyses while avoiding resource waste. Monitoring and alerting setup must provide visibility into not just system health but analytical progress and quality.
 
+#### 7.3.2 Security Hardening
+
 Security hardening in production environments requires constant vigilance against evolving threats. While our sandboxing approach provides strong isolation, determined attackers continuously develop new escape techniques. Preventing data exfiltration requires monitoring not just network access but also side channels like timing attacks or resource consumption patterns. Audit log tamper-proofing must protect against both external attackers and malicious insiders while maintaining queryability for legitimate investigations.
+
+#### 7.3.3 User Experience Design
 
 User experience considerations extend beyond basic functionality to support how analysts actually work. Progress visualization for long-running analyses must provide meaningful updates without overwhelming users with technical details. The availability of partial results enables users to make decisions even before analysis completes, but determining which results are meaningful in isolation requires careful design. Interactive refinement of analysis—allowing users to guide and adjust analytical approaches based on intermediate results—demands sophisticated state management and user interface design.
 
-### 6.4 Future Research Areas
+### 7.4 Future Research Areas
+
+#### 7.4.1 Advanced Analytical Techniques
 
 Advanced analytical techniques represent natural extensions of the current architecture. Multi-modal analysis of charts and images embedded in Excel files requires integration of computer vision capabilities with our text-based analysis. Time-series pattern detection could identify trends and anomalies in financial models that traditional analysis might miss. Automated insight generation—moving beyond pattern detection to actual narrative generation—could make results more accessible to non-technical users.
 
+#### 7.4.2 Integration Possibilities
+
 Integration possibilities extend the system's value through connection with existing enterprise tools. Business Intelligence tools could leverage our deep Excel understanding to improve data import and transformation. Version control integration would enable tracking changes in Excel files over time with semantic understanding of what changed and why. Collaborative analysis features could allow multiple analysts to work together, sharing insights and building on each other's discoveries.
+
+#### 7.4.3 Machine Learning Enhancements
 
 Machine learning enhancements offer perhaps the most exciting long-term possibilities. Custom model fine-tuning on organization-specific Excel patterns could dramatically improve analysis accuracy and relevance. Learning from user corrections would allow the system to improve continuously, adapting to local conventions and requirements. Domain-specific model adaptation could create specialized variants for financial analysis, scientific data processing, or other vertical applications.
 
