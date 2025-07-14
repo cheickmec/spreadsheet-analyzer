@@ -208,6 +208,8 @@ Uses conventional commits format:
 - `test:` Test additions/modifications
 - `chore:` Maintenance tasks
 
+**IMPORTANT**: Never include the "🤖 Generated with Claude Code" signature or any Claude-related signatures in commit messages.
+
 ## Development Dependencies
 
 All development tools are specified in `pyproject.toml` under `[project.optional-dependencies]` and include:
