@@ -16,6 +16,16 @@ A comprehensive, unified guide (318KB, 3,725 lines) that provides both theoretic
 - 🎯 **Domain-Specific Focus**: Specialized guidance for spreadsheet/Excel analysis
 - 🚀 **Production-Ready Strategies**: Security, optimization, and scaling considerations
 
+**[The Complete Guide to Excel File Anatomy, Security, and Ecosystem](./complete-guide/excel-file-anatomy-security-ecosystem.md)**
+
+An exhaustive technical reference (50+ pages, 17 chapters) covering every aspect of Excel file formats, internal structure, security considerations, and ecosystem relationships. Essential for building robust Excel analyzers:
+
+- 📁 **File Format Mastery**: XLSX, XLS, XLSM deep dive with technical specifications
+- 🔒 **Security Framework**: Comprehensive threat analysis and mitigation strategies
+- 🏗️ **Internal Architecture**: ZIP containers, XML schemas, binary structures
+- ⚡ **Performance Optimization**: Memory management, streaming parsers, edge cases
+- 🌐 **Ecosystem Analysis**: Competitors, alternatives, compatibility challenges
+
 ### 🔬 [Research Documentation](./research/)
 
 Detailed research covering the latest developments in LLM agentic systems with specific focus on Excel file analysis applications. Organized into 5 comprehensive research areas:
