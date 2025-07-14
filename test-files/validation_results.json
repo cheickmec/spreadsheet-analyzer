@@ -1,0 +1,67 @@
+{
+  "validation_date": "2024-07-14",
+  "total_files": 4,
+  "valid_files": 1,
+  "success_rate": 25.0,
+  "files": [
+    {
+      "file_name": "sheetjs_test_file.xlsx",
+      "file_size_kb": 138.1,
+      "valid": false,
+      "error": "File is not a zip file",
+      "sheets": [],
+      "total_sheets": 0,
+      "has_formulas": false,
+      "has_charts": false,
+      "has_named_ranges": false,
+      "has_macros": false
+    },
+    {
+      "file_name": "tesla_valuation_model.xlsx",
+      "file_size_kb": 179.2,
+      "valid": false,
+      "error": "File is not a zip file",
+      "sheets": [],
+      "total_sheets": 0,
+      "has_formulas": false,
+      "has_charts": false,
+      "has_named_ranges": false,
+      "has_macros": false
+    },
+    {
+      "file_name": "timesheet_generator.xlsm",
+      "file_size_kb": 277.7,
+      "valid": false,
+      "error": "File is not a zip file",
+      "sheets": [],
+      "total_sheets": 0,
+      "has_formulas": false,
+      "has_charts": false,
+      "has_named_ranges": false,
+      "has_macros": false
+    },
+    {
+      "file_name": "advanced_excel_formulas.xlsx",
+      "file_size_kb": 251.2,
+      "valid": true,
+      "error": null,
+      "sheets": [
+        "Formulas",
+        "Logical Operators",
+        "Advanced Logical Operators ",
+        "Database Functions",
+        "Stats Functions",
+        "State Abbreviations",
+        "State Income (2001-2004)",
+        "Lookup Functions",
+        "Advanced VLOOKUP",
+        "VLOOKUP RANGE"
+      ],
+      "total_sheets": 22,
+      "has_formulas": true,
+      "has_charts": false,
+      "has_named_ranges": false,
+      "has_macros": true
+    }
+  ]
+}

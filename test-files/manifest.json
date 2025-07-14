@@ -1,0 +1,386 @@
+{
+  "collection_info": {
+    "name": "Spreadsheet Analyzer Test File Collection",
+    "version": "1.0",
+    "created": "2024-07-14",
+    "purpose": "Comprehensive test collection for validating Excel file analysis capabilities",
+    "total_categories": 9,
+    "focus": "Edge cases, complex formulas, and deterministic analysis stress testing"
+  },
+  "categories": {
+    "financial-models": {
+      "description": "Excel files with complex financial calculations, models, and forecasting",
+      "focus_areas": ["NPV calculations", "IRR formulas", "DCF models", "Monte Carlo simulations", "nested IF statements", "array formulas"],
+      "files": {
+        "tesla_valuation_model.xlsx": {
+          "source": "ARK Invest (GitHub)",
+          "url": "https://github.com/ARKInvest/ARK-Invest-Tesla-Valuation-Model",
+          "original_name": "TSLA 2027 Model for Github 4.20.23.2.xlsx",
+          "size_kb": 179,
+          "license": "MIT License",
+          "complexity": "Very High",
+          "key_features": [
+            "Monte Carlo simulation with 5,000+ iterations",
+            "Multiple interconnected worksheets",
+            "Probabilistic range calculations with normal distributions",
+            "40-60 complex input cells with scenario modeling",
+            "Advanced array formulas for autonomous vehicle pricing",
+            "Nested IF statements for conditional valuation scenarios"
+          ],
+          "formula_types": ["NORMSINV", "RAND", "IF nested", "VLOOKUP", "SUMPRODUCT"],
+          "sheet_count": "8+",
+          "testing_focus": "Institutional-grade financial modeling, Monte Carlo analysis"
+        },
+        "nvidia_dcf_model": {
+          "source": "GitHub - Michael-Mattsson",
+          "url": "https://github.com/Michael-Mattsson/Excel_Nvidia-DCF-Analysis",
+          "file_name": "Nvidia_DCF.xlsx",
+          "downloaded": false,
+          "complexity": "High",
+          "key_features": [
+            "Multi-tab DCF analysis with projections",
+            "Sensitivity analysis capabilities",
+            "Complex cash flow calculations",
+            "NPV and terminal value computations",
+            "Industry-specific metrics for semiconductor analysis"
+          ],
+          "testing_focus": "DCF modeling, sensitivity analysis, semiconductor industry metrics"
+        }
+      }
+    },
+    "business-dashboards": {
+      "description": "Interactive business intelligence dashboards with charts, pivot tables, and KPIs",
+      "focus_areas": ["Interactive charts", "Pivot tables", "Conditional formatting", "Slicers", "KPI tracking", "Dynamic dashboards"],
+      "files": {
+        "dynamic_sales_dashboard": {
+          "source": "GitHub - dipanjanmaity",
+          "url": "https://github.com/dipanjanmaity/Dynamic-Sales-Dashboard",
+          "file_name": "Not downloaded yet",
+          "complexity": "High",
+          "data_volume": "20,778 transactions (2015-2017)",
+          "key_features": [
+            "Multiple pivot tables with slicers",
+            "Interactive charts (bar, line, pie)",
+            "Dynamic filtering controls",
+            "Revenue, profit, and quantity analysis"
+          ],
+          "sheet_count": "3+",
+          "chart_count": "15+",
+          "testing_focus": "Pivot table detection, slicer functionality, interactive chart analysis"
+        },
+        "hotel_booking_analysis": {
+          "source": "GitHub - imuhammadaasim",
+          "url": "https://github.com/imuhammadaasim/hotel_bookings_cancelation",
+          "complexity": "High",
+          "key_features": [
+            "Advanced conditional formatting",
+            "Interactive dashboard with slicers",
+            "Multiple chart types (scatter, bar, trend)",
+            "Room status correlation analysis"
+          ],
+          "testing_focus": "Conditional formatting detection, correlation analysis, dashboard layout"
+        }
+      }
+    },
+    "data-analysis": {
+      "description": "Workbooks showcasing advanced data analysis formulas and lookup techniques",
+      "focus_areas": ["VLOOKUP/XLOOKUP", "INDEX/MATCH", "Cross-sheet references", "SUMIFS/COUNTIFS", "Array formulas", "Statistical analysis"],
+      "files": {
+        "advanced_excel_formulas.xlsx": {
+          "source": "GitHub - Salmankadiwal",
+          "url": "https://github.com/Salmankadiwal/Advanced-Excel-Formulas-and-Functions",
+          "original_name": "Advanced Excel.xlsx",
+          "size_kb": 251,
+          "license": "Open Source",
+          "complexity": "High",
+          "key_features": [
+            "VLOOKUP with MATCH function combinations",
+            "INDEX and MATCH functions for dynamic lookups",
+            "OFFSET & COUNTA for dynamic ranges",
+            "Logical operators and conditional functions",
+            "MAX IF function implementations",
+            "Advanced text functions",
+            "Date and time function calculations",
+            "Data cleaning formulas"
+          ],
+          "formula_types": ["VLOOKUP", "INDEX", "MATCH", "OFFSET", "COUNTA", "MAX", "IF", "TEXT functions"],
+          "testing_focus": "Advanced formula parsing, nested function detection, dynamic range analysis"
+        },
+        "excellent_at_excel_collection": {
+          "source": "GitHub - castlenthesky",
+          "url": "https://github.com/castlenthesky/excellent_at_excel",
+          "file_count": 8,
+          "complexity": "Progressive (Beginner to Expert)",
+          "key_features": [
+            "INDEX(MATCH()) combinations",
+            "INDIRECT() for cross-sheet references",
+            "SUMPRODUCT for weighted averages",
+            "OFFSET() functions",
+            "Conditional ranking formulas"
+          ],
+          "testing_focus": "Progressive complexity analysis, cross-sheet dependency mapping"
+        }
+      }
+    },
+    "scientific-engineering": {
+      "description": "Technical spreadsheets with matrix operations and scientific calculations",
+      "focus_areas": ["Matrix operations", "Engineering calculations", "Scientific data analysis", "Mathematical modeling", "Physics calculations"],
+      "files": {
+        "berkeley_lab_gaussian_template": {
+          "source": "Lawrence Berkeley National Laboratory",
+          "url": "commons.lbl.gov",
+          "file_name": "gaussian_template.xls",
+          "license": "DOE/Berkeley Lab",
+          "complexity": "Very High",
+          "key_features": [
+            "ANSYS tabular load generation",
+            "Matrix operations for load distribution",
+            "Finite element analysis preparation",
+            "Complex engineering calculations"
+          ],
+          "testing_focus": "Matrix operation detection, engineering formula analysis"
+        },
+        "noaa_solar_calculator": {
+          "source": "National Oceanic and Atmospheric Administration",
+          "url": "gml.noaa.gov",
+          "file_name": "NOAA_Solar_Calculations_day.xls",
+          "license": "Public Domain",
+          "complexity": "High",
+          "key_features": [
+            "Sophisticated astronomical calculations",
+            "Solar position determination",
+            "Spherical trigonometry for celestial mechanics",
+            "Time series analysis for solar tracking",
+            "Atmospheric refraction corrections"
+          ],
+          "testing_focus": "Scientific calculation detection, trigonometric function analysis"
+        }
+      }
+    },
+    "hr-timesheet": {
+      "description": "HR management and timesheet templates with VBA automation",
+      "focus_areas": ["VBA macros", "Form controls", "Data validation", "User interfaces", "Automated calculations"],
+      "files": {
+        "timesheet_generator.xlsm": {
+          "source": "GitHub - mzaynard",
+          "url": "https://github.com/mzaynard/Time-Sheet-Generator",
+          "original_name": "Time Sheet Generator.xlsm",
+          "size_kb": 277,
+          "license": "Open Source",
+          "file_type": "Macro-enabled (.xlsm)",
+          "complexity": "High",
+          "key_features": [
+            "Macro-enabled Excel worksheet",
+            "Automated timesheet generation from input data",
+            "Project name, client name, date, reviewer names input",
+            "VBA automation for timesheet creation",
+            "Form controls for data input"
+          ],
+          "vba_features": ["UserForms", "Data automation", "Input validation", "Report generation"],
+          "testing_focus": "VBA macro detection, form control analysis, automation workflow mapping"
+        },
+        "employee_performance_analysis": {
+          "source": "GitHub - a7mdNasrr",
+          "url": "https://github.com/a7mdNasrr/Employee-Performance-Analysis-Excel-VBA",
+          "license": "MIT License",
+          "complexity": "Very High",
+          "key_features": [
+            "Comprehensive employee performance analysis system",
+            "Data cleaning and visualization with VBA",
+            "Dashboard creation with automation",
+            "Automated data analysis and report generation",
+            "Email distribution automation"
+          ],
+          "testing_focus": "Complex VBA systems, automated reporting, dashboard generation"
+        }
+      }
+    },
+    "multi-sheet-complex": {
+      "description": "Complex workbooks with multiple sheets, named ranges, and dependencies",
+      "focus_areas": ["Multi-sheet dependencies", "Named ranges", "Structured tables", "Cross-sheet formulas", "Data consolidation"],
+      "files": {
+        "microsoft_financial_sample": {
+          "source": "Microsoft Learn/GitHub",
+          "url": "Microsoft Docs repository",
+          "license": "Microsoft Sample Data",
+          "complexity": "High",
+          "sheet_count": "6+",
+          "key_features": [
+            "Sales data across multiple sheets",
+            "Profit analysis with cross-sheet references",
+            "Market segments and country/region breakdowns",
+            "Power BI integration capabilities",
+            "Structured tables with relationships"
+          ],
+          "testing_focus": "Multi-sheet dependency mapping, named range detection, table relationships"
+        },
+        "londonmarket_dcf_model": {
+          "source": "GitHub - LondonMarket",
+          "url": "https://github.com/LondonMarket/Financial-Model-Excel-Template",
+          "license": "Open Source",
+          "complexity": "Expert Level",
+          "sheet_count": "15+",
+          "key_features": [
+            "15+ specialized worksheets",
+            "Complex cash flow modeling",
+            "Monte Carlo simulation integration",
+            "Scenario modeling across sheets",
+            "Extensive cross-sheet dependencies"
+          ],
+          "testing_focus": "Large-scale multi-sheet analysis, complex dependency networks"
+        }
+      }
+    },
+    "edge-cases": {
+      "description": "Files with challenging scenarios, external links, and circular references",
+      "focus_areas": ["External links", "Circular references", "Broken formulas", "Error conditions", "Corrupted files"],
+      "files": {
+        "sheetjs_test_file.xlsx": {
+          "source": "SheetJS Test Files Repository",
+          "url": "https://github.com/SheetJS/test_files",
+          "original_name": "xlsx_wkst_mht_test.xlsx",
+          "size_kb": 138,
+          "license": "Open Source",
+          "complexity": "Variable",
+          "key_features": [
+            "Industry-standard test file for spreadsheet libraries",
+            "Edge case scenarios for parser testing",
+            "Various Excel feature combinations",
+            "Known challenging parsing scenarios"
+          ],
+          "testing_focus": "Parser robustness, edge case handling, error recovery"
+        },
+        "sample_excel_dataset": {
+          "source": "GitHub - bharathirajatut",
+          "url": "https://github.com/bharathirajatut/sample-excel-dataset",
+          "file_count": "149+",
+          "license": "Educational Use",
+          "complexity": "Variable",
+          "key_features": [
+            "Diverse collection of 149+ Excel files",
+            "Various error types (#DIV/0!, #VALUE!, #REF!)",
+            "Different data structures and layouts",
+            "Formula validation scenarios"
+          ],
+          "testing_focus": "Error detection, diverse file structures, validation testing"
+        }
+      }
+    },
+    "volatile-functions": {
+      "description": "Spreadsheets using volatile and dynamic functions",
+      "focus_areas": ["NOW/TODAY functions", "RAND functions", "INDIRECT references", "OFFSET ranges", "Dynamic calculations"],
+      "files": {
+        "volatile_function_examples": {
+          "source": "Multiple sources (Macquarie University, SheetJS)",
+          "complexity": "Medium to High",
+          "key_features": [
+            "NOW(), TODAY() time-based functions",
+            "RAND(), RANDBETWEEN() random generators",
+            "INDIRECT() dynamic references",
+            "OFFSET() dynamic ranges",
+            "INFO() system information functions"
+          ],
+          "testing_focus": "Volatile function detection, dynamic reference analysis, recalculation dependencies"
+        }
+      }
+    },
+    "formatting-features": {
+      "description": "Files showcasing complex formatting, hidden sheets, and visual elements",
+      "focus_areas": ["Hidden sheets", "Merged cells", "Conditional formatting", "Custom formats", "Protected areas"],
+      "files": {
+        "thesmallman_dashboards": {
+          "source": "TheSmallman.com",
+          "url": "thesmallman.com/dashboards",
+          "file_count": "40+",
+          "license": "Free Download",
+          "complexity": "High",
+          "key_features": [
+            "Professional dashboard templates",
+            "Extensive conditional formatting",
+            "Hidden calculation sheets",
+            "Interactive controls and elements",
+            "Custom color schemes and themes"
+          ],
+          "testing_focus": "Hidden sheet detection, conditional formatting analysis, visual element cataloging"
+        },
+        "chandoo_dashboard_gallery": {
+          "source": "Chandoo.org",
+          "url": "chandoo.org/wp/excel-dashboards/",
+          "file_count": "200+",
+          "license": "Free Educational",
+          "complexity": "High",
+          "key_features": [
+            "200+ dashboard examples",
+            "Advanced conditional formatting scenarios",
+            "Custom number formats",
+            "Complex merged cell structures",
+            "Professional visual design patterns"
+          ],
+          "testing_focus": "Advanced formatting detection, layout analysis, design pattern recognition"
+        }
+      }
+    }
+  },
+  "testing_strategy": {
+    "deterministic_analysis_targets": [
+      "Formula dependency graph construction",
+      "Cell type classification and enumeration",
+      "Named range detection and scope analysis",
+      "External link identification",
+      "Circular reference detection",
+      "Volatile function identification",
+      "Multi-sheet relationship mapping",
+      "Data validation rule extraction",
+      "Conditional formatting rule analysis",
+      "Chart and object enumeration",
+      "VBA macro detection",
+      "Hidden sheet discovery",
+      "Protection and security feature detection"
+    ],
+    "complexity_levels": {
+      "Low": "Basic formulas, simple formatting, single sheets",
+      "Medium": "Multiple sheets, moderate formula complexity, basic charts",
+      "High": "Complex formulas, advanced features, multiple dependencies",
+      "Very High": "Institutional-grade models, extensive automation, complex architectures",
+      "Expert": "Large-scale systems, advanced VBA, comprehensive integration"
+    },
+    "performance_targets": {
+      "small_files": "<500KB, <10 sheets, <10K cells with formulas",
+      "medium_files": "500KB-5MB, 10-50 sheets, 10K-100K cells",
+      "large_files": ">5MB, >50 sheets, >100K cells"
+    }
+  },
+  "download_status": {
+    "completed": [
+      "tesla_valuation_model.xlsx",
+      "advanced_excel_formulas.xlsx",
+      "sheetjs_test_file.xlsx",
+      "timesheet_generator.xlsm"
+    ],
+    "pending": [
+      "nvidia_dcf_model",
+      "dynamic_sales_dashboard",
+      "hotel_booking_analysis",
+      "excellent_at_excel_collection",
+      "berkeley_lab_gaussian_template",
+      "noaa_solar_calculator",
+      "employee_performance_analysis",
+      "microsoft_financial_sample",
+      "londonmarket_dcf_model",
+      "sample_excel_dataset",
+      "volatile_function_examples",
+      "thesmallman_dashboards",
+      "chandoo_dashboard_gallery"
+    ]
+  },
+  "validation_checklist": [
+    "File opens without corruption",
+    "All sheets accessible",
+    "Formulas parse correctly",
+    "Charts and objects visible",
+    "Named ranges functional",
+    "VBA macros present (if applicable)",
+    "No security warnings",
+    "File size within expected range"
+  ]
+}
