@@ -194,6 +194,8 @@ graph TB
 
 The analytical pipeline represents a carefully orchestrated progression from fast, deterministic analysis to intelligent, AI-powered insights. Each stage builds upon the previous, with intelligent routing decisions ensuring that expensive resources are used only when necessary.
 
+**For comprehensive technical details of the deterministic analysis pipeline, see [Deterministic Analysis Pipeline: Deep Dive](./deterministic-analysis-pipeline.md)**, which provides complete implementation details, code examples, and integration specifications synthesized from multiple AI system design conversations.
+
 ```mermaid
 flowchart TD
     START([Excel File Upload]) --> STAGE1{Stage 1:<br/>File Ingestion}
@@ -256,7 +258,9 @@ flowchart TD
 
 **Stage 1: File Ingestion** begins immediately upon file upload, performing critical security and validation checks before any processing begins. The security scan examines the file for potentially dangerous content such as VBA macros or external data connections, quarantining suspicious files for manual review. Format detection ensures the file is a valid Excel format that the system can process, while initial metadata extraction captures basic information such as file size, creation date, and high-level structure.
 
-**Stage 2: Deterministic Analysis** leverages traditional parsing techniques to extract maximum value without consuming LLM tokens. Structure enumeration creates a complete inventory of sheets, named ranges, and other Excel objects. Formula parsing not only extracts formula text but builds a comprehensive dependency graph showing how calculations flow through the workbook. Basic statistics provide quick insights into data density, formula complexity, and potential processing requirements. Critically, this stage generates cost estimates for subsequent LLM analysis, enabling informed decisions about resource allocation.
+**Stage 2: Deterministic Analysis** leverages traditional parsing techniques to extract maximum value without consuming LLM tokens. This stage implements a sophisticated five-phase pipeline (Integrity Probe → Security Scan → Structural Mapping → Formula Intelligence → Content Intelligence) that synthesizes insights from OpenAI, Gemini, and Grok design conversations. Structure enumeration creates a complete inventory of sheets, named ranges, and other Excel objects. Formula parsing not only extracts formula text but builds a comprehensive dependency graph showing how calculations flow through the workbook. Basic statistics provide quick insights into data density, formula complexity, and potential processing requirements. Critically, this stage generates cost estimates for subsequent LLM analysis, enabling informed decisions about resource allocation.
+
+**→ See [Deterministic Analysis Pipeline: Deep Dive](./deterministic-analysis-pipeline.md) for complete implementation details, code examples, and agent integration specifications.**
 
 **Stage 3: Agent Assignment** represents the transition from deterministic to intelligent analysis. Based on the complexity assessment, the orchestrator assigns specialized agents to different aspects of the workbook. The default strategy assigns one agent per sheet, enabling parallel analysis of independent sheets. However, for sheets with unusual complexity or specialized features (such as pivot tables or complex charts), the system may assign specialized agents with relevant expertise. The orchestrator maintains overall coordination, ensuring agents work efficiently without duplicating effort.
 
@@ -271,6 +275,8 @@ flowchart TD
 The Deterministic Explorers represent the foundation of our analytical pipeline, embodying the principle that not every problem requires AI-powered solutions. These components leverage decades of established Excel parsing techniques to extract structural information at machine speed, providing a comprehensive understanding of the workbook's anatomy before any LLM tokens are consumed.
 
 The design philosophy behind Deterministic Explorers emerged from a key insight shared across all three design discussions: the vast majority of Excel structural analysis can be performed through traditional parsing methods. By front-loading this deterministic analysis, we accomplish several critical objectives. First, we minimize costs by avoiding LLM usage for tasks that don't require intelligence. Second, we provide immediate value to users through rapid structural analysis. Third, we gather essential context that makes subsequent AI analysis more effective and efficient.
+
+**📋 Complete Implementation Guide**: The full technical specifications, including the five-stage pipeline (Integrity Probe → Security Scan → Structural Mapping → Formula Intelligence → Content Intelligence), comprehensive code examples, performance benchmarks, and agent integration patterns are documented in **[Deterministic Analysis Pipeline: Deep Dive](./deterministic-analysis-pipeline.md)**. This document synthesizes insights from OpenAI, Gemini, and Grok design conversations into a production-ready implementation.
 
 #### Core Implementation Stack
 
