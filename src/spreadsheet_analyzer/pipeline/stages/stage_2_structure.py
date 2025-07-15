@@ -29,6 +29,10 @@ SMALL_SHEET_COUNT: Final[int] = 3
 MEDIUM_SHEET_COUNT: Final[int] = 10
 LARGE_SHEET_COUNT: Final[int] = 50
 
+# Feature detection sampling limits
+FEATURE_SAMPLE_ROWS: Final[int] = 100
+FEATURE_SAMPLE_COLS: Final[int] = 100
+
 SMALL_CELL_COUNT: Final[int] = 1000
 MEDIUM_CELL_COUNT: Final[int] = 10000
 LARGE_CELL_COUNT: Final[int] = 100000
@@ -123,22 +127,25 @@ def analyze_sheet_features(worksheet: Worksheet) -> dict[str, bool]:
         "has_formulas": False,
         "has_charts": False,
         "has_pivot_tables": False,
-        "has_tables": False,
-        "has_images": False,
-        "has_comments": False,
-        "has_conditional_formatting": False,
-        "has_data_validation": False,
-        "has_merged_cells": False,
     }
 
     # Check for data and formulas by sampling cells
-    for row in worksheet.iter_rows(max_row=100, max_col=100):
+    # Use the used range to avoid iterating over empty cells
+    max_row = min(worksheet.max_row or 1, FEATURE_SAMPLE_ROWS)
+    max_col = min(worksheet.max_column or 1, FEATURE_SAMPLE_COLS)
+
+    for row in worksheet.iter_rows(max_row=max_row, max_col=max_col):
         for cell in row:
             if cell.value is not None:
                 features["has_data"] = True
                 # Check if it's a formula cell
                 if hasattr(cell, "data_type") and cell.data_type == "f":
                     features["has_formulas"] = True
+                # Early exit if we found both
+                if features["has_data"] and features["has_formulas"]:
+                    break
+        if features["has_data"] and features["has_formulas"]:
+            break
 
     # Check for charts
     if hasattr(worksheet, "_charts") and worksheet._charts:  # noqa: SLF001
@@ -148,26 +155,6 @@ def analyze_sheet_features(worksheet: Worksheet) -> dict[str, bool]:
     if hasattr(worksheet, "_pivots") and worksheet._pivots:  # noqa: SLF001
         features["has_pivot_tables"] = True
 
-    # Check for tables
-    if hasattr(worksheet, "tables") and worksheet.tables:
-        features["has_tables"] = True
-
-    # Check for images
-    if hasattr(worksheet, "_images") and worksheet._images:  # noqa: SLF001
-        features["has_images"] = True
-
-    # Check for conditional formatting
-    if hasattr(worksheet, "conditional_formatting") and worksheet.conditional_formatting:
-        features["has_conditional_formatting"] = True
-
-    # Check for data validation
-    if hasattr(worksheet, "data_validations") and worksheet.data_validations:
-        features["has_data_validation"] = True
-
-    # Check for merged cells
-    if hasattr(worksheet, "merged_cells") and worksheet.merged_cells:
-        features["has_merged_cells"] = True
-
     return features
 
 
@@ -175,8 +162,8 @@ def count_cells_and_formulas(worksheet: Worksheet) -> tuple[int, int]:
     """
     Count non-empty cells and formulas in worksheet.
 
-    CLAUDE-PERFORMANCE: We use generator expressions to avoid
-    loading all cells into memory at once.
+    CLAUDE-PERFORMANCE: We limit iteration to the used range to avoid
+    processing empty cells beyond the data area.
 
     CLAUDE-GOTCHA: In openpyxl, when data_only=False, formulas are stored
     in cell.value and identified by cell.data_type == 'f'
@@ -184,8 +171,18 @@ def count_cells_and_formulas(worksheet: Worksheet) -> tuple[int, int]:
     cell_count = 0
     formula_count = 0
 
+    # Get the actual used range to avoid iterating over empty cells
+    min_row = worksheet.min_row
+    max_row = worksheet.max_row
+    min_col = worksheet.min_column
+    max_col = worksheet.max_column
+
+    # Skip if sheet is empty
+    if not all([min_row, max_row, min_col, max_col]):
+        return 0, 0
+
     # Iterate only through used area
-    for row in worksheet.iter_rows():
+    for row in worksheet.iter_rows(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col):
         for cell in row:
             if cell.value is not None:
                 cell_count += 1

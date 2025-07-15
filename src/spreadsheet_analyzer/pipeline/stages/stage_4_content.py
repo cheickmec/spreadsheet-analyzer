@@ -446,15 +446,20 @@ def analyze_column(values: list[Any]) -> dict[str, Any]:
 # ==================== Main Content Analysis Function ====================
 
 
-def analyze_sheet_content(sheet, sheet_name: str) -> tuple[dict[str, Any], list[DataPattern]]:
+def analyze_sheet_content(sheet, sheet_name: str, sample_size: int = 1000) -> tuple[dict[str, Any], list[DataPattern]]:
     """
     Analyze content of a single sheet.
+
+    Args:
+        sheet: The worksheet to analyze
+        sheet_name: Name of the sheet
+        sample_size: Maximum rows to sample per sheet
     """
     column_analyses = {}
     patterns = []
 
     # Analyze each column
-    for column in sheet.iter_cols(max_row=1000):  # Sample first 1000 rows
+    for column in sheet.iter_cols(max_row=sample_size):  # Sample first sample_size rows
         if not column or not column[0].value:
             continue
 
@@ -487,7 +492,7 @@ def analyze_sheet_content(sheet, sheet_name: str) -> tuple[dict[str, Any], list[
 # ==================== Main Stage Function ====================
 
 
-def stage_4_content_intelligence(file_path: Path, sample_size: int = 1000) -> Result:  # noqa: ARG001
+def stage_4_content_intelligence(file_path: Path, sample_size: int = 1000) -> Result:
     """
     Perform intelligent content analysis.
 
@@ -526,7 +531,7 @@ def stage_4_content_intelligence(file_path: Path, sample_size: int = 1000) -> Re
                 key_metrics["total_sheets_analyzed"] += 1
 
                 # Analyze content
-                column_analyses, patterns = analyze_sheet_content(sheet, sheet_name)
+                column_analyses, patterns = analyze_sheet_content(sheet, sheet_name, sample_size)
                 all_patterns.extend(patterns)
 
                 # Calculate sheet quality
