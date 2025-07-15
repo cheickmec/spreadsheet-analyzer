@@ -3,6 +3,12 @@ name: Performance Testing
 on:
   push:
     branches: [main]
+    paths:
+      # Only run if performance-relevant code changed
+      - 'src/**/*.py'
+      - 'scripts/analyze_excel.py'
+      - 'scripts/batch_analyze.py'
+      - 'pyproject.toml'
   pull_request:
     branches: [main]
     types: [labeled]
