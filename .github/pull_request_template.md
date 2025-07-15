@@ -1,4 +1,4 @@
-## 📋 Description
+## ğŸ“‹ Description
 
 **What changed?**
 
@@ -12,20 +12,20 @@
 
 <!-- Provide a high-level overview of your approach -->
 
-## 📄 Type of Change
+## ğŸ“„ Type of Change
 
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] ✨ New feature (non-breaking change which adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📚 Documentation update
-- [ ] ♻️ Refactoring (no functional changes)
-- [ ] ⚡ Performance improvement
-- [ ] ✅ Tests (adding missing tests or correcting existing tests)
-- [ ] 🔧 Build/CI configuration
-- [ ] 🎨 Style (formatting, missing semi-colons, etc; no code change)
-- [ ] 🔒 Security fix
+- [ ] ğŸ�› Bug fix (non-breaking change which fixes an issue)
+- [ ] âœ¨ New feature (non-breaking change which adds functionality)
+- [ ] ğŸ’¥ Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] ğŸ“š Documentation update
+- [ ] â™»ï¸� Refactoring (no functional changes)
+- [ ] âš¡ Performance improvement
+- [ ] âœ… Tests (adding missing tests or correcting existing tests)
+- [ ] ğŸ”§ Build/CI configuration
+- [ ] ğŸ�¨ Style (formatting, missing semi-colons, etc; no code change)
+- [ ] ğŸ”’ Security fix
 
-## 🧪 Testing
+## ğŸ§ª Testing
 
 ### Test Coverage
 
@@ -44,7 +44,7 @@
 - [ ] Tested with complex Excel features (formulas, charts, etc.)
 - [ ] Tested error scenarios
 
-## 📊 Performance Impact
+## ğŸ“Š Performance Impact
 
 <!-- How does this change affect performance? -->
 
@@ -62,7 +62,7 @@
 | Memory usage              |        |       |        |
 | Token usage (AI)          |        |       |        |
 
-## 🔒 Security Considerations
+## ğŸ”’ Security Considerations
 
 - [ ] Input validation added/updated
 - [ ] No sensitive data logged
@@ -70,7 +70,7 @@
 - [ ] Dependencies scanned for vulnerabilities
 - [ ] Security tests added/updated
 
-## 📚 Documentation
+## ğŸ“š Documentation
 
 - [ ] Code includes appropriate comments
 - [ ] Docstrings added/updated for new functions
@@ -79,7 +79,7 @@
 - [ ] README updated if needed
 - [ ] Architecture diagrams updated if needed
 
-## ✅ Checklist
+## âœ… Checklist
 
 ### Code Quality
 
@@ -111,12 +111,12 @@
 - [ ] Migration guide provided
 - [ ] Version bump planned
 
-## 🔗 Related Issues
+## ğŸ”— Related Issues
 
 Closes #
 Related to #
 
-## 📸 Screenshots/Examples
+## ğŸ“¸ Screenshots/Examples
 
 <!-- If applicable, add screenshots or example outputs -->
 
@@ -129,7 +129,7 @@ Related to #
 
 </details>
 
-## 🚀 Deployment Notes
+## ğŸš€ Deployment Notes
 
 <!-- Any special deployment considerations -->
 
@@ -138,7 +138,7 @@ Related to #
 - [ ] Configuration changes needed: \_\_\_\_\_\_\_
 - [ ] Database migrations needed: \_\_\_\_\_\_\_
 
-## 👀 Reviewer Guidelines
+## ğŸ‘€ Reviewer Guidelines
 
 ### Focus Areas
 
