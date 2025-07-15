@@ -37,5 +37,5 @@ USER app
 # Expose port (if needed for web interface)
 EXPOSE 8000
 
-# Default command
-CMD ["uv", "run", "src/spreadsheet_analyzer/main.py"]
+# Default command - just show help for testing
+CMD ["python", "-c", "print('Spreadsheet Analyzer - Docker image ready'); print('Usage: docker run <image> analyze <file.xlsx>')"]
