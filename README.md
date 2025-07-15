@@ -8,7 +8,7 @@
 [![Type Checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue)](https://mypy-lang.org/)
 [![Security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 
-## ğŸ�¯ Overview
+## 🎯 Overview
 
 Spreadsheet Analyzer is an intelligent system that automatically analyzes Excel files to reveal hidden structures, relationships, and potential issues. By combining deterministic parsing with AI-powered insights, it transforms complex spreadsheets from opaque data containers into transparent, well-documented systems.
 
@@ -16,12 +16,12 @@ Spreadsheet Analyzer is an intelligent system that automatically analyzes Excel 
 
 - ğŸ”� **Deep Structural Analysis**: Maps every element from cells to pivot tables
 - ğŸ§  **AI-Powered Intelligence**: Multi-agent system for semantic understanding
-- âœ… **Validation-First**: Verifies all findings through actual calculations
-- ğŸš€ **High Performance**: Analyzes files in seconds, not minutes
+- ✅ **Validation-First**: Verifies all findings through actual calculations
+- 🚀 **High Performance**: Analyzes files in seconds, not minutes
 - ğŸ”’ **Enterprise Security**: Sandboxed execution with comprehensive audit trails
-- ğŸ“Š **Comprehensive Reporting**: Detailed insights in multiple formats
+- 📊 **Comprehensive Reporting**: Detailed insights in multiple formats
 
-## ğŸš€ Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
@@ -63,7 +63,7 @@ uv run python scripts/batch_analyze.py /path/to/excel/files --recursive
 uv run python scripts/run_test_suite.py
 ```
 
-## ğŸ“‹ What It Does
+## 📋 What It Does
 
 ### 1. **Structural Analysis** (Deterministic)
 
@@ -89,21 +89,21 @@ uv run python scripts/run_test_suite.py
 - Security vulnerability scanning
 - Performance bottleneck identification
 
-## ğŸ�—ï¸� Architecture
+## 🏗️ Architecture
 
 The system implements a 5-stage deterministic analysis pipeline with hybrid FP/OOP design:
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�
-â” Stage 0: File   â”â”€â”€â”€â”€â–¶â” Stage 1:        â”â”€â”€â”€â”€â–¶â” Stage 2:        â”
-â” Integrity (FP)  â”     â” Security (FP)   â”     â” Structure(Hybrid)â”
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-         â”                       â”                        â”
-         â–¼                       â–¼                        â–¼
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�
-â” Stage 3: Formulaâ”     â” Stage 4: Contentâ”     â” Pipeline         â”
-â” Analysis (OOP)  â”â”€â”€â”€â”€â–¶â” Intelligence(FP)â”â”€â”€â”€â”€â–¶â” Orchestrator    â”
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Stage 0: File   │────▶│ Stage 1:        │────▶│ Stage 2:        │
+│ Integrity (FP)  │     │ Security (FP)   │     │ Structure(Hybrid)│
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                       │                        │
+         ▼                       ▼                        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Stage 3: Formula│     │ Stage 4: Content│     │ Pipeline         │
+│ Analysis (OOP)  │────▶│ Intelligence(FP)│────▶│ Orchestrator    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
 **Key Components:**
@@ -114,7 +114,7 @@ The system implements a 5-stage deterministic analysis pipeline with hybrid FP/O
 - **Stage 4**: Functional programming for content intelligence
 - **Pipeline**: Progress tracking with observer pattern
 
-## ğŸ”§ Development
+## 🔧 Development
 
 ### Setup Development Environment
 
@@ -152,14 +152,14 @@ spreadsheet-analyzer/
     â””â”€â”€ research/                 # AI/LLM research
 ```
 
-## ğŸ“š Documentation
+## 📚 Documentation
 
 - **[Pipeline Design](docs/design/deterministic-analysis-pipeline.md)**: 5-stage pipeline architecture
 - **[System Design](docs/design/comprehensive-system-design.md)**: Complete technical specification
 - **[Script Usage](scripts/README.md)**: Guide to analysis utilities
 - **[Contributing](CONTRIBUTING.md)**: Development practices and testing philosophy
 
-## âš¡ Performance
+## ⚡ Performance
 
 Designed for enterprise-scale analysis:
 
@@ -170,7 +170,7 @@ Designed for enterprise-scale analysis:
 | Deep AI Analysis (< 50 sheets) | < 30 seconds       |
 | Memory Usage                   | < 512MB per agent  |
 
-## ğŸ”’ Security
+## 🔒 Security
 
 - **Sandboxed Execution**: All analysis runs in isolated Jupyter kernels
 - **No Macro Execution**: VBA/macros analyzed statically only
@@ -178,7 +178,7 @@ Designed for enterprise-scale analysis:
 - **Audit Logging**: Complete trail of all operations
 - **Data Privacy**: No data persistence without explicit consent
 
-## ğŸ¤� Contributing
+## 🤝 Contributing
 
 This is proprietary software owned by Yiriden LLC. External contributions require:
 
@@ -186,7 +186,7 @@ This is proprietary software owned by Yiriden LLC. External contributions requir
 1. Adherence to coding standards in CLAUDE.md
 1. Passing all tests and security checks
 
-## ğŸ“„ License
+## 📄 License
 
 Proprietary Software - Yiriden LLC. All rights reserved.
 

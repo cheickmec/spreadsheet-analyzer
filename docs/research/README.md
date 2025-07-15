@@ -2,7 +2,7 @@
 
 This comprehensive research repository documents the latest developments in LLM agentic systems with a specific focus on Excel file analysis applications. The research covers fundamental concepts, engineering techniques, workflow orchestration, implementation strategies, and broader considerations for building intelligent spreadsheet analysis systems.
 
-## üìö Research Overview
+## 📚 Research Overview
 
 This documentation represents an in-depth investigation into state-of-the-art techniques and frameworks for building LLM-powered agents capable of understanding, analyzing, and manipulating Excel files. Each section includes:
 
@@ -15,7 +15,7 @@ This documentation represents an in-depth investigation into state-of-the-art te
 - Comparison matrices
 - Future trends and developments
 
-## üìñ Complete Implementation Guide
+## 📖 Complete Implementation Guide
 
 For a comprehensive, unified guide that synthesizes all this research into practical implementation strategies, see:
 
@@ -23,13 +23,13 @@ For a comprehensive, unified guide that synthesizes all this research into pract
 
 This complete guide provides:
 
-- üèóÔ∏è **Architectural foundations** with visual diagrams
-- üîß **Practical implementation** strategies
-- üöÄ **Production deployment** considerations
-- üìä **Real-world examples** and case studies
-- üéØ **Domain-specific guidance** for spreadsheet analysis
+- 🏗️ **Architectural foundations** with visual diagrams
+- 🚀 **Practical implementation** strategies
+- ✅ **Production deployment** considerations
+- 📊 **Real-world examples** and case studies
+- ⚡ **Domain-specific guidance** for spreadsheet analysis
 
-## üóÇÔ∏è Documentation Structure
+## 📂 Documentation Structure
 
 ### 1. [LLM Agentic Fundamentals](./1-llm-agentic-fundamentals/)
 
@@ -170,14 +170,14 @@ Important aspects for deploying agents in real-world scenarios.
   - User satisfaction metrics
   - Business impact assessment
 
-## üöÄ Quick Start Guide
+## ✅ Quick Start Guide
 
 1. **For Developers**: Start with [LLM Agent Architectures](./1-llm-agentic-fundamentals/llm-agent-architectures.md) to understand core concepts
 1. **For Architects**: Review [Orchestration Frameworks](./3-workflow-orchestration/orchestration-frameworks.md) for system design patterns
 1. **For Product Managers**: See [Use Cases](./5-broader-considerations/use-cases-domain-specific.md) for practical applications
 1. **For Security Teams**: Check [Ethical & Security Practices](./5-broader-considerations/ethical-security-practices.md)
 
-## üìä Excel Analyzer Implementation Roadmap
+## 📊 Excel Analyzer Implementation Roadmap
 
 Based on this research, the recommended implementation approach for an Excel File Analyzer:
 
@@ -215,7 +215,7 @@ This documentation is based on:
 - Industry case studies and best practices
 - Hands-on implementation experiments
 
-## üìù Contributing
+## 💬 Contributing
 
 To contribute to this research:
 
@@ -224,7 +224,7 @@ To contribute to this research:
 1. Provide working code examples
 1. Update cross-references as needed
 
-## üìñ References
+## 📖 References
 
 Key sources that informed this research:
 
