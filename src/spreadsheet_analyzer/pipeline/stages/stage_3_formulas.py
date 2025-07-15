@@ -296,7 +296,7 @@ class FormulaAnalyzer:
 
         CLAUDE-PERFORMANCE: We analyze sheets sequentially to avoid
         memory issues with large workbooks.
-        
+
         Returns complete formula analysis.
         """
         # CLAUDE-KNOWLEDGE: First pass collects all formulas before analyzing

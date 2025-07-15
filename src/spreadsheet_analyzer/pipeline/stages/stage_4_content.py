@@ -77,7 +77,7 @@ def detect_numeric_patterns(values: list[Any]) -> DataPattern | None:
 
     CLAUDE-KNOWLEDGE: We look for consistent formatting and ranges
     to identify pattern types.
-    CLAUDE-GOTCHA: Excel formatting can hide actual values - 
+    CLAUDE-GOTCHA: Excel formatting can hide actual values -
     $1.23 might be stored as 1.23 with currency formatting.
     """
     numeric_values = []
