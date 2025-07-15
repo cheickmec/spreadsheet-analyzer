@@ -219,7 +219,8 @@ jobs:
           uv run pytest tests/integration/ \
             --timeout=600 \
             -v \
-            --tb=short
+            --tb=short \
+            --no-cov
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_TEST }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_TEST }}
