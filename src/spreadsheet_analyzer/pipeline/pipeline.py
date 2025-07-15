@@ -11,12 +11,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .stages.stage_0_integrity import stage_0_integrity_probe
-from .stages.stage_1_security import stage_1_security_scan
-from .stages.stage_2_structure import stage_2_structural_mapping
-from .stages.stage_3_formulas import stage_3_formula_analysis
-from .stages.stage_4_content import stage_4_content_intelligence
-from .types import Err, PipelineContext, PipelineResult, ProgressUpdate, Result
+from spreadsheet_analyzer.pipeline.stages.stage_0_integrity import stage_0_integrity_probe
+from spreadsheet_analyzer.pipeline.stages.stage_1_security import stage_1_security_scan
+from spreadsheet_analyzer.pipeline.stages.stage_2_structure import stage_2_structural_mapping
+from spreadsheet_analyzer.pipeline.stages.stage_3_formulas import stage_3_formula_analysis
+from spreadsheet_analyzer.pipeline.stages.stage_4_content import stage_4_content_intelligence
+from spreadsheet_analyzer.pipeline.types import Err, PipelineContext, PipelineResult, ProgressUpdate, Result
 
 logger = logging.getLogger(__name__)
 
@@ -102,112 +102,18 @@ class DeterministicPipeline:
             PipelineResult with all stage results
         """
         start_time = datetime.now(UTC)
-
-        # Initialize context
         context = PipelineContext(file_path=file_path, start_time=start_time, options=self.options)
-
-        # Track results and errors
-        stage_results = {}
-        errors = []
+        stage_results: dict[str, Any] = {}
+        errors: list[str] = []
 
         try:
-            # Stage 0: Integrity Probe
-            self.progress_tracker.update("stage_0", 0.0, "Starting integrity probe")
-            integrity_result = self._run_stage_0(file_path)
-
-            if isinstance(integrity_result, Err):
-                errors.append(f"Stage 0: {integrity_result.error}")
-                if not self.skip_on_error:
-                    return self._create_failed_result(context, errors, start_time)
-            else:
-                stage_results["integrity"] = integrity_result.value
-                context = context.with_stage_result("integrity", integrity_result.value)
-
-                # CLAUDE-SECURITY: Block files that fail integrity checks
-                # Never proceed with analysis if file integrity is compromised
-                if integrity_result.value.processing_class == "BLOCKED":
-                    errors.append("File blocked due to integrity check")
-                    return self._create_failed_result(context, errors, start_time)
-
-            self.progress_tracker.update("stage_0", 1.0, "Integrity probe complete")
-
-            # Stage 1: Security Scan
-            self.progress_tracker.update("stage_1", 0.0, "Starting security scan")
-            security_result = self._run_stage_1(file_path)
-
-            if isinstance(security_result, Err):
-                errors.append(f"Stage 1: {security_result.error}")
-                if not self.skip_on_error:
-                    return self._create_failed_result(context, errors, start_time)
-            else:
-                stage_results["security"] = security_result.value
-                context = context.with_stage_result("security", security_result.value)
-
-                # CLAUDE-SECURITY: Block files with security risks
-                # Safety is paramount - never analyze unsafe files
-                if not security_result.value.is_safe:
-                    errors.append("File blocked due to security risks")
-                    return self._create_failed_result(context, errors, start_time)
-
-            self.progress_tracker.update("stage_1", 1.0, "Security scan complete")
-
-            # Stage 2: Structural Mapping
-            self.progress_tracker.update("stage_2", 0.0, "Starting structural mapping")
-
-            # Pass security info to structural mapping
-            has_vba = stage_results.get("security", {}).has_macros if "security" in stage_results else False
-            has_external = (
-                stage_results.get("security", {}).has_external_links if "security" in stage_results else False
-            )
-
-            structure_result = self._run_stage_2(file_path, has_vba, has_external)
-
-            if isinstance(structure_result, Err):
-                errors.append(f"Stage 2: {structure_result.error}")
-                if not self.skip_on_error:
-                    return self._create_failed_result(context, errors, start_time)
-            else:
-                stage_results["structure"] = structure_result.value
-                context = context.with_stage_result("structure", structure_result.value)
-
-            self.progress_tracker.update("stage_2", 1.0, "Structural mapping complete")
-
-            # Stage 3: Formula Analysis (can be slow for complex sheets)
-            self.progress_tracker.update("stage_3", 0.0, "Starting formula analysis")
-
-            # Check if we should run formula analysis
-            if "structure" in stage_results and stage_results["structure"].total_formulas > 0:
-                formula_result = self._run_stage_3(file_path)
-
-                if isinstance(formula_result, Err):
-                    errors.append(f"Stage 3: {formula_result.error}")
-                    if not self.skip_on_error:
-                        return self._create_failed_result(context, errors, start_time)
-                else:
-                    stage_results["formulas"] = formula_result.value
-                    context = context.with_stage_result("formulas", formula_result.value)
-            else:
-                self.progress_tracker.update("stage_3", 1.0, "No formulas to analyze")
-
-            self.progress_tracker.update("stage_3", 1.0, "Formula analysis complete")
-
-            # Stage 4: Content Intelligence
-            self.progress_tracker.update("stage_4", 0.0, "Starting content analysis")
-            content_result = self._run_stage_4(file_path)
-
-            if isinstance(content_result, Err):
-                errors.append(f"Stage 4: {content_result.error}")
-                if not self.skip_on_error:
-                    return self._create_failed_result(context, errors, start_time)
-            else:
-                stage_results["content"] = content_result.value
-                context = context.with_stage_result("content", content_result.value)
-
-            self.progress_tracker.update("stage_4", 1.0, "Content analysis complete")
+            # Run all stages in sequence
+            success = self._run_all_stages(file_path, context, stage_results, errors)
+            if not success:
+                return self._create_failed_result(context, errors, start_time)
 
             # Create successful result
             execution_time = (datetime.now(UTC) - start_time).total_seconds()
-
             return PipelineResult(
                 context=context,
                 integrity=stage_results.get("integrity"),
@@ -224,6 +130,149 @@ class DeterministicPipeline:
             logger.exception("Pipeline failed with exception")
             errors.append(f"Pipeline exception: {e!s}")
             return self._create_failed_result(context, errors, start_time)
+
+    def _run_all_stages(
+        self,
+        file_path: Path,
+        context: PipelineContext,
+        stage_results: dict[str, Any],
+        errors: list[str],
+    ) -> bool:
+        """Run all pipeline stages in sequence. Returns True if all stages pass."""
+        stage_runners = [
+            self._run_integrity_stage,
+            self._run_security_stage,
+            self._run_structure_stage,
+            self._run_formula_stage,
+            self._run_content_stage,
+        ]
+
+        return all(stage_runner(file_path, context, stage_results, errors) for stage_runner in stage_runners)
+
+    def _run_integrity_stage(
+        self,
+        file_path: Path,
+        context: PipelineContext,
+        stage_results: dict[str, Any],
+        errors: list[str],
+    ) -> bool:
+        """Run Stage 0: Integrity Probe. Returns True if stage passes, False if pipeline should stop."""
+        self.progress_tracker.update("stage_0", 0.0, "Starting integrity probe")
+        integrity_result = self._run_stage_0(file_path)
+
+        if isinstance(integrity_result, Err):
+            errors.append(f"Stage 0: {integrity_result.error}")
+            return bool(self.skip_on_error)
+
+        stage_results["integrity"] = integrity_result.value
+        context = context.with_stage_result("integrity", integrity_result.value)
+
+        # CLAUDE-SECURITY: Block files that fail integrity checks
+        if integrity_result.value.processing_class == "BLOCKED":
+            errors.append("File blocked due to integrity check")
+            return False
+
+        self.progress_tracker.update("stage_0", 1.0, "Integrity probe complete")
+        return True
+
+    def _run_security_stage(
+        self,
+        file_path: Path,
+        context: PipelineContext,
+        stage_results: dict[str, Any],
+        errors: list[str],
+    ) -> bool:
+        """Run Stage 1: Security Scan. Returns True if stage passes, False if pipeline should stop."""
+        self.progress_tracker.update("stage_1", 0.0, "Starting security scan")
+        security_result = self._run_stage_1(file_path)
+
+        if isinstance(security_result, Err):
+            errors.append(f"Stage 1: {security_result.error}")
+            return bool(self.skip_on_error)
+
+        stage_results["security"] = security_result.value
+        context = context.with_stage_result("security", security_result.value)
+
+        # CLAUDE-SECURITY: Block files with security risks
+        if not security_result.value.is_safe:
+            errors.append("File blocked due to security risks")
+            return False
+
+        self.progress_tracker.update("stage_1", 1.0, "Security scan complete")
+        return True
+
+    def _run_structure_stage(
+        self,
+        file_path: Path,
+        context: PipelineContext,
+        stage_results: dict[str, Any],
+        errors: list[str],
+    ) -> bool:
+        """Run Stage 2: Structural Mapping. Returns True if stage passes, False if pipeline should stop."""
+        self.progress_tracker.update("stage_2", 0.0, "Starting structural mapping")
+
+        # Pass security info to structural mapping
+        has_vba = stage_results.get("security", {}).has_macros if "security" in stage_results else False
+        has_external = stage_results.get("security", {}).has_external_links if "security" in stage_results else False
+
+        structure_result = self._run_stage_2(file_path, has_vba=has_vba, has_external=has_external)
+
+        if isinstance(structure_result, Err):
+            errors.append(f"Stage 2: {structure_result.error}")
+            return bool(self.skip_on_error)
+
+        stage_results["structure"] = structure_result.value
+        context = context.with_stage_result("structure", structure_result.value)
+
+        self.progress_tracker.update("stage_2", 1.0, "Structural mapping complete")
+        return True
+
+    def _run_formula_stage(
+        self,
+        file_path: Path,
+        context: PipelineContext,
+        stage_results: dict[str, Any],
+        errors: list[str],
+    ) -> bool:
+        """Run Stage 3: Formula Analysis. Returns True if stage passes, False if pipeline should stop."""
+        self.progress_tracker.update("stage_3", 0.0, "Starting formula analysis")
+
+        # Check if we should run formula analysis
+        if "structure" in stage_results and stage_results["structure"].total_formulas > 0:
+            formula_result = self._run_stage_3(file_path)
+
+            if isinstance(formula_result, Err):
+                errors.append(f"Stage 3: {formula_result.error}")
+                return bool(self.skip_on_error)
+
+            stage_results["formulas"] = formula_result.value
+            context = context.with_stage_result("formulas", formula_result.value)
+        else:
+            self.progress_tracker.update("stage_3", 1.0, "No formulas to analyze")
+
+        self.progress_tracker.update("stage_3", 1.0, "Formula analysis complete")
+        return True
+
+    def _run_content_stage(
+        self,
+        file_path: Path,
+        context: PipelineContext,
+        stage_results: dict[str, Any],
+        errors: list[str],
+    ) -> bool:
+        """Run Stage 4: Content Intelligence. Returns True if stage passes, False if pipeline should stop."""
+        self.progress_tracker.update("stage_4", 0.0, "Starting content analysis")
+        content_result = self._run_stage_4(file_path)
+
+        if isinstance(content_result, Err):
+            errors.append(f"Stage 4: {content_result.error}")
+            return bool(self.skip_on_error)
+
+        stage_results["content"] = content_result.value
+        context = context.with_stage_result("content", content_result.value)
+
+        self.progress_tracker.update("stage_4", 1.0, "Content analysis complete")
+        return True
 
     def _run_stage_0(self, file_path: Path) -> Result:
         """Run Stage 0 with error handling."""

@@ -8,7 +8,7 @@ across the various pipeline stages, following functional programming principles.
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 # Type aliases for clarity
 CellRef = str  # Excel cell reference (e.g., 'A1', 'B2')
@@ -19,13 +19,9 @@ ProcessingClass = Literal["STANDARD", "HEAVY", "BLOCKED"]
 
 # ==================== Result Types ====================
 
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
-
 
 @dataclass(frozen=True)
-class Ok(Generic[T]):
+class Ok[T]:
     """Successful result wrapper."""
 
     value: T
@@ -40,7 +36,7 @@ class Err:
 
 
 # For backwards compatibility
-Result = Union[Ok[T], Err]
+Result = Ok | Err
 
 # ==================== Stage 0: Integrity Types ====================
 

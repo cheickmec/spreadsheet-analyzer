@@ -8,15 +8,47 @@ This module implements structural analysis of Excel files using a hybrid approac
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
 
 import openpyxl
+from openpyxl.utils import get_column_letter
 from openpyxl.workbook.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
-from ..types import Err, Ok, Result, SheetStructure, WorkbookStructure
+from spreadsheet_analyzer.pipeline.types import Err, Ok, Result, SheetStructure, WorkbookStructure
 
 logger = logging.getLogger(__name__)
+
+# ==================== Constants ====================
+
+# Complexity scoring thresholds
+
+SMALL_SHEET_COUNT: Final[int] = 3
+MEDIUM_SHEET_COUNT: Final[int] = 10
+LARGE_SHEET_COUNT: Final[int] = 50
+
+SMALL_CELL_COUNT: Final[int] = 1000
+MEDIUM_CELL_COUNT: Final[int] = 10000
+LARGE_CELL_COUNT: Final[int] = 100000
+
+NAMED_RANGE_THRESHOLD: Final[int] = 10
+
+# ==================== Data Classes ====================
+
+
+@dataclass(frozen=True)
+class ComplexityMetrics:
+    """Metrics for calculating complexity score."""
+
+    sheet_count: int
+    total_cells: int
+    total_formulas: int
+    named_range_count: int
+    has_vba: bool
+    has_external_links: bool
+
 
 # ==================== Pure Functions for Analysis ====================
 
@@ -35,19 +67,18 @@ def get_cell_data_type(cell) -> str:
     """
     if cell.value is None:
         return "empty"
-    if cell.data_type == "f":
-        return "formula"
-    if cell.data_type == "n":
-        return "number"
-    if cell.data_type == "s":
-        return "string"
-    if cell.data_type == "b":
-        return "boolean"
-    if cell.data_type == "d":
-        return "date"
-    if cell.data_type == "e":
-        return "error"
-    return "unknown"
+
+    # Map data types to descriptions
+    type_mapping = {
+        "f": "formula",
+        "n": "number",
+        "s": "string",
+        "b": "boolean",
+        "d": "date",
+        "e": "error",
+    }
+
+    return type_mapping.get(cell.data_type, "unknown")
 
 
 def calculate_used_range(worksheet: Worksheet) -> tuple[str, int, int]:
@@ -67,8 +98,6 @@ def calculate_used_range(worksheet: Worksheet) -> tuple[str, int, int]:
         return "A1", 0, 0
 
     # Convert to Excel notation
-    from openpyxl.utils import get_column_letter
-
     start_cell = f"{get_column_letter(min_col)}{min_row}"
     end_cell = f"{get_column_letter(max_col)}{max_row}"
     used_range = f"{start_cell}:{end_cell}"
@@ -109,11 +138,11 @@ def analyze_sheet_features(worksheet: Worksheet) -> dict[str, bool]:
                     features["has_formulas"] = True
 
     # Check for charts
-    if hasattr(worksheet, "_charts") and worksheet._charts:
+    if hasattr(worksheet, "_charts") and worksheet._charts:  # noqa: SLF001
         features["has_charts"] = True
 
     # Check for pivot tables
-    if hasattr(worksheet, "_pivots") and worksheet._pivots:
+    if hasattr(worksheet, "_pivots") and worksheet._pivots:  # noqa: SLF001
         features["has_pivot_tables"] = True
 
     # Check for tables
@@ -121,7 +150,7 @@ def analyze_sheet_features(worksheet: Worksheet) -> dict[str, bool]:
         features["has_tables"] = True
 
     # Check for images
-    if hasattr(worksheet, "_images") and worksheet._images:
+    if hasattr(worksheet, "_images") and worksheet._images:  # noqa: SLF001
         features["has_images"] = True
 
     # Check for conditional formatting
@@ -170,28 +199,20 @@ def extract_named_ranges(workbook: Workbook) -> tuple[str, ...]:
 
     CLAUDE-KNOWLEDGE: Named ranges can be workbook-scoped or sheet-scoped.
     """
-    named_ranges = []
+    named_ranges: list[str] = []
 
     try:
         if hasattr(workbook, "defined_names"):
             # Try to iterate over defined names
-            for name in workbook.defined_names:
-                named_ranges.append(str(name))
-    except Exception:
+            named_ranges.extend(str(name) for name in workbook.defined_names)
+    except (AttributeError, ValueError, TypeError):
         # If there's any error accessing defined names, just return empty
-        pass
+        logger.debug("Unable to access defined names from workbook")
 
     return tuple(sorted(set(named_ranges)))
 
 
-def calculate_complexity_score(
-    sheet_count: int,
-    total_cells: int,
-    total_formulas: int,
-    named_range_count: int,
-    has_vba: bool,
-    has_external_links: bool,
-) -> int:
+def calculate_complexity_score(metrics: ComplexityMetrics) -> int:
     """
     Calculate workbook complexity score (0-100).
 
@@ -200,39 +221,39 @@ def calculate_complexity_score(
     score = 0
 
     # Sheet complexity (0-20 points)
-    if sheet_count <= 3:
+    if metrics.sheet_count <= SMALL_SHEET_COUNT:
         score += 5
-    elif sheet_count <= 10:
+    elif metrics.sheet_count <= MEDIUM_SHEET_COUNT:
         score += 10
-    elif sheet_count <= 50:
+    elif metrics.sheet_count <= LARGE_SHEET_COUNT:
         score += 15
     else:
         score += 20
 
     # Cell complexity (0-20 points)
-    if total_cells <= 1000:
+    if metrics.total_cells <= SMALL_CELL_COUNT:
         score += 5
-    elif total_cells <= 10000:
+    elif metrics.total_cells <= MEDIUM_CELL_COUNT:
         score += 10
-    elif total_cells <= 100000:
+    elif metrics.total_cells <= LARGE_CELL_COUNT:
         score += 15
     else:
         score += 20
 
     # Formula complexity (0-30 points)
-    formula_ratio = total_formulas / max(total_cells, 1)
+    formula_ratio = metrics.total_formulas / max(metrics.total_cells, 1)
     score += min(30, int(formula_ratio * 100))
 
     # Feature complexity (0-30 points)
-    if named_range_count > 10:
+    if metrics.named_range_count > NAMED_RANGE_THRESHOLD:
         score += 10
-    elif named_range_count > 0:
+    elif metrics.named_range_count > 0:
         score += 5
 
-    if has_vba:
+    if metrics.has_vba:
         score += 10
 
-    if has_external_links:
+    if metrics.has_external_links:
         score += 10
 
     return min(100, score)
@@ -292,9 +313,7 @@ class StructuralMapper:
 
             # Cache result
             self._sheet_cache[sheet_name] = structure
-            return structure
-
-        except Exception as e:
+        except (KeyError, AttributeError, ValueError, TypeError) as e:
             logger.warning("Failed to analyze sheet %s: %s", sheet_name, str(e))
             # Return minimal structure for failed sheets
             return SheetStructure(
@@ -309,6 +328,8 @@ class StructuralMapper:
                 cell_count=0,
                 formula_count=0,
             )
+        else:
+            return structure
 
     def analyze_all_sheets(self) -> list[SheetStructure]:
         """Analyze all sheets in workbook."""
@@ -335,7 +356,7 @@ class StructuralMapper:
         named_ranges = extract_named_ranges(self.workbook)
 
         # Calculate complexity
-        complexity_score = calculate_complexity_score(
+        metrics = ComplexityMetrics(
             sheet_count=len(sheets),
             total_cells=total_cells,
             total_formulas=total_formulas,
@@ -343,6 +364,7 @@ class StructuralMapper:
             has_vba=has_vba,
             has_external_links=has_external_links,
         )
+        complexity_score = calculate_complexity_score(metrics)
 
         # Create immutable structure
         return WorkbookStructure(
@@ -360,7 +382,7 @@ class StructuralMapper:
 
 
 def stage_2_structural_mapping(
-    file_path: Path, has_vba: bool = False, has_external_links: bool = False, read_only: bool = True
+    file_path: Path, *, has_vba: bool = False, has_external_links: bool = False, read_only: bool = True
 ) -> Result:
     """
     Perform structural analysis using hybrid approach.
@@ -399,7 +421,7 @@ def stage_2_structural_mapping(
             # Always close workbook
             workbook.close()
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, MemoryError) as e:
         return Err(f"Structural mapping failed: {e!s}", {"exception": str(e)})
 
 
@@ -445,7 +467,7 @@ def create_structure_validator(
     return validator
 
 
-def create_sheet_filter(min_cells: int = 10, require_formulas: bool = False) -> Callable[[SheetStructure], bool]:
+def create_sheet_filter(min_cells: int = 10, *, require_formulas: bool = False) -> Callable[[SheetStructure], bool]:
     """
     Create a filter function for sheets based on criteria.
 
@@ -457,9 +479,6 @@ def create_sheet_filter(min_cells: int = 10, require_formulas: bool = False) -> 
         if sheet.cell_count < min_cells:
             return False
 
-        if require_formulas and not sheet.has_formulas:
-            return False
-
-        return True
+        return not (require_formulas and not sheet.has_formulas)
 
     return filter_sheet

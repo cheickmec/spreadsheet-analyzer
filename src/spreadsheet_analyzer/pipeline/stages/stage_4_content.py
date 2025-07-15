@@ -10,11 +10,39 @@ from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import openpyxl
 
-from ..types import ContentAnalysis, ContentInsight, DataPattern, Err, Ok, Result
+from spreadsheet_analyzer.pipeline.types import ContentAnalysis, ContentInsight, DataPattern, Err, Ok, Result
+
+# ==================== Constants ====================
+
+# Pattern detection thresholds
+DATE_PATTERN_THRESHOLD: Final[float] = 0.5
+EMAIL_PATTERN_THRESHOLD: Final[float] = 0.7
+PHONE_PATTERN_THRESHOLD: Final[float] = 0.7
+PHONE_MIN_LENGTH: Final[int] = 7
+ID_CODE_CONSISTENCY_THRESHOLD: Final[float] = 0.8
+ALPHANUMERIC_THRESHOLD: Final[float] = 0.7
+CURRENCY_THRESHOLD: Final[float] = 0.3
+NUMERIC_THRESHOLD: Final[float] = 0.8
+
+# Quality scoring thresholds
+LOW_COMPLETENESS_THRESHOLD: Final[float] = 0.5
+CRITICAL_COMPLETENESS_THRESHOLD: Final[float] = 0.2
+AVERAGE_QUALITY_THRESHOLD: Final[int] = 60
+PROBLEM_SHEET_THRESHOLD: Final[int] = 50
+PATTERN_DETECTION_THRESHOLD: Final[float] = 0.5
+SHEET_ISSUES_THRESHOLD: Final[int] = 70
+
+# Quality description thresholds
+EXCELLENT_QUALITY_THRESHOLD: Final[int] = 90
+GOOD_QUALITY_THRESHOLD: Final[int] = 70
+FAIR_QUALITY_THRESHOLD: Final[int] = 50
+
+# Excel date range
+EXCEL_DATE_MAX: Final[int] = 100000
 
 # ==================== Pattern Detection Functions ====================
 
@@ -38,7 +66,7 @@ def detect_date_patterns(values: list[Any]) -> DataPattern | None:
             date_count += 1
             date_formats["datetime"] += 1
         # Check if it's a number that could be a date (Excel date serial)
-        elif isinstance(value, (int, float)) and 1 < value < 100000:
+        elif isinstance(value, int | float) and 1 < value < EXCEL_DATE_MAX:
             # Excel dates are typically between 1 (1900-01-01) and ~45000 (2023)
             date_count += 1
             date_formats["serial"] += 1
@@ -57,18 +85,78 @@ def detect_date_patterns(values: list[Any]) -> DataPattern | None:
                     date_formats[format_name] += 1
                     break
 
-    if date_count > len(values) * 0.5:  # More than 50% dates
+    if date_count > len(values) * DATE_PATTERN_THRESHOLD:  # More than 50% dates
         confidence = date_count / len(values)
         most_common_format = date_formats.most_common(1)[0][0] if date_formats else "mixed"
 
         return DataPattern(
             pattern_type="DATE_COLUMN",
             confidence=confidence,
-            locations=tuple(),  # Will be filled by caller
+            locations=(),  # Will be filled by caller
             description=f"Date column with {most_common_format} format",
         )
 
     return None
+
+
+def _extract_currency_value(value: str) -> float | None:
+    """Extract numeric value from currency string."""
+    try:
+        return float(re.sub(r"[^\d.-]", "", value))
+    except ValueError:
+        return None
+
+
+def _extract_percentage_value(value: str) -> float | None:
+    """Extract numeric value from percentage string."""
+    try:
+        return float(value.rstrip("%")) / 100
+    except ValueError:
+        return None
+
+
+def _analyze_string_value(value: str) -> tuple[bool, bool, float | None]:
+    """Analyze string value for currency, percentage, or numeric content.
+
+    Returns: (is_currency, is_percentage, numeric_value)
+    """
+    currency_symbols = ["$", "€", "£", "¥"]
+
+    if any(symbol in value for symbol in currency_symbols):
+        return True, False, _extract_currency_value(value)
+    if "%" in value:
+        return False, True, _extract_percentage_value(value)
+    return False, False, None
+
+
+def _count_numeric_patterns(values: list[Any]) -> tuple[list[float], int, int]:
+    """Count and extract numeric patterns from values.
+
+    Returns: (numeric_values, currency_count, percentage_count)
+    """
+    numeric_values = []
+    currency_count = 0
+    percentage_count = 0
+
+    for value in values:
+        if value is None:
+            continue
+
+        if isinstance(value, int | float):
+            numeric_values.append(value)
+        elif isinstance(value, str):
+            is_currency, is_percentage, numeric_val = _analyze_string_value(value)
+
+            if is_currency:
+                currency_count += 1
+                if numeric_val is not None:
+                    numeric_values.append(numeric_val)
+            elif is_percentage:
+                percentage_count += 1
+                if numeric_val is not None:
+                    numeric_values.append(numeric_val)
+
+    return numeric_values, currency_count, percentage_count
 
 
 def detect_numeric_patterns(values: list[Any]) -> DataPattern | None:
@@ -80,57 +168,32 @@ def detect_numeric_patterns(values: list[Any]) -> DataPattern | None:
     CLAUDE-GOTCHA: Excel formatting can hide actual values -
     $1.23 might be stored as 1.23 with currency formatting.
     """
-    numeric_values = []
-    has_currency_symbols = 0
-    has_percent = 0
-
-    for value in values:
-        if value is None:
-            continue
-
-        if isinstance(value, (int, float)):
-            numeric_values.append(value)
-        elif isinstance(value, str):
-            # Check for currency symbols
-            if any(symbol in value for symbol in ["$", "€", "£", "¥"]):
-                has_currency_symbols += 1
-                # CLAUDE-GOTCHA: Currency extraction is tricky due to
-                # different locales and formatting conventions
-                try:
-                    num = float(re.sub(r"[^\d.-]", "", value))
-                    numeric_values.append(num)
-                except ValueError:
-                    pass
-            # Check for percentages
-            elif "%" in value:
-                has_percent += 1
-                try:
-                    num = float(value.rstrip("%")) / 100
-                    numeric_values.append(num)
-                except ValueError:
-                    pass
+    numeric_values, currency_count, percentage_count = _count_numeric_patterns(values)
 
     if not numeric_values:
         return None
 
     # Determine pattern type
-    if has_currency_symbols > len(values) * 0.3:
+    total_values = len(values)
+    threshold = total_values * CURRENCY_THRESHOLD
+
+    if currency_count > threshold:
         return DataPattern(
-            pattern_type="CURRENCY", confidence=0.9, locations=tuple(), description="Currency values detected"
+            pattern_type="CURRENCY", confidence=0.9, locations=(), description="Currency values detected"
         )
-    if has_percent > len(values) * 0.3:
+    if percentage_count > threshold:
         return DataPattern(
-            pattern_type="PERCENTAGE", confidence=0.9, locations=tuple(), description="Percentage values detected"
+            pattern_type="PERCENTAGE", confidence=0.9, locations=(), description="Percentage values detected"
         )
-    if len(numeric_values) > len(values) * 0.8:
+    if len(numeric_values) > len(values) * NUMERIC_THRESHOLD:
         # Check if integers or decimals
         all_integers = all(isinstance(v, int) or v.is_integer() for v in numeric_values)
         if all_integers:
             return DataPattern(
-                pattern_type="INTEGER_SEQUENCE", confidence=0.8, locations=tuple(), description="Integer numeric column"
+                pattern_type="INTEGER_SEQUENCE", confidence=0.8, locations=(), description="Integer numeric column"
             )
         return DataPattern(
-            pattern_type="DECIMAL_VALUES", confidence=0.8, locations=tuple(), description="Decimal numeric column"
+            pattern_type="DECIMAL_VALUES", confidence=0.8, locations=(), description="Decimal numeric column"
         )
 
     return None
@@ -146,21 +209,21 @@ def detect_text_patterns(values: list[Any]) -> DataPattern | None:
 
     # Email pattern
     email_count = sum(1 for v in text_values if re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", v))
-    if email_count > len(text_values) * 0.7:
+    if email_count > len(text_values) * EMAIL_PATTERN_THRESHOLD:
         return DataPattern(
             pattern_type="EMAIL_ADDRESSES",
             confidence=email_count / len(text_values),
-            locations=tuple(),
+            locations=(),
             description="Email address column",
         )
 
     # Phone pattern
-    phone_count = sum(1 for v in text_values if re.match(r"^[\d\s\-\(\)]+$", v) and len(v) >= 7)
-    if phone_count > len(text_values) * 0.7:
+    phone_count = sum(1 for v in text_values if re.match(r"^[\d\s\-\(\)]+$", v) and len(v) >= PHONE_MIN_LENGTH)
+    if phone_count > len(text_values) * PHONE_PATTERN_THRESHOLD:
         return DataPattern(
             pattern_type="PHONE_NUMBERS",
             confidence=phone_count / len(text_values),
-            locations=tuple(),
+            locations=(),
             description="Phone number column",
         )
 
@@ -169,13 +232,13 @@ def detect_text_patterns(values: list[Any]) -> DataPattern | None:
     most_common_length = lengths.most_common(1)[0][0] if lengths else 0
     consistent_length = sum(1 for v in text_values if len(v) == most_common_length)
 
-    if consistent_length > len(text_values) * 0.8:
+    if consistent_length > len(text_values) * ID_CODE_CONSISTENCY_THRESHOLD:
         alphanumeric = sum(1 for v in text_values if v.isalnum())
-        if alphanumeric > len(text_values) * 0.7:
+        if alphanumeric > len(text_values) * ALPHANUMERIC_THRESHOLD:
             return DataPattern(
                 pattern_type="ID_CODES",
                 confidence=0.8,
-                locations=tuple(),
+                locations=(),
                 description=f"ID/Code column with length {most_common_length}",
             )
 
@@ -250,10 +313,14 @@ def generate_completeness_insights(sheet_completeness: dict[str, dict[str, float
 
     for sheet_name, column_scores in sheet_completeness.items():
         # Find columns with low completeness
-        incomplete_columns = [(col, score) for col, score in column_scores.items() if score < 0.5]
+        incomplete_columns = [
+            (col, score) for col, score in column_scores.items() if score < LOW_COMPLETENESS_THRESHOLD
+        ]
 
         if incomplete_columns:
-            severity = "HIGH" if any(score < 0.2 for _, score in incomplete_columns) else "MEDIUM"
+            severity = (
+                "HIGH" if any(score < CRITICAL_COMPLETENESS_THRESHOLD for _, score in incomplete_columns) else "MEDIUM"
+            )
             insights.append(
                 ContentInsight(
                     insight_type="DATA_COMPLETENESS",
@@ -317,20 +384,22 @@ def generate_quality_insights(quality_scores: dict[str, int]) -> list[ContentIns
     if quality_scores:
         avg_quality = sum(quality_scores.values()) / len(quality_scores)
 
-        if avg_quality < 60:
+        if avg_quality < AVERAGE_QUALITY_THRESHOLD:
             insights.append(
                 ContentInsight(
                     insight_type="DATA_QUALITY",
                     title="Low overall data quality",
                     description=f"Average data quality score is {int(avg_quality)}%",
                     severity="HIGH",
-                    affected_areas=tuple(sheet for sheet, score in quality_scores.items() if score < 60),
+                    affected_areas=tuple(
+                        sheet for sheet, score in quality_scores.items() if score < AVERAGE_QUALITY_THRESHOLD
+                    ),
                     recommendation="Review data entry processes and validation rules",
                 )
             )
 
         # Find specific problem sheets
-        problem_sheets = [(sheet, score) for sheet, score in quality_scores.items() if score < 50]
+        problem_sheets = [(sheet, score) for sheet, score in quality_scores.items() if score < PROBLEM_SHEET_THRESHOLD]
 
         for sheet, score in problem_sheets:
             insights.append(
@@ -361,7 +430,7 @@ def analyze_column(values: list[Any]) -> dict[str, Any]:
 
     # Pattern detection
     pattern = None
-    if completeness > 0.5:  # Only detect patterns if enough data
+    if completeness > PATTERN_DETECTION_THRESHOLD:  # Only detect patterns if enough data
         pattern = detect_date_patterns(values) or detect_numeric_patterns(values) or detect_text_patterns(values)
 
     return {
@@ -418,7 +487,7 @@ def analyze_sheet_content(sheet, sheet_name: str) -> tuple[dict[str, Any], list[
 # ==================== Main Stage Function ====================
 
 
-def stage_4_content_intelligence(file_path: Path, sample_size: int = 1000) -> Result:
+def stage_4_content_intelligence(file_path: Path, sample_size: int = 1000) -> Result:  # noqa: ARG001
     """
     Perform intelligent content analysis.
 
@@ -473,7 +542,7 @@ def stage_4_content_intelligence(file_path: Path, sample_size: int = 1000) -> Re
                     quality_score = calculate_data_quality_score(avg_completeness, avg_consistency)
                     sheet_quality_scores[sheet_name] = quality_score
 
-                    if quality_score < 70:
+                    if quality_score < SHEET_ISSUES_THRESHOLD:
                         key_metrics["sheets_with_issues"] += 1
 
             # Generate insights
@@ -510,7 +579,7 @@ def stage_4_content_intelligence(file_path: Path, sample_size: int = 1000) -> Re
         finally:
             workbook.close()
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, MemoryError) as e:
         return Err(f"Content analysis failed: {e!s}", {"exception": str(e)})
 
 
@@ -522,7 +591,13 @@ def generate_summary(sheet_count: int, pattern_count: int, insight_count: int, a
     Generate human-readable summary of analysis.
     """
     quality_desc = (
-        "excellent" if avg_quality >= 90 else "good" if avg_quality >= 70 else "fair" if avg_quality >= 50 else "poor"
+        "excellent"
+        if avg_quality >= EXCELLENT_QUALITY_THRESHOLD
+        else "good"
+        if avg_quality >= GOOD_QUALITY_THRESHOLD
+        else "fair"
+        if avg_quality >= FAIR_QUALITY_THRESHOLD
+        else "poor"
     )
 
     summary_parts = [
@@ -575,8 +650,7 @@ def create_content_validator(
 
         # Check critical insights
         critical_insights = [i for i in analysis.insights if i.severity == "HIGH"]
-        for insight in critical_insights:
-            issues.append(f"Critical issue: {insight.title}")
+        issues.extend(f"Critical issue: {insight.title}" for insight in critical_insights)
 
         return issues
 
