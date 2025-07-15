@@ -506,7 +506,9 @@ def stage_4_content_intelligence(file_path: Path, sample_size: int = 1000) -> Re
     """
     try:
         # Open workbook
-        workbook = openpyxl.load_workbook(filename=str(file_path), read_only=True, data_only=True, keep_links=False)
+        # CLAUDE-GOTCHA: Cannot use read_only=True because ReadOnlyWorksheet doesn't support iter_cols()
+        # We use data_only=True to get values instead of formulas for content analysis
+        workbook = openpyxl.load_workbook(filename=str(file_path), read_only=False, data_only=True, keep_links=False)
 
         try:
             all_patterns = []

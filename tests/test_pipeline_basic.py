@@ -57,4 +57,6 @@ def test_with_real_file():
     if excel_files:
         result = stage_0_integrity_probe(excel_files[0])
         # Should either pass or fail gracefully, not crash
-        assert isinstance(result, Ok | Err)
+        # CLAUDE-GOTCHA: Cannot use union syntax (Ok | Err) here as isinstance()
+        # doesn't support types.UnionType at runtime
+        assert isinstance(result, (Ok, Err))  # noqa: UP038
