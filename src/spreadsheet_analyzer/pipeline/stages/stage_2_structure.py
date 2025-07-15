@@ -88,14 +88,17 @@ def calculate_used_range(worksheet: Worksheet) -> tuple[str, int, int]:
     CLAUDE-PERFORMANCE: We iterate only through used cells
     instead of the entire grid.
     """
-    min_row = worksheet.min_row or 1
-    max_row = worksheet.max_row or 1
-    min_col = worksheet.min_column or 1
-    max_col = worksheet.max_column or 1
+    min_row = worksheet.min_row
+    max_row = worksheet.max_row
+    min_col = worksheet.min_column
+    max_col = worksheet.max_column
 
-    # Check if sheet has any data
-    if min_row is None or max_row is None:
-        return "A1", 0, 0
+    # Check if sheet is effectively empty (default 1,1 dimensions)
+    if min_row == max_row == min_col == max_col == 1:
+        # Check if the single cell has any content
+        cell_value = worksheet.cell(1, 1).value
+        if cell_value is None:
+            return "A1", 0, 0
 
     # Convert to Excel notation
     start_cell = f"{get_column_letter(min_col)}{min_row}"
