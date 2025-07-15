@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Security Vulnerability
+    url: mailto:security@yiriden.com
+    about: Please report security vulnerabilities via email
+  - name: 📧 General Inquiries
+    url: mailto:contact@yiriden.com
+    about: For business or general inquiries about this proprietary software
+  - name: 🎯 Technical Support
+    url: mailto:cab25004@vt.edu
+    about: Contact the lead developer for technical support

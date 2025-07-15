@@ -30,6 +30,7 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^.*\.md$  # Exclude markdown files - mdformat handles them
       - id: end-of-file-fixer
       - id: check-yaml
         args: ['--unsafe']  # Allow custom tags

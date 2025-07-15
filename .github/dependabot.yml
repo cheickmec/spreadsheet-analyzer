@@ -1,0 +1,109 @@
+# Dependabot configuration for automated dependency updates
+# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+updates:
+  # Python dependencies
+  # Note: Using pip ecosystem as Dependabot doesn't have native uv support yet
+  # uv uses pyproject.toml which is compatible with pip ecosystem
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+      - "automated"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    reviewers:
+      - "cheickmec"
+    groups:
+      python-minor:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "jupyter*"  # Jupyter updates can be breaking
+          - "openpyxl"  # Excel library updates need careful testing
+        update-types:
+          - "minor"
+          - "patch"
+      jupyter-updates:
+        patterns:
+          - "jupyter*"
+          - "ipykernel"
+          - "nbformat"
+        update-types:
+          - "patch"  # Only patch updates for Jupyter
+    ignore:
+      # Ignore specific updates that might break functionality
+      - dependency-name: "langchain*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pandas"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci"
+      - "automated"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    reviewers:
+      - "cheickmec"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    reviewers:
+      - "cheickmec"
+    ignore:
+      # Only update Python base image for minor/patch versions
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
+  # Security updates (prioritized)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "02:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "security"
+      - "dependencies"
+      - "urgent"
+      - "automated"
+    commit-message:
+      prefix: "security"
+      include: "scope"
+    reviewers:
+      - "cheickmec"
+    allow:
+      - dependency-type: "all"
+    # Only create PRs for security updates
+    versioning-strategy: "increase-if-necessary"

@@ -1,0 +1,35 @@
+# CODEOWNERS file for automatic review assignment
+# Proprietary software - Yiriden LLC
+# Owner: Cheick Berthe (@cheickmec)
+
+# Default owner for everything in the repo
+* @cheickmec
+
+# Core analyzer components - critical review required
+/src/spreadsheet_analyzer/agents/ @cheickmec
+/src/spreadsheet_analyzer/core/ @cheickmec
+/src/spreadsheet_analyzer/orchestration/ @cheickmec
+
+# Security-sensitive components
+/src/spreadsheet_analyzer/kernels/ @cheickmec
+/src/spreadsheet_analyzer/security/ @cheickmec
+/.github/workflows/ @cheickmec
+
+# Documentation
+/docs/ @cheickmec
+/README.md @cheickmec
+/CLAUDE.md @cheickmec
+*.md @cheickmec
+
+# Configuration and dependencies
+/pyproject.toml @cheickmec
+/.pre-commit-config.yaml @cheickmec
+/.github/dependabot.yml @cheickmec
+/Dockerfile @cheickmec
+/docker-compose.yml @cheickmec
+
+# Tests
+/tests/ @cheickmec
+
+# Scripts and tooling
+/scripts/ @cheickmec

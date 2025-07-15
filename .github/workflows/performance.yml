@@ -1,0 +1,178 @@
+name: Performance Testing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [labeled]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      test_size:
+        description: 'Test file size category'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - small
+          - medium
+          - large
+          - all
+
+jobs:
+  performance-test:
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && contains(github.event.label.name, 'performance'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      matrix:
+        file_size: [small, medium, large]
+        python_version: ['3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: latest
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python_version }}
+        run: uv python install ${{ matrix.python_version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+          uv add --dev pytest-benchmark memory-profiler
+
+      - name: Generate test Excel files
+        run: |
+          uv run python scripts/generate_test_files.py --size ${{ matrix.file_size }}
+
+      - name: Run performance benchmarks
+        run: |
+          uv run pytest tests/performance/test_${{ matrix.file_size }}_files.py \
+            --benchmark-only \
+            --benchmark-json=${{ matrix.file_size }}_benchmark.json \
+            --benchmark-autosave \
+            --benchmark-max-time=30 \
+            --benchmark-min-rounds=3 \
+            -v
+
+      - name: Run memory profiling
+        run: |
+          uv run python -m memory_profiler tests/performance/memory_test_${{ matrix.file_size }}.py > memory_${{ matrix.file_size }}.txt
+
+      - name: Analyze results against targets
+        run: |
+          uv run python scripts/analyze_performance.py \
+            --benchmark-file ${{ matrix.file_size }}_benchmark.json \
+            --memory-file memory_${{ matrix.file_size }}.txt \
+            --output-file performance_${{ matrix.file_size }}.md
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results-${{ matrix.file_size }}-py${{ matrix.python_version }}
+          path: |
+            *_benchmark.json
+            memory_*.txt
+            performance_*.md
+          retention-days: 90
+
+  performance-report:
+    needs: performance-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all performance results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: performance-results-*
+          merge-multiple: true
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Generate consolidated report
+        run: |
+          uv run python scripts/generate_performance_report.py \
+            --input-dir . \
+            --output performance_report.md
+
+      - name: Post performance comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('performance_report.md', 'utf8');
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('## 📊 Performance Test Results')
+            );
+
+            const body = `## 📊 Performance Test Results\n\n${report}`;
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Check performance regression
+        run: |
+          uv run python scripts/check_performance_regression.py \
+            --current-results . \
+            --baseline-branch main \
+            --threshold 10  # Allow 10% regression
+
+      - name: Generate Performance Summary
+        if: always()
+        run: |
+          echo "## ⚡ Performance Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f performance_report.md ]; then
+            cat performance_report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Performance report not available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Performance Targets" >> $GITHUB_STEP_SUMMARY
+          echo "| Operation | Target | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| File Upload (< 10MB) | < 2s | 🔄 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Basic Analysis (< 10 sheets) | < 5s | 🔄 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deep AI Analysis (< 50 sheets) | < 30s | 🔄 |" >> $GITHUB_STEP_SUMMARY
