@@ -10,9 +10,9 @@ import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
-import defusedxml.ElementTree as ET
+import defusedxml.ElementTree as defused_et
 
-from ..types import Err, Ok, Result, RiskLevel, SecurityReport, SecurityThreat
+from spreadsheet_analyzer.pipeline.types import Err, Ok, Result, RiskLevel, SecurityReport, SecurityThreat
 
 # ==================== Security Pattern Definitions ====================
 
@@ -248,7 +248,7 @@ def check_hidden_sheets(file_path: Path) -> list[SecurityThreat]:
         with zipfile.ZipFile(file_path, "r") as zip_file:
             if "xl/workbook.xml" in zip_file.namelist():
                 workbook_content = zip_file.read("xl/workbook.xml")
-                root = ET.fromstring(workbook_content)
+                root = defused_et.fromstring(workbook_content)
 
                 # Look for sheets with state attribute
                 for sheet in root.findall(".//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}sheet"):

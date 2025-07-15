@@ -68,6 +68,8 @@ def is_valid_ooxml_structure(file_path: Path) -> bool:
 
     CLAUDE-KNOWLEDGE: Valid XLSX files must contain specific XML files
     within the ZIP structure.
+    CLAUDE-SECURITY: Structure validation prevents processing of malformed
+    or potentially malicious files disguised as Excel documents.
     """
     try:
         if not zipfile.is_zipfile(file_path):
@@ -76,7 +78,8 @@ def is_valid_ooxml_structure(file_path: Path) -> bool:
         with zipfile.ZipFile(file_path, "r") as zip_file:
             namelist = set(zip_file.namelist())
 
-            # Required files for valid XLSX
+            # CLAUDE-KNOWLEDGE: These are the minimum required files for valid XLSX
+            # Missing any of these indicates corruption or non-Excel format
             required_files = {"[Content_Types].xml", "xl/workbook.xml", "xl/_rels/workbook.xml.rels"}
 
             # Check if all required files exist
