@@ -31,7 +31,7 @@ The Spreadsheet Analyzer project is in the early foundation phase, focusing on e
 - [x] openpyxl for Excel file processing
 - [x] Development dependencies (pytest, mypy, ruff, etc.)
 
-## In Progress üöß
+## In Progress 🔄
 
 ### Core Implementation
 
@@ -49,7 +49,7 @@ The Spreadsheet Analyzer project is in the early foundation phase, focusing on e
 - [ ] Unit test suite with 90% coverage target
 - [ ] Integration tests for analysis pipeline
 
-## Upcoming üìã
+## Upcoming 📅
 
 ### Phase 1: Core Analysis Engine (Next 2-4 weeks)
 
@@ -72,7 +72,7 @@ The Spreadsheet Analyzer project is in the early foundation phase, focusing on e
 - [ ] Redis caching for analysis results
 - [ ] PostgreSQL for analysis history and metadata
 
-## Known Issues & Blockers üö®
+## Known Issues & Blockers ⚠️
 
 ### Current Issues
 
@@ -84,12 +84,12 @@ The Spreadsheet Analyzer project is in the early foundation phase, focusing on e
 - Progress tracking system design pending
 - Validation patterns need integration with deterministic pipeline
 
-## Metrics & Quality üìä
+## Metrics & Quality 📊
 
 ### Code Quality
 
 - **Linting**: ✅ Ruff configured and passing
-- **Type Coverage**: üöß Type hints being added incrementally
+- **Type Coverage**: 🔄 Type hints being added incrementally
 - **Test Coverage**: ❌ 0% (tests not yet implemented)
 - **Documentation**: ✅ Comprehensive design docs and guides
 
@@ -98,7 +98,7 @@ The Spreadsheet Analyzer project is in the early foundation phase, focusing on e
 - **Target**: < 5s for standard files (< 10 sheets, < 10K cells)
 - **Current**: Not yet measured
 
-## Dependencies & Risks üéØ
+## Dependencies & Risks ⚡
 
 ### Key Dependencies
 
@@ -118,7 +118,7 @@ The Spreadsheet Analyzer project is in the early foundation phase, focusing on e
 1. **Formula Complexity**: Circular references and complex dependencies
 1. **Performance**: Meeting sub-30s target for complex analysis
 
-## Team Notes üìù
+## Team Notes 💬
 
 ### Recent Decisions
 
@@ -133,7 +133,7 @@ The Spreadsheet Analyzer project is in the early foundation phase, focusing on e
 1. How to handle password-protected Excel files?
 1. What level of macro analysis is needed for security scanning?
 
-## Next Actions üé¨
+## Next Actions ➡️
 
 1. **Implement core Excel parser** with streaming support
 1. **Create test fixtures** for various Excel scenarios

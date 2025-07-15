@@ -58,9 +58,9 @@ Move secrets to **dotenv ↑ HashiCorp Vault (or AWS Secrets Manager)** ✅ Zero
 **Medium term (1-3 months)** Split **provider adapters into an entry-point plug-in interface** (e.g., `pkg_resources.entry_points` or `importlib.metadata`) … Decouples core from third-party code; unlocks optional installs
 Replace CSV sink with a **typed events queue** (Kafka or Redis Streams) + **PostgreSQL/ClickHouse** warehouse … Allows incremental enrichment and BI queries
 Add **unit tests + pytest-vcr** fixtures per provider … Stops regressions and throttling during CI
-**Long term (3-6 months)** Containerize each tier; expose a **REST/GraphQL service** so other systems can enrich on demand üöÄ Turns the tool into a micro-service usable by SIEM/SOAR
-Augment with **dynamic & static analysis back-ends** (Cuckoo, yara-rule scans, SAST) üöÄ Closes coverage gap beyond mere hash reputation
-Adopt **OpenCyberSecurity Schema Framework (OCSF)** or STIX 2.1 for output üöÄ Makes sharing across orgs & tools easier
+**Long term (3-6 months)** Containerize each tier; expose a **REST/GraphQL service** so other systems can enrich on demand ✅ Turns the tool into a micro-service usable by SIEM/SOAR
+Augment with **dynamic & static analysis back-ends** (Cuckoo, yara-rule scans, SAST) ✅ Closes coverage gap beyond mere hash reputation
+Adopt **OpenCyberSecurity Schema Framework (OCSF)** or STIX 2.1 for output ✅ Makes sharing across orgs & tools easier
 
 ______________________________________________________________________
 
