@@ -6,7 +6,7 @@ Build the most intelligent Excel analysis system that combines deterministic par
 
 ## Milestones
 
-### ðŸŽ¯ Milestone 1: Foundation (Current - Q1 2025)
+### 🎯 Milestone 1: Foundation (Current - Q1 2025)
 
 **Goal**: Establish robust parsing and analysis foundation
 
@@ -26,7 +26,7 @@ Build the most intelligent Excel analysis system that combines deterministic par
 - [ ] Comprehensive error handling with Result types
 - [ ] Full type coverage with mypy strict mode
 
-### ðŸ¤– Milestone 2: AI Integration (Q1-Q2 2025)
+### 🤖 Milestone 2: AI Integration (Q1-Q2 2025)
 
 **Goal**: Add intelligent analysis capabilities
 
@@ -46,7 +46,7 @@ Build the most intelligent Excel analysis system that combines deterministic par
 - [ ] 95% accuracy in pattern detection
 - [ ] Support for parallel sheet analysis
 
-### ðŸš€ Milestone 3: Production Platform (Q2 2025)
+### 🚀 Milestone 3: Production Platform (Q2 2025)
 
 **Goal**: Build production-ready analysis platform
 
@@ -66,7 +66,7 @@ Build the most intelligent Excel analysis system that combines deterministic par
 - [ ] Support 100 concurrent analyses
 - [ ] PostgreSQL for metadata, Redis for caching
 
-### ðŸ“Š Milestone 4: Advanced Analytics (Q3 2025)
+### 📊 Milestone 4: Advanced Analytics (Q3 2025)
 
 **Goal**: Provide deep business intelligence features
 
@@ -86,7 +86,7 @@ Build the most intelligent Excel analysis system that combines deterministic par
 - [ ] Plugin API with sandboxed execution
 - [ ] ML model for formula prediction
 
-### ðŸŒ� Milestone 5: Enterprise Features (Q4 2025)
+### 🌐 Milestone 5: Enterprise Features (Q4 2025)
 
 **Goal**: Enterprise-grade capabilities
 
