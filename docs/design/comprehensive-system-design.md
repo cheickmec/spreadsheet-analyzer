@@ -16,7 +16,7 @@ The Excel Analyzer system aims to transform how professionals interact with comp
 
 #### 1.1 Content Discovery & Mapping
 
-The foundation of effective Excel analysis lies in comprehensive content discovery. Every element within a spreadsheetâ€”from simple data cells to complex pivot tablesâ€”must be precisely located, cataloged, and understood within its context. The system accomplishes this through multi-layered analysis that begins with structural parsing and extends to semantic understanding.
+The foundation of effective Excel analysis lies in comprehensive content discovery. Every element within a spreadsheet—from simple data cells to complex pivot tables—must be precisely located, cataloged, and understood within its context. The system accomplishes this through multi-layered analysis that begins with structural parsing and extends to semantic understanding.
 
 At the most basic level, the system maps the exact coordinates of all content elements, creating a spatial index that serves as the foundation for deeper analysis. However, location alone provides limited value. The true power emerges when we understand each sheet's role within the larger workbook ecosystem. Some sheets serve as raw data repositories, others perform complex calculations, while still others exist purely for visualization or reference purposes. By classifying these roles, the system can apply appropriate analysis strategies to each sheet type.
 
@@ -24,7 +24,7 @@ Cross-sheet dependencies represent one of the most challenging aspects of Excel 
 
 Formula intelligence extends beyond simple parsing to include classification, impact analysis, and optimization recommendations. The system recognizes common formula patterns, identifies inefficiencies, and suggests improvements while maintaining a complete understanding of how each formula contributes to the overall workbook logic.
 
-Visual elementsâ€”charts, graphs, images, and shapesâ€”require special handling as they often represent the primary way stakeholders interact with the data. The system extracts configuration details, identifies data sources, and validates that visualizations accurately represent their underlying data.
+Visual elements—charts, graphs, images, and shapes—require special handling as they often represent the primary way stakeholders interact with the data. The system extracts configuration details, identifies data sources, and validates that visualizations accurately represent their underlying data.
 
 Advanced Excel features such as pivot tables, named ranges, conditional formatting, and data validation rules add layers of complexity that many analysis tools ignore. Our system provides comprehensive coverage of these features, understanding not just their presence but their purpose and impact on the overall workbook functionality.
 
@@ -32,7 +32,7 @@ Advanced Excel features such as pivot tables, named ranges, conditional formatti
 
 The principle of "trust but verify" guides our approach to spreadsheet analysis. Unlike traditional parsing tools that make assumptions about data structure and content, our system validates every claim through actual operations. This validation-first philosophy emerged as a unanimous consensus across all design discussions and represents a fundamental departure from conventional approaches.
 
-When the system identifies what appears to be a summary row, it doesn't simply trust visual cues or formatting. Instead, it performs the actual aggregation calculations to verify that the claimed summary accurately reflects its constituent data. This approach extends to all aspects of analysisâ€”null checks confirm data completeness, range validations ensure data integrity, and calculation verification catches formula errors that might otherwise go unnoticed.
+When the system identifies what appears to be a summary row, it doesn't simply trust visual cues or formatting. Instead, it performs the actual aggregation calculations to verify that the claimed summary accurately reflects its constituent data. This approach extends to all aspects of analysis—null checks confirm data completeness, range validations ensure data integrity, and calculation verification catches formula errors that might otherwise go unnoticed.
 
 Error detection capabilities encompass both structural issues (circular references, broken links, missing dependencies) and logical problems (calculation errors, data type mismatches, inconsistent formulas). The system doesn't just flag these issues; it provides detailed diagnostics that help users understand the root cause and potential impact of each problem.
 
@@ -44,7 +44,7 @@ Security scanning addresses the often-overlooked risks associated with Excel fil
 
 The integration of AI capabilities transforms our system from a sophisticated parser into an intelligent analyst. Pattern recognition algorithms identify repetitive structures within spreadsheets, even when those patterns aren't immediately obvious. For example, a financial model might use similar but not identical formulas across multiple time periods. The system recognizes these patterns, understanding the underlying logic rather than treating each formula as unique.
 
-Semantic understanding represents perhaps the most ambitious aspect of our design. By analyzing data in contextâ€”considering column headers, sheet names, formula patterns, and data relationshipsâ€”the system develops an understanding of the spreadsheet's business purpose. This semantic layer enables the system to provide insights that go beyond technical analysis to include business-relevant observations and recommendations.
+Semantic understanding represents perhaps the most ambitious aspect of our design. By analyzing data in context—considering column headers, sheet names, formula patterns, and data relationships—the system develops an understanding of the spreadsheet's business purpose. This semantic layer enables the system to provide insights that go beyond technical analysis to include business-relevant observations and recommendations.
 
 Context-aware analysis allows the system to adapt its approach based on discovered information. As analysis progresses and the system develops a better understanding of the spreadsheet's structure and purpose, it can refine its analysis strategy, focusing computational resources on the most important or complex areas.
 
@@ -91,13 +91,13 @@ The integration of Large Language Models into our analysis pipeline introduces s
 
 The system implements sophisticated caching mechanisms that recognize when similar analyses have been performed previously, reusing results where appropriate. For routine tasks that require some intelligence but not the full power of large models, the system leverages smaller, more economical models that provide adequate performance at a fraction of the cost.
 
-Budget controls allow administrators to set spending limits at various granularitiesâ€”per analysis, per user, or per time periodâ€”ensuring that costs remain predictable and manageable. Real-time cost tracking provides visibility into spending patterns and helps identify optimization opportunities.
+Budget controls allow administrators to set spending limits at various granularities—per analysis, per user, or per time period—ensuring that costs remain predictable and manageable. Real-time cost tracking provides visibility into spending patterns and helps identify optimization opportunities.
 
 #### 1.7 Flexibility & Extensibility
 
 Enterprise environments demand systems that can adapt to changing requirements and integrate with existing workflows. Our API-first design philosophy ensures that all system capabilities are accessible through well-documented interfaces, enabling integration with existing tools and workflows.
 
-Output format flexibility allows the system to deliver results in whatever format best suits the use caseâ€”detailed JSON for programmatic processing, formatted HTML for human review, or Markdown for documentation purposes. The architecture's modular design supports the addition of new analysis modules without disrupting existing functionality.
+Output format flexibility allows the system to deliver results in whatever format best suits the use case—detailed JSON for programmatic processing, formatted HTML for human review, or Markdown for documentation purposes. The architecture's modular design supports the addition of new analysis modules without disrupting existing functionality.
 
 While Excel files represent the primary target, the system architecture accommodates future expansion to related formats such as CSV files, Google Sheets, and other tabular data sources. The plugin architecture enables third-party developers to extend system capabilities, creating specialized analyzers for industry-specific use cases or proprietary Excel extensions.
 
@@ -258,9 +258,9 @@ flowchart TD
 
 **Stage 1: File Ingestion** begins immediately upon file upload, performing critical security and validation checks before any processing begins. The security scan examines the file for potentially dangerous content such as VBA macros or external data connections, quarantining suspicious files for manual review. Format detection ensures the file is a valid Excel format that the system can process, while initial metadata extraction captures basic information such as file size, creation date, and high-level structure.
 
-**Stage 2: Deterministic Analysis** leverages traditional parsing techniques to extract maximum value without consuming LLM tokens. This stage implements a sophisticated five-phase pipeline (Integrity Probe â†’ Security Scan â†’ Structural Mapping â†’ Formula Intelligence â†’ Content Intelligence). Structure enumeration creates a complete inventory of sheets, named ranges, and other Excel objects. Formula parsing not only extracts formula text but builds a comprehensive dependency graph showing how calculations flow through the workbook. Basic statistics provide quick insights into data density, formula complexity, and potential processing requirements. Critically, this stage generates cost estimates for subsequent LLM analysis, enabling informed decisions about resource allocation.
+**Stage 2: Deterministic Analysis** leverages traditional parsing techniques to extract maximum value without consuming LLM tokens. This stage implements a sophisticated five-phase pipeline (Integrity Probe → Security Scan → Structural Mapping → Formula Intelligence → Content Intelligence). Structure enumeration creates a complete inventory of sheets, named ranges, and other Excel objects. Formula parsing not only extracts formula text but builds a comprehensive dependency graph showing how calculations flow through the workbook. Basic statistics provide quick insights into data density, formula complexity, and potential processing requirements. Critically, this stage generates cost estimates for subsequent LLM analysis, enabling informed decisions about resource allocation.
 
-**â†’ See [Deterministic Analysis Pipeline: Deep Dive](./deterministic-analysis-pipeline.md) for complete implementation details, code examples, and agent integration specifications.**
+**→ See [Deterministic Analysis Pipeline: Deep Dive](./deterministic-analysis-pipeline.md) for complete implementation details, code examples, and agent integration specifications.**
 
 **Stage 3: Agent Assignment** represents the transition from deterministic to intelligent analysis. Based on the complexity assessment, the orchestrator assigns specialized agents to different aspects of the workbook. The default strategy assigns one agent per sheet, enabling parallel analysis of independent sheets. However, for sheets with unusual complexity or specialized features (such as pivot tables or complex charts), the system may assign specialized agents with relevant expertise. The orchestrator maintains overall coordination, ensuring agents work efficiently without duplicating effort.
 
@@ -276,7 +276,7 @@ The Deterministic Explorers represent the foundation of our analytical pipeline,
 
 The design philosophy behind Deterministic Explorers recognizes that the vast majority of Excel structural analysis can be performed through traditional parsing methods. By front-loading this deterministic analysis, we accomplish several critical objectives. First, we minimize costs by avoiding LLM usage for tasks that don't require intelligence. Second, we provide immediate value to users through rapid structural analysis. Third, we gather essential context that makes subsequent AI analysis more effective and efficient.
 
-**ðŸ“‹ Complete Implementation Guide**: The full technical specifications, including the five-stage pipeline (Integrity Probe â†’ Security Scan â†’ Structural Mapping â†’ Formula Intelligence â†’ Content Intelligence), comprehensive code examples, performance benchmarks, and agent integration patterns are documented in **[Deterministic Analysis Pipeline: Deep Dive](./deterministic-analysis-pipeline.md)**.
+**📋 Complete Implementation Guide**: The full technical specifications, including the five-stage pipeline (Integrity Probe → Security Scan → Structural Mapping → Formula Intelligence → Content Intelligence), comprehensive code examples, performance benchmarks, and agent integration patterns are documented in **[Deterministic Analysis Pipeline: Deep Dive](./deterministic-analysis-pipeline.md)**.
 
 #### Core Implementation Stack
 
@@ -341,8 +341,8 @@ stateDiagram-v2
 
     note right of Analyzing
         Core analysis loop:
-        Plan â†’ Execute â†’
-        Validate â†’ Update
+        Plan → Execute →
+        Validate → Update
     end note
 
     note left of WaitingForResponse
@@ -352,7 +352,7 @@ stateDiagram-v2
     end note
 ```
 
-The architectural decision to create one agent per sheet stems from the natural structure of Excel workbooks. Sheets often represent logical boundaries, with each serving a distinct purposeâ€”data entry, calculations, reporting, or visualization. By aligning agents with these natural boundaries, we achieve efficient parallelization while minimizing the need for constant inter-agent coordination.
+The architectural decision to create one agent per sheet stems from the natural structure of Excel workbooks. Sheets often represent logical boundaries, with each serving a distinct purpose—data entry, calculations, reporting, or visualization. By aligning agents with these natural boundaries, we achieve efficient parallelization while minimizing the need for constant inter-agent coordination.
 
 Each agent incorporates three critical subsystems:
 
@@ -428,13 +428,13 @@ sequenceDiagram
     end
 ```
 
-The Blackboard pattern provides a shared knowledge space where agents can post discoveries and read information from other agents. The blackboard serves as a central repository for facts discovered during analysisâ€”cross-sheet references, data validation rules that span sheets, or calculation patterns that repeat across the workbook. When an agent posts a fact to the blackboard, the system notifies potentially interested agents based on subscription patterns, enabling reactive collaboration without requiring agents to constantly poll for updates.
+The Blackboard pattern provides a shared knowledge space where agents can post discoveries and read information from other agents. The blackboard serves as a central repository for facts discovered during analysis—cross-sheet references, data validation rules that span sheets, or calculation patterns that repeat across the workbook. When an agent posts a fact to the blackboard, the system notifies potentially interested agents based on subscription patterns, enabling reactive collaboration without requiring agents to constantly poll for updates.
 
 The asynchronous query system addresses scenarios where agents need specific information from their peers. For example, when analyzing a summary sheet, an agent might discover references to data on multiple source sheets. Rather than attempting to analyze those sheets directly, the agent posts queries to the responsible agents and continues its own analysis while awaiting responses. This non-blocking approach prevents analysis paralysis while maintaining the ability to incorporate cross-sheet insights.
 
-The communication protocol implements several important design principles. First, all communication is asynchronous and non-blocking, preventing any single slow agent from bottlenecking the entire analysis. Second, queries include minimal context to help the receiving agent understand the request without overwhelming it with unnecessary information. Third, the system maintains query state to handle timeouts gracefullyâ€”if an agent doesn't respond within a reasonable timeframe, the querying agent can proceed with partial information rather than waiting indefinitely.
+The communication protocol implements several important design principles. First, all communication is asynchronous and non-blocking, preventing any single slow agent from bottlenecking the entire analysis. Second, queries include minimal context to help the receiving agent understand the request without overwhelming it with unnecessary information. Third, the system maintains query state to handle timeouts gracefully—if an agent doesn't respond within a reasonable timeframe, the querying agent can proceed with partial information rather than waiting indefinitely.
 
-The agent state tracking mechanism provides system-wide visibility into analysis progress. Each agent regularly updates its stateâ€”initializing, analyzing, waiting for responses, or completeâ€”enabling the orchestrator to make informed decisions about resource allocation and problem detection. If an agent becomes stuck or fails, the orchestrator can reassign its work or attempt recovery procedures.
+The agent state tracking mechanism provides system-wide visibility into analysis progress. Each agent regularly updates its state—initializing, analyzing, waiting for responses, or complete—enabling the orchestrator to make informed decisions about resource allocation and problem detection. If an agent becomes stuck or fails, the orchestrator can reassign its work or attempt recovery procedures.
 
 ### 3.5 Tool Registry
 
@@ -514,9 +514,9 @@ The tool collection reflects the diverse needs of Excel analysis:
 
 **Range-based utilities** provide efficient access to spreadsheet data without requiring agents to understand the intricacies of Excel file formats. These tools handle common operations like reading cell ranges, extracting formulas, and accessing metadata, returning data in standardized formats that agents can easily process.
 
-**Data operation tools** address the validation-first philosophy. Rather than trusting apparent patterns or structures, agents use these tools to perform actual calculationsâ€”aggregating data to verify summaries, validating formulas against their inputs, and checking for data consistency across ranges. These tools implement optimized algorithms for common operations, ensuring efficient execution even on large datasets.
+**Data operation tools** address the validation-first philosophy. Rather than trusting apparent patterns or structures, agents use these tools to perform actual calculations—aggregating data to verify summaries, validating formulas against their inputs, and checking for data consistency across ranges. These tools implement optimized algorithms for common operations, ensuring efficient execution even on large datasets.
 
-**Pattern detection tools** enable agents to identify recurring structures within spreadsheets. These tools go beyond simple pattern matching to understand semantic patternsâ€”recognizing that a series of similar formulas might represent time-series calculations, or that a particular arrangement of cells might indicate a data entry form.
+**Pattern detection tools** enable agents to identify recurring structures within spreadsheets. These tools go beyond simple pattern matching to understand semantic patterns—recognizing that a series of similar formulas might represent time-series calculations, or that a particular arrangement of cells might indicate a data entry form.
 
 **Cost-aware tool selection** enables intelligent routing of operations to appropriate models. Simple pattern matching might use a small, fast language model, while complex semantic analysis requires more powerful models. The registry maintains cost estimates for each tool, enabling agents to make informed decisions about resource usage.
 
@@ -524,7 +524,7 @@ The schema generation capability ensures compatibility with modern LLM function-
 
 ### 3.6 Context Management
 
-Context Management represents one of the most challenging aspects of LLM-based analysis. The system implements a sophisticated approach that balances completeness with efficiency. The fundamental challenge stems from the tension between maintaining comprehensive analytical context and staying within LLM token limitsâ€”a challenge that only grows more acute as analyses become more complex.
+Context Management represents one of the most challenging aspects of LLM-based analysis. The system implements a sophisticated approach that balances completeness with efficiency. The fundamental challenge stems from the tension between maintaining comprehensive analytical context and staying within LLM token limits—a challenge that only grows more acute as analyses become more complex.
 
 ```mermaid
 flowchart LR
@@ -602,7 +602,7 @@ flowchart LR
 
 The hierarchical compression approach addresses this challenge through multiple complementary strategies. At the finest granularity, cell-level observations are aggregated into range-level summaries when patterns are detected. For example, if an agent observes that cells A1 through A100 all contain similar formulas with incrementing references, the context manager can compress this into a single pattern observation rather than storing 100 individual observations.
 
-Pattern compression takes this concept further by recognizing and consolidating recurring structures throughout the analysis. When agents identify repeated patternsâ€”whether in formulas, data structures, or relationshipsâ€”the context manager creates compact representations that preserve the essential information while dramatically reducing token usage.
+Pattern compression takes this concept further by recognizing and consolidating recurring structures throughout the analysis. When agents identify repeated patterns—whether in formulas, data structures, or relationships—the context manager creates compact representations that preserve the essential information while dramatically reducing token usage.
 
 The hierarchical summarization strategy maintains multiple levels of detail simultaneously. Detailed observations remain available in the full history, while progressively summarized versions exist for inclusion in the active context. This approach ensures that agents always have access to the most relevant information at the appropriate level of detail.
 
@@ -622,7 +622,7 @@ Python was selected as the implementation language due to its unique position at
 
 Python's ecosystem for data analysis is unmatched in both breadth and maturity. Libraries like pandas provide DataFrame abstractions that map naturally to Excel's tabular structure, while numpy enables efficient numerical operations on large datasets. The openpyxl library offers comprehensive Excel file manipulation capabilities, reading and writing Excel files with full fidelity while preserving formulas, styles, and other metadata that simpler libraries might discard.
 
-The native integration with Jupyter notebooks proved particularly compelling given our architectural decision to use notebooks as the execution environment for agents. Python's IPython kernel provides robust session management, variable persistence, and execution control that would be difficult to replicate in other languages. This integration extends beyond mere compatibilityâ€”the Python data science ecosystem has evolved alongside Jupyter, creating a symbiotic relationship that our design leverages extensively.
+The native integration with Jupyter notebooks proved particularly compelling given our architectural decision to use notebooks as the execution environment for agents. Python's IPython kernel provides robust session management, variable persistence, and execution control that would be difficult to replicate in other languages. This integration extends beyond mere compatibility—the Python data science ecosystem has evolved alongside Jupyter, creating a symbiotic relationship that our design leverages extensively.
 
 The explosion of LLM frameworks in Python sealed the decision. LangChain and LangGraph provide sophisticated abstractions for building LLM-powered applications, while the broader ecosystem includes everything from vector databases to prompt management tools. Attempting to build our system in another language would mean either sacrificing these powerful tools or building complex bridges to Python-based services.
 
@@ -630,7 +630,7 @@ The explosion of LLM frameworks in Python sealed the decision. LangChain and Lan
 
 The choice of LangGraph for orchestration emerged through careful evaluation of available frameworks and their alignment with our architectural vision. While LangChain provides excellent abstractions for single-agent LLM applications, LangGraph extends these concepts to support the multi-agent, stateful workflows that our design demands.
 
-LangGraph's native multi-agent support aligns perfectly with our per-sheet agent architecture. The framework provides built-in primitives for agent creation, lifecycle management, and coordinationâ€”capabilities that would require significant custom development with simpler frameworks. The state management system enables agents to maintain context across multiple analytical steps while providing checkpointing capabilities for long-running analyses.
+LangGraph's native multi-agent support aligns perfectly with our per-sheet agent architecture. The framework provides built-in primitives for agent creation, lifecycle management, and coordination—capabilities that would require significant custom development with simpler frameworks. The state management system enables agents to maintain context across multiple analytical steps while providing checkpointing capabilities for long-running analyses.
 
 The framework's approach to tool calling proved particularly well-suited to our needs. Rather than treating tools as simple function calls, LangGraph enables sophisticated tool orchestration with features like conditional execution, result validation, and automatic retry logic. This aligns perfectly with our Tool Bus governance model, enabling us to implement security policies and resource controls at the framework level.
 
@@ -642,7 +642,7 @@ The monolithic deployment model was chosen after careful analysis of specific re
 
 In a microservices architecture, our system would require separate services for API handling, agent orchestration, execution sandboxing, and various utility functions. This would introduce complexity in service discovery, network communication, distributed state management, and deployment coordination. For many organizations, this complexity translates directly into operational overhead and increased failure modes.
 
-The monolithic approach dramatically simplifies deploymentâ€”a single container or process encompasses the entire system. This simplification extends to debugging, where engineers can trace execution through the entire stack without navigating distributed logs and network boundaries. State management becomes straightforward when all components share the same process space, eliminating the need for distributed state stores or complex synchronization protocols.
+The monolithic approach dramatically simplifies deployment—a single container or process encompasses the entire system. This simplification extends to debugging, where engineers can trace execution through the entire stack without navigating distributed logs and network boundaries. State management becomes straightforward when all components share the same process space, eliminating the need for distributed state stores or complex synchronization protocols.
 
 However, monolithic doesn't mean monolithic thinking. Within our single deployment unit, we maintain clear architectural boundaries and implement agent parallelism through process-based or thread-based concurrency. This provides the analytical parallelism benefits of a distributed system while maintaining operational simplicity.
 
@@ -654,7 +654,7 @@ Jupyter notebooks provide a transformative execution environment for the system.
 
 The audit trail capability emerged as perhaps the most compelling benefit. Every operation performed by an agent is recorded in the notebook, creating a self-documenting analysis that can be reviewed, debugged, or even modified by human analysts. This transparency is invaluable for building trust in AI-driven analysis, allowing users to understand not just what the system concluded but how it reached those conclusions.
 
-State persistence between operations enables sophisticated analytical workflows. Agents can build upon previous calculations, refer back to earlier results, and maintain complex data structures throughout their analysis. This persistence also enables checkpointingâ€”if an analysis is interrupted, it can resume from the last saved notebook state rather than starting over.
+State persistence between operations enables sophisticated analytical workflows. Agents can build upon previous calculations, refer back to earlier results, and maintain complex data structures throughout their analysis. This persistence also enables checkpointing—if an analysis is interrupted, it can resume from the last saved notebook state rather than starting over.
 
 The debugging capabilities of Jupyter notebooks proved particularly valuable during development and troubleshooting. Engineers can inspect variable states, re-run specific cells with modifications, and interactively explore edge cases. This interactive debugging extends to production, where support engineers can load saved notebooks to understand and resolve issues.
 
@@ -696,7 +696,7 @@ The hybrid context management approach implements multiple complementary strateg
 
 **Full History Persistence**: The complete notebook history serves as the authoritative record, providing an audit trail, debugging resource, and retrieval corpus when compressed context proves insufficient. This ensures that no information is truly lost, merely archived until needed.
 
-**Hierarchical Summarization**: As agents accumulate detailed observations about individual cells or ranges, the context manager progressively summarizes these into higher-level insights. This approach mirrors how human analysts workâ€”starting with detailed observations and building toward general conclusions.
+**Hierarchical Summarization**: As agents accumulate detailed observations about individual cells or ranges, the context manager progressively summarizes these into higher-level insights. This approach mirrors how human analysts work—starting with detailed observations and building toward general conclusions.
 
 **Vector Storage for Retrieval**: By embedding observations and storing them in a vector database, the system can quickly retrieve relevant historical context when needed. This RAG-style approach ensures that compressed-out details remain accessible without requiring the full context in every LLM call.
 
@@ -710,21 +710,21 @@ The cost optimization strategy recognizes that not all analytical tasks require 
 
 #### 4.6.1 Deterministic-First Processing
 
-The foundation of cost optimization is maximizing deterministic analysis. Traditional parsing and calculation methods handle the bulk of structural analysis at zero marginal cost. Only when these deterministic methods reach their limits do we escalate to AI-powered analysis. This principle extends throughout the systemâ€”always prefer the simplest, cheapest method that can reliably accomplish the task.
+The foundation of cost optimization is maximizing deterministic analysis. Traditional parsing and calculation methods handle the bulk of structural analysis at zero marginal cost. Only when these deterministic methods reach their limits do we escalate to AI-powered analysis. This principle extends throughout the system—always prefer the simplest, cheapest method that can reliably accomplish the task.
 
 #### 4.6.2 Model Tier Strategy
 
-Small Language Models serve as the workhorses for routine analytical tasks. Pattern matching, simple classification, and basic text analysis can often be accomplished by models with billions rather than hundreds of billions of parameters. These smaller models run faster and cheaper while providing adequate performance for many tasks. The key is intelligent routingâ€”understanding which tasks truly require large model capabilities.
+Small Language Models serve as the workhorses for routine analytical tasks. Pattern matching, simple classification, and basic text analysis can often be accomplished by models with billions rather than hundreds of billions of parameters. These smaller models run faster and cheaper while providing adequate performance for many tasks. The key is intelligent routing—understanding which tasks truly require large model capabilities.
 
 Large Language Models are reserved for complex reasoning tasks that require deep understanding, sophisticated pattern recognition, or creative problem-solving. By concentrating LLM usage on high-value tasks, we ensure that the increased cost delivers commensurate value. The system tracks which types of analyses benefit most from large models, continuously refining its routing decisions.
 
 #### 4.6.3 Caching and Reuse Strategies
 
-Caching and result reuse provide another layer of cost optimization. When agents encounter similar analytical challenges, the system can often reuse or adapt previous results rather than performing redundant analysis. This caching operates at multiple levelsâ€”from individual tool results to complete analytical conclusions.
+Caching and result reuse provide another layer of cost optimization. When agents encounter similar analytical challenges, the system can often reuse or adapt previous results rather than performing redundant analysis. This caching operates at multiple levels—from individual tool results to complete analytical conclusions.
 
 #### 4.6.4 Budget Management
 
-Budget limits provide hard stops to prevent runaway costs. Administrators can set budgets at various granularitiesâ€”per analysis, per user, per time periodâ€”ensuring that costs remain predictable and controlled. The system provides real-time cost tracking and projections, allowing users to make informed decisions about resource usage.
+Budget limits provide hard stops to prevent runaway costs. Administrators can set budgets at various granularities—per analysis, per user, per time period—ensuring that costs remain predictable and controlled. The system provides real-time cost tracking and projections, allowing users to make informed decisions about resource usage.
 
 #### 4.6.5 Performance Acceleration with GPU Computing
 
@@ -856,7 +856,7 @@ Output sanitization ensures that analysis results don't inadvertently expose sen
 
 #### 4.7.5 Comprehensive Audit and Monitoring
 
-Comprehensive audit logging provides both security monitoring and compliance support. Every significant operationâ€”from file upload to tool execution to result generationâ€”is logged with sufficient detail to support security investigations and regulatory audits. These logs are tamper-resistant and retained according to configurable policies.
+Comprehensive audit logging provides both security monitoring and compliance support. Every significant operation—from file upload to tool execution to result generation—is logged with sufficient detail to support security investigations and regulatory audits. These logs are tamper-resistant and retained according to configurable policies.
 
 ## 5. Development Environment Setup
 
@@ -866,7 +866,7 @@ The development environment design balances developer productivity with architec
 
 The local development environment embodies a "production-faithful but developer-friendly" philosophy. While production deployments may utilize microservices, message queues, and distributed storage, the local environment consolidates these into a monolithic application that preserves architectural boundaries without operational complexity. This approach emerged from recognizing that developers need rapid iteration cycles and comprehensive debugging capabilities during the experimental phase of spreadsheet analyzer development.
 
-A key design principle is that architectural patterns matter more than deployment topology. A well-structured monolithic application can evolve into microservices when needed, but a poorly structured system remains problematic regardless of deployment model. Therefore, the local setup maintains clean interfaces between components, uses the same configuration patterns as production, and implements identical security boundariesâ€”just within a single process rather than across network boundaries.
+A key design principle is that architectural patterns matter more than deployment topology. A well-structured monolithic application can evolve into microservices when needed, but a poorly structured system remains problematic regardless of deployment model. Therefore, the local setup maintains clean interfaces between components, uses the same configuration patterns as production, and implements identical security boundaries—just within a single process rather than across network boundaries.
 
 ### 5.2 Local Architecture Overview
 
@@ -1113,55 +1113,55 @@ The project structure follows modern Python practices with clear separation betw
 
 ```
 spreadsheet-analyzer/
-â”œâ”€â”€ .python-version          # Python 3.12
-â”œâ”€â”€ pyproject.toml          # uv-managed dependencies
-â”œâ”€â”€ README.md               # Project overview
-â”œâ”€â”€ CLAUDE.md               # AI assistant instructions
-â”
-â”œâ”€â”€ src/
-â”   â””â”€â”€ spreadsheet_analyzer/
-â”       â”œâ”€â”€ __init__.py
-â”       â”œâ”€â”€ __main__.py     # CLI entry point
-â”       â”œâ”€â”€ agents/         # Agent implementations
-â”       â”   â”œâ”€â”€ __init__.py
-â”       â”   â”œâ”€â”€ base.py     # Base agent class
-â”       â”   â”œâ”€â”€ sheet.py    # Per-sheet analyzer
-â”       â”   â””â”€â”€ formula.py  # Formula specialist
-â”       â”œâ”€â”€ core/           # Core analysis logic
-â”       â”   â”œâ”€â”€ __init__.py
-â”       â”   â”œâ”€â”€ deterministic.py  # Non-AI analysis
-â”       â”   â”œâ”€â”€ patterns.py       # Pattern detection
-â”       â”   â””â”€â”€ validation.py     # Verification chains
-â”       â”œâ”€â”€ orchestration/  # Control plane
-â”       â”   â”œâ”€â”€ __init__.py
-â”       â”   â”œâ”€â”€ manager.py  # Agent orchestration
-â”       â”   â”œâ”€â”€ context.py  # Context management
-â”       â”   â””â”€â”€ tools.py    # Tool registry
-â”       â”œâ”€â”€ kernels/        # Jupyter integration
-â”       â”   â”œâ”€â”€ __init__.py
-â”       â”   â”œâ”€â”€ manager.py  # Kernel lifecycle
-â”       â”   â””â”€â”€ templates.py # Notebook templates
-â”       â””â”€â”€ utils/          # Shared utilities
-â”
-â”œâ”€â”€ tests/                  # Comprehensive test suite
-â”   â”œâ”€â”€ conftest.py        # Pytest configuration
-â”   â”œâ”€â”€ unit/              # Unit tests
-â”   â”œâ”€â”€ integration/       # Integration tests
-â”   â””â”€â”€ fixtures/          # Test Excel files
-â”
-â”œâ”€â”€ notebooks/             # Development notebooks
-â”   â”œâ”€â”€ experiments/       # Experimental analysis
-â”   â””â”€â”€ examples/          # Usage examples
-â”
-â”œâ”€â”€ docs/                  # All documentation
-â”   â”œâ”€â”€ design/           # This document and others
-â”   â”œâ”€â”€ api/              # API documentation
-â”   â””â”€â”€ guides/           # User guides
-â”
-â””â”€â”€ runtime/              # Runtime artifacts (gitignored)
-    â”œâ”€â”€ agent_notebooks/  # Agent execution notebooks
-    â”œâ”€â”€ cache/           # Analysis cache
-    â””â”€â”€ logs/            # Execution logs
+├── .python-version          # Python 3.12
+├── pyproject.toml          # uv-managed dependencies
+├── README.md               # Project overview
+├── CLAUDE.md               # AI assistant instructions
+│
+├── src/
+│   └── spreadsheet_analyzer/
+│       ├── __init__.py
+│       ├── __main__.py     # CLI entry point
+│       ├── agents/         # Agent implementations
+│       │   ├── __init__.py
+│       │   ├── base.py     # Base agent class
+│       │   ├── sheet.py    # Per-sheet analyzer
+│       │   └── formula.py  # Formula specialist
+│       ├── core/           # Core analysis logic
+│       │   ├── __init__.py
+│       │   ├── deterministic.py  # Non-AI analysis
+│       │   ├── patterns.py       # Pattern detection
+│       │   └── validation.py     # Verification chains
+│       ├── orchestration/  # Control plane
+│       │   ├── __init__.py
+│       │   ├── manager.py  # Agent orchestration
+│       │   ├── context.py  # Context management
+│       │   └── tools.py    # Tool registry
+│       ├── kernels/        # Jupyter integration
+│       │   ├── __init__.py
+│       │   ├── manager.py  # Kernel lifecycle
+│       │   └── templates.py # Notebook templates
+│       └── utils/          # Shared utilities
+│
+├── tests/                  # Comprehensive test suite
+│   ├── conftest.py        # Pytest configuration
+│   ├── unit/              # Unit tests
+│   ├── integration/       # Integration tests
+│   └── fixtures/          # Test Excel files
+│
+├── notebooks/             # Development notebooks
+│   ├── experiments/       # Experimental analysis
+│   └── examples/          # Usage examples
+│
+├── docs/                  # All documentation
+│   ├── design/           # This document and others
+│   ├── api/              # API documentation
+│   └── guides/           # User guides
+│
+└── runtime/              # Runtime artifacts (gitignored)
+    ├── agent_notebooks/  # Agent execution notebooks
+    ├── cache/           # Analysis cache
+    └── logs/            # Execution logs
 ```
 
 ### 5.7 Local Development Workflow
@@ -1364,7 +1364,7 @@ gantt
 
 The foundation phase establishes the core infrastructure and deterministic analysis capabilities that will support all subsequent development. This phase deliberately focuses on non-AI components, ensuring we have a robust base before introducing the complexity of LLM integration.
 
-Project setup begins with establishing a modern Python development environment using Poetry or uv for dependency management. This choice ensures reproducible builds and clean dependency resolution throughout the project lifecycle. The development environment will include comprehensive tooling for code qualityâ€”linting with ruff, type checking with mypy, and formatting with blackâ€”establishing quality standards from day one.
+Project setup begins with establishing a modern Python development environment using Poetry or uv for dependency management. This choice ensures reproducible builds and clean dependency resolution throughout the project lifecycle. The development environment will include comprehensive tooling for code quality—linting with ruff, type checking with mypy, and formatting with black—establishing quality standards from day one.
 
 The deterministic explorer implementation leverages openpyxl to create a comprehensive Excel parsing layer. This component will extract workbook structure, enumerate sheets and ranges, parse formulas, identify named ranges, and detect external references. By implementing this layer first, we can immediately provide value through structural analysis while laying the groundwork for intelligent analysis in later phases.
 
@@ -1372,7 +1372,7 @@ Basic Jupyter notebook integration introduces the execution environment that wil
 
 The API layer, built with FastAPI, provides the external interface for the system. Starting with simple endpoints for file upload and structural analysis, the API establishes patterns for authentication, request validation, and response formatting that will extend throughout the project. FastAPI's automatic OpenAPI documentation generation provides immediate value for early adopters and integration partners.
 
-Testing infrastructure deserves special attention in this foundation phase. We establish patterns for unit testing, integration testing, and end-to-end testing that will scale with the project. The creation of a comprehensive test Excel file suiteâ€”including simple spreadsheets, complex financial models, and edge casesâ€”provides the basis for validation throughout development.
+Testing infrastructure deserves special attention in this foundation phase. We establish patterns for unit testing, integration testing, and end-to-end testing that will scale with the project. The creation of a comprehensive test Excel file suite—including simple spreadsheets, complex financial models, and edge cases—provides the basis for validation throughout development.
 
 The deliverable for this phase is a functional CLI tool capable of parsing Excel files and producing structural analysis reports. While limited in scope, this tool provides immediate value and serves as a proof of concept for the core parsing capabilities.
 
@@ -1380,7 +1380,7 @@ The deliverable for this phase is a functional CLI tool capable of parsing Excel
 
 The second phase introduces the multi-agent architecture that represents the heart of our intelligent analysis system. Building on the foundation established in Phase 1, we now add LLM-powered intelligence while maintaining the robustness and reliability of our deterministic base.
 
-LangGraph orchestrator implementation establishes the control plane for our multi-agent system. This includes agent lifecycle management, state persistence, checkpoint handling, and coordination protocols. The orchestrator must handle various failure modes gracefullyâ€”agent timeouts, resource exhaustion, and LLM API failuresâ€”while maintaining overall system stability.
+LangGraph orchestrator implementation establishes the control plane for our multi-agent system. This includes agent lifecycle management, state persistence, checkpoint handling, and coordination protocols. The orchestrator must handle various failure modes gracefully—agent timeouts, resource exhaustion, and LLM API failures—while maintaining overall system stability.
 
 The base Agent class encapsulates common functionality shared across all agents: notebook initialization and management, tool discovery and invocation, context management, and communication protocols. This abstraction allows us to implement sophisticated agent behaviors once and reuse them across specialized agent types.
 
@@ -1396,7 +1396,7 @@ The deliverable for Phase 2 is a system capable of analyzing simple Excel files 
 
 ### Phase 3: Intelligence Layer (Weeks 7-9)
 
-Phase 3 elevates the system from basic AI-powered analysis to sophisticated pattern recognition and semantic understanding. This phase represents the core value proposition of our systemâ€”moving beyond what traditional parsers can achieve to deliver genuine insights.
+Phase 3 elevates the system from basic AI-powered analysis to sophisticated pattern recognition and semantic understanding. This phase represents the core value proposition of our system—moving beyond what traditional parsers can achieve to deliver genuine insights.
 
 Pattern detection algorithms implement sophisticated recognition of formula patterns, data structures, and relationships within spreadsheets. These algorithms must balance precision with performance, identifying meaningful patterns without getting lost in noise. The implementation includes pattern clustering, similarity scoring, and pattern abstraction capabilities.
 
@@ -1436,7 +1436,7 @@ The final phase prepares the system for production deployment and future growth.
 
 Comprehensive test suite development goes beyond functional testing to include performance benchmarks, security tests, and chaos engineering. The test suite must provide confidence in system reliability while enabling rapid detection of regressions.
 
-User documentation spans multiple audiencesâ€”developers needing API documentation, analysts requiring usage guides, and administrators needing operational procedures. The documentation must be comprehensive yet accessible, with examples and best practices throughout.
+User documentation spans multiple audiences—developers needing API documentation, analysts requiring usage guides, and administrators needing operational procedures. The documentation must be comprehensive yet accessible, with examples and best practices throughout.
 
 Monitoring and observability implementation provides deep visibility into production operations. This includes metrics collection, distributed tracing, and alerting. The observability stack must support both operational monitoring and business analytics.
 
@@ -1456,19 +1456,19 @@ Several important architectural questions remain open for future refinement. The
 
 #### 7.1.1 LLM Selection and Routing Strategy
 
-The selection of Large Language Models represents one of the most impactful decisions for system performance and cost. Each available model exhibits unique strengthsâ€”Claude excels at complex reasoning and maintains strong context coherence, GPT-4 demonstrates superior general knowledge and code generation, while Gemini offers impressive context windows and multimodal capabilities. The challenge lies not just in selecting a primary model but in developing criteria for routing different types of analytical tasks to the most appropriate model. This decision impacts analytical quality, operational costs, and system latency. Comprehensive benchmarking across representative Excel analysis tasks will be necessary to develop evidence-based routing strategies.
+The selection of Large Language Models represents one of the most impactful decisions for system performance and cost. Each available model exhibits unique strengths—Claude excels at complex reasoning and maintains strong context coherence, GPT-4 demonstrates superior general knowledge and code generation, while Gemini offers impressive context windows and multimodal capabilities. The challenge lies not just in selecting a primary model but in developing criteria for routing different types of analytical tasks to the most appropriate model. This decision impacts analytical quality, operational costs, and system latency. Comprehensive benchmarking across representative Excel analysis tasks will be necessary to develop evidence-based routing strategies.
 
 #### 7.1.2 Inter-Agent Communication Protocols
 
-Inter-agent communication interrupts present a fascinating architectural challenge that touches on fundamental questions of agent autonomy versus coordination. When an agent discovers information relevant to another agent's analysis, should it interrupt the recipient immediately, queue the information for later delivery, or use some priority-based system? The interrupt model ensures timely information sharing but risks disrupting focused analysis. The queuing model preserves agent focus but might delay critical insights. A priority system offers a middle ground but requires sophisticated classification of information importance. Furthermore, timeout handling adds another layer of complexityâ€”when an agent doesn't respond to a query, the system must decide whether to retry, escalate, or proceed with partial information. These decisions significantly impact both analysis quality and system performance.
+Inter-agent communication interrupts present a fascinating architectural challenge that touches on fundamental questions of agent autonomy versus coordination. When an agent discovers information relevant to another agent's analysis, should it interrupt the recipient immediately, queue the information for later delivery, or use some priority-based system? The interrupt model ensures timely information sharing but risks disrupting focused analysis. The queuing model preserves agent focus but might delay critical insights. A priority system offers a middle ground but requires sophisticated classification of information importance. Furthermore, timeout handling adds another layer of complexity—when an agent doesn't respond to a query, the system must decide whether to retry, escalate, or proceed with partial information. These decisions significantly impact both analysis quality and system performance.
 
 #### 7.1.3 Context Window Optimization
 
-Context window management emerges as a critical challenge that grows more complex as analyses deepen. While our hybrid compression strategy provides a solid foundation, determining optimal compression ratios remains an empirical question. Too aggressive compression risks losing critical details, while insufficient compression limits analysis depth. The decision of when to use full versus compressed context depends on factors we don't yet fully understandâ€”task complexity, data patterns, and the specific capabilities of different LLMs. Graceful handling of context overflow represents another challenge. When even compressed context exceeds limits, the system must intelligently partition the analysis, but the optimal partitioning strategy remains unclear.
+Context window management emerges as a critical challenge that grows more complex as analyses deepen. While our hybrid compression strategy provides a solid foundation, determining optimal compression ratios remains an empirical question. Too aggressive compression risks losing critical details, while insufficient compression limits analysis depth. The decision of when to use full versus compressed context depends on factors we don't yet fully understand—task complexity, data patterns, and the specific capabilities of different LLMs. Graceful handling of context overflow represents another challenge. When even compressed context exceeds limits, the system must intelligently partition the analysis, but the optimal partitioning strategy remains unclear.
 
 #### 7.1.4 Error Recovery Boundaries
 
-Error recovery boundaries require careful calibration between persistence and efficiency. When an agent encounters an error, how many retry attempts are appropriate before escalating? The answer likely varies based on error type, task criticality, and resource availability. Similarly, determining when to involve human operators requires balancing automation goals with practical limitations. Some errors might indicate fundamental issues requiring human insight, while others represent transient failures best handled automatically. The handling of partial successâ€”when some aspects of analysis succeed while others failâ€”demands sophisticated strategies for result aggregation and quality assessment.
+Error recovery boundaries require careful calibration between persistence and efficiency. When an agent encounters an error, how many retry attempts are appropriate before escalating? The answer likely varies based on error type, task criticality, and resource availability. Similarly, determining when to involve human operators requires balancing automation goals with practical limitations. Some errors might indicate fundamental issues requiring human insight, while others represent transient failures best handled automatically. The handling of partial success—when some aspects of analysis succeed while others fail—demands sophisticated strategies for result aggregation and quality assessment.
 
 ### 7.2 Technical Challenges
 
@@ -1478,11 +1478,11 @@ Performance at scale represents perhaps the most significant technical hurdle fo
 
 #### 7.2.2 Semantic Understanding Accuracy
 
-Semantic understanding accuracy touches on fundamental limitations of current AI technology. While LLMs demonstrate impressive capabilities in understanding text and code, interpreting business logic embedded in Excel formulas requires domain-specific knowledge that general models may lack. A formula calculating return on investment might be obvious to a financial analyst but opaque to an AI without appropriate context. Integrating domain-specific knowledge without sacrificing generality represents an ongoing challenge. Handling ambiguous dataâ€”where multiple interpretations are plausibleâ€”requires sophisticated strategies for uncertainty quantification and user interaction.
+Semantic understanding accuracy touches on fundamental limitations of current AI technology. While LLMs demonstrate impressive capabilities in understanding text and code, interpreting business logic embedded in Excel formulas requires domain-specific knowledge that general models may lack. A formula calculating return on investment might be obvious to a financial analyst but opaque to an AI without appropriate context. Integrating domain-specific knowledge without sacrificing generality represents an ongoing challenge. Handling ambiguous data—where multiple interpretations are plausible—requires sophisticated strategies for uncertainty quantification and user interaction.
 
 #### 7.2.3 Cost Predictability
 
-Cost predictability remains elusive in LLM-based systems where token usage can vary dramatically based on file complexity and analysis depth. Providing accurate cost estimates before analysis requires predictive models that don't yet exist. When analyses exceed budget limits, the system must gracefully degrade functionality while still providing value. Demonstrating return on investment requires not just cost tracking but value quantificationâ€”how do we measure the value of insights discovered or errors prevented? These economic considerations will largely determine enterprise adoption.
+Cost predictability remains elusive in LLM-based systems where token usage can vary dramatically based on file complexity and analysis depth. Providing accurate cost estimates before analysis requires predictive models that don't yet exist. When analyses exceed budget limits, the system must gracefully degrade functionality while still providing value. Demonstrating return on investment requires not just cost tracking but value quantification—how do we measure the value of insights discovered or errors prevented? These economic considerations will largely determine enterprise adoption.
 
 ### 7.3 Operational Considerations
 
@@ -1496,13 +1496,13 @@ Security hardening in production environments requires constant vigilance agains
 
 #### 7.3.3 User Experience Design
 
-User experience considerations extend beyond basic functionality to support how analysts actually work. Progress visualization for long-running analyses must provide meaningful updates without overwhelming users with technical details. The availability of partial results enables users to make decisions even before analysis completes, but determining which results are meaningful in isolation requires careful design. Interactive refinement of analysisâ€”allowing users to guide and adjust analytical approaches based on intermediate resultsâ€”demands sophisticated state management and user interface design.
+User experience considerations extend beyond basic functionality to support how analysts actually work. Progress visualization for long-running analyses must provide meaningful updates without overwhelming users with technical details. The availability of partial results enables users to make decisions even before analysis completes, but determining which results are meaningful in isolation requires careful design. Interactive refinement of analysis—allowing users to guide and adjust analytical approaches based on intermediate results—demands sophisticated state management and user interface design.
 
 ### 7.4 Future Research Areas
 
 #### 7.4.1 Advanced Analytical Techniques
 
-Advanced analytical techniques represent natural extensions of the current architecture. Multi-modal analysis of charts and images embedded in Excel files requires integration of computer vision capabilities with our text-based analysis. Time-series pattern detection could identify trends and anomalies in financial models that traditional analysis might miss. Automated insight generationâ€”moving beyond pattern detection to actual narrative generationâ€”could make results more accessible to non-technical users.
+Advanced analytical techniques represent natural extensions of the current architecture. Multi-modal analysis of charts and images embedded in Excel files requires integration of computer vision capabilities with our text-based analysis. Time-series pattern detection could identify trends and anomalies in financial models that traditional analysis might miss. Automated insight generation—moving beyond pattern detection to actual narrative generation—could make results more accessible to non-technical users.
 
 #### 7.4.2 Integration Possibilities
 
