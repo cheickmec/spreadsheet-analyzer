@@ -248,6 +248,8 @@ class StructuralMapper:
 
     CLAUDE-COMPLEX: We need state to efficiently traverse the workbook
     structure, but all analysis is done through pure functions.
+    CLAUDE-IMPORTANT: This loads the entire workbook into memory -
+    use openpyxl's read_only=True for large files.
     """
 
     def __init__(self, workbook: Workbook):
@@ -268,7 +270,8 @@ class StructuralMapper:
         try:
             worksheet = self.workbook[sheet_name]
 
-            # Use pure functions for analysis
+            # CLAUDE-KNOWLEDGE: Use pure functions for analysis to ensure
+            # reproducible results and easier testing
             used_range, row_count, col_count = calculate_used_range(worksheet)
             features = analyze_sheet_features(worksheet)
             cell_count, formula_count = count_cells_and_formulas(worksheet)

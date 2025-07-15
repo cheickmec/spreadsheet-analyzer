@@ -294,9 +294,13 @@ class FormulaAnalyzer:
         """
         Analyze all formulas in workbook.
 
+        CLAUDE-PERFORMANCE: We analyze sheets sequentially to avoid
+        memory issues with large workbooks.
+        
         Returns complete formula analysis.
         """
-        # First pass: collect all formulas
+        # CLAUDE-KNOWLEDGE: First pass collects all formulas before analyzing
+        # dependencies to ensure we have complete reference information
         for sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
             self._analyze_sheet(sheet, sheet_name)
@@ -304,7 +308,8 @@ class FormulaAnalyzer:
         # Finalize graph structure
         self.graph.finalize_dependencies()
 
-        # Detect circular references
+        # CLAUDE-GOTCHA: Excel allows some circular references with iterative calculation
+        # but they can cause performance issues and calculation errors
         circular_refs = self.graph.detect_circular_references()
 
         # Calculate depths

@@ -29,6 +29,8 @@ class ProgressTracker:
 
     CLAUDE-KNOWLEDGE: We use the observer pattern to allow
     flexible progress reporting without coupling to specific UI.
+    CLAUDE-PERFORMANCE: Observer notifications are async to avoid
+    blocking the main analysis pipeline.
     """
 
     def __init__(self):
@@ -48,7 +50,8 @@ class ProgressTracker:
 
         self.updates.append(update)
 
-        # Notify all observers
+        # CLAUDE-GOTCHA: Observer failures should not crash the pipeline
+        # We catch exceptions and log them but continue processing
         for observer in self.observers:
             try:
                 observer(update)
@@ -65,6 +68,8 @@ class DeterministicPipeline:
 
     CLAUDE-COMPLEX: The pipeline manages complex state transitions
     and error handling across multiple analysis stages.
+    CLAUDE-IMPORTANT: Pipeline stages are executed sequentially with
+    dependency validation - never skip integrity or security checks.
     """
 
     def __init__(self, options: dict[str, Any] | None = None):
@@ -118,7 +123,8 @@ class DeterministicPipeline:
                 stage_results["integrity"] = integrity_result.value
                 context = context.with_stage_result("integrity", integrity_result.value)
 
-                # Check if file should be processed
+                # CLAUDE-SECURITY: Block files that fail integrity checks
+                # Never proceed with analysis if file integrity is compromised
                 if integrity_result.value.processing_class == "BLOCKED":
                     errors.append("File blocked due to integrity check")
                     return self._create_failed_result(context, errors, start_time)
@@ -137,7 +143,8 @@ class DeterministicPipeline:
                 stage_results["security"] = security_result.value
                 context = context.with_stage_result("security", security_result.value)
 
-                # Check if file is safe
+                # CLAUDE-SECURITY: Block files with security risks
+                # Safety is paramount - never analyze unsafe files
                 if not security_result.value.is_safe:
                     errors.append("File blocked due to security risks")
                     return self._create_failed_result(context, errors, start_time)
