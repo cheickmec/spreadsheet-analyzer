@@ -10,13 +10,25 @@ import re
 from collections import defaultdict, deque
 from collections.abc import Callable
 from pathlib import Path
+from typing import ClassVar, Final
 
 import openpyxl
 from openpyxl.formula import Tokenizer
 
-from ..types import CellReference, Err, FormulaAnalysis, FormulaNode, Ok, Result
+from spreadsheet_analyzer.pipeline.types import CellReference, Err, FormulaAnalysis, FormulaNode, Ok, Result
 
 logger = logging.getLogger(__name__)
+
+# ==================== Constants ====================
+
+# Formula complexity thresholds
+HIGH_FORMULA_COUNT: Final[int] = 1000
+MEDIUM_FORMULA_COUNT: Final[int] = 100
+LOW_FORMULA_COUNT: Final[int] = 10
+
+HIGH_DEPTH_THRESHOLD: Final[int] = 10
+MEDIUM_DEPTH_THRESHOLD: Final[int] = 5
+LOW_DEPTH_THRESHOLD: Final[int] = 2
 
 # ==================== Formula Parsing Utilities ====================
 
@@ -51,7 +63,7 @@ class FormulaParser:
         CLAUDE-GOTCHA: Excel's formula parser is very complex.
         We use a simplified approach that covers most common cases.
         """
-        references = set()
+        references: set[CellReference] = set()
 
         if not formula or not formula.startswith("="):
             return references
@@ -66,7 +78,7 @@ class FormulaParser:
                 if token.type == "OPERAND" and token.subtype == "RANGE":
                     refs = self._parse_reference(token.value)
                     references.update(refs)
-        except Exception:
+        except (ValueError, AttributeError, TypeError):
             # Fallback to regex parsing
             references.update(self._parse_with_regex(formula))
 
@@ -74,7 +86,7 @@ class FormulaParser:
 
     def _parse_reference(self, ref_str: str) -> set[CellReference]:
         """Parse a single reference string."""
-        references = set()
+        references: set[CellReference] = set()
 
         # Check for range reference
         if ":" in ref_str:
@@ -98,7 +110,7 @@ class FormulaParser:
 
     def _parse_with_regex(self, formula: str) -> set[CellReference]:
         """Fallback regex-based parsing."""
-        references = set()
+        references: set[CellReference] = set()
 
         # Find all cell references
         for match in self.CELL_PATTERN.finditer(formula):
@@ -281,7 +293,16 @@ class FormulaAnalyzer:
     formulas in a workbook, building a complete dependency graph.
     """
 
-    VOLATILE_FUNCTIONS = {"NOW", "TODAY", "RAND", "RANDBETWEEN", "INDIRECT", "OFFSET", "CELL", "INFO"}
+    VOLATILE_FUNCTIONS: ClassVar[set[str]] = {
+        "NOW",
+        "TODAY",
+        "RAND",
+        "RANDBETWEEN",
+        "INDIRECT",
+        "OFFSET",
+        "CELL",
+        "INFO",
+    }
 
     def __init__(self):
         """Initialize analyzer."""
@@ -388,24 +409,24 @@ class FormulaAnalyzer:
 
         # Base score from formula count
         formula_count = len(self.graph.nodes)
-        if formula_count > 1000:
+        if formula_count > HIGH_FORMULA_COUNT:
             score += 20
-        elif formula_count > 100:
+        elif formula_count > MEDIUM_FORMULA_COUNT:
             score += 10
-        elif formula_count > 10:
+        elif formula_count > LOW_FORMULA_COUNT:
             score += 5
 
         # Dependency depth score
         max_depth = self.graph.get_max_depth()
-        if max_depth > 10:
+        if max_depth > HIGH_DEPTH_THRESHOLD:
             score += 30
-        elif max_depth > 5:
+        elif max_depth > MEDIUM_DEPTH_THRESHOLD:
             score += 20
-        elif max_depth > 2:
+        elif max_depth > LOW_DEPTH_THRESHOLD:
             score += 10
 
         # Circular reference penalty
-        if self.graph._circular_refs:
+        if self.graph._circular_refs:  # noqa: SLF001
             score += 20
 
         # Volatile function penalty
@@ -422,7 +443,7 @@ class FormulaAnalyzer:
 # ==================== Main Stage Function ====================
 
 
-def stage_3_formula_analysis(file_path: Path, read_only: bool = True) -> Result:
+def stage_3_formula_analysis(file_path: Path, *, read_only: bool = True) -> Result:
     """
     Perform formula dependency analysis.
 
@@ -455,7 +476,7 @@ def stage_3_formula_analysis(file_path: Path, read_only: bool = True) -> Result:
         finally:
             workbook.close()
 
-    except Exception as e:
+    except (OSError, ValueError, TypeError, MemoryError) as e:
         return Err(f"Formula analysis failed: {e!s}", {"exception": str(e)})
 
 
@@ -463,7 +484,7 @@ def stage_3_formula_analysis(file_path: Path, read_only: bool = True) -> Result:
 
 
 def create_formula_validator(
-    max_depth: int = 10, allow_circular: bool = False, allow_volatile: bool = True, allow_external: bool = False
+    max_depth: int = 10, *, allow_circular: bool = False, allow_volatile: bool = True, allow_external: bool = False
 ) -> Callable[[Path], list[str]]:
     """
     Create a formula validator with specific policies.

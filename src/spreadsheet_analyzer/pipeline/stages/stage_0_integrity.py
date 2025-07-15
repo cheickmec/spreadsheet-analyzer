@@ -8,10 +8,22 @@ checking format, structure, and basic integrity without side effects.
 import hashlib
 import zipfile
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Final
 
-from ..types import Err, FileMetadata, IntegrityResult, Ok, ProcessingClass, Result
+from spreadsheet_analyzer.pipeline.types import Err, FileMetadata, IntegrityResult, Ok, ProcessingClass, Result
+
+# ==================== Constants ====================
+
+# File size constants
+MIN_FILE_SIZE_BYTES: Final[int] = 1024  # 1KB minimum
+NORMAL_SIZE_MIN_MB: Final[float] = 0.01
+NORMAL_SIZE_MAX_MB: Final[int] = 50
+LARGE_FILE_THRESHOLD_MB: Final[int] = 100
+
+# Trust scoring thresholds
+TINY_FILE_THRESHOLD_MB: Final[float] = 0.001
 
 # ==================== Pure Helper Functions ====================
 
@@ -25,7 +37,7 @@ def calculate_file_hash(file_path: Path) -> str:
     """
     sha256_hash = hashlib.sha256()
 
-    with open(file_path, "rb") as f:
+    with file_path.open("rb") as f:
         # Read in 64KB chunks for memory efficiency
         for chunk in iter(lambda: f.read(65536), b""):
             sha256_hash.update(chunk)
@@ -41,11 +53,11 @@ def detect_mime_type(file_path: Path) -> str:
     our own detection based on file signatures and structure.
     """
     # Read first few bytes for magic number detection
-    with open(file_path, "rb") as f:
+    with file_path.open("rb") as f:
         header = f.read(8)
 
     # Check for ZIP signature (modern Excel)
-    if header.startswith(b"PK\x03\x04") or header.startswith(b"PK\x05\x06"):
+    if header.startswith((b"PK\x03\x04", b"PK\x05\x06")):
         # Could be XLSX, need to check structure
         if is_valid_ooxml_structure(file_path):
             return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -100,7 +112,7 @@ def validate_excel_format(mime_type: str) -> bool:
     return mime_type in valid_types
 
 
-def determine_processing_class(metadata: FileMetadata, is_excel: bool, is_ooxml: bool) -> ProcessingClass:
+def determine_processing_class(metadata: FileMetadata, *, is_excel: bool, is_ooxml: bool) -> ProcessingClass:
     """
     Classify file for processing based on size and format.
 
@@ -112,22 +124,25 @@ def determine_processing_class(metadata: FileMetadata, is_excel: bool, is_ooxml:
         return "BLOCKED"
 
     # Block suspiciously small files
-    if metadata.size_bytes < 1024:  # Less than 1KB
+    if metadata.size_bytes < MIN_FILE_SIZE_BYTES:  # Less than 1KB
         return "BLOCKED"
 
     # Size thresholds by format
+    ooxml_heavy_threshold_mb: Final[int] = 100
+    legacy_heavy_threshold_mb: Final[int] = 30
+
     if is_ooxml:
         # Modern format - more efficient
-        if metadata.size_bytes > 100 * 1024 * 1024:  # 100MB
+        if metadata.size_bytes > ooxml_heavy_threshold_mb * 1024 * 1024:
             return "HEAVY"
     # Legacy format - less efficient
-    elif metadata.size_bytes > 30 * 1024 * 1024:  # 30MB
+    elif metadata.size_bytes > legacy_heavy_threshold_mb * 1024 * 1024:
         return "HEAVY"
 
     return "STANDARD"
 
 
-def assess_trust_level(metadata: FileMetadata, is_excel: bool, is_ooxml: bool) -> int:
+def assess_trust_level(metadata: FileMetadata, *, is_excel: bool, is_ooxml: bool) -> int:
     """
     Assess trust level (1-5) based on various heuristics.
 
@@ -145,11 +160,11 @@ def assess_trust_level(metadata: FileMetadata, is_excel: bool, is_ooxml: bool) -
 
     # Size heuristics
     size_mb = metadata.size_mb
-    if 0.01 <= size_mb <= 50:
+    if NORMAL_SIZE_MIN_MB <= size_mb <= NORMAL_SIZE_MAX_MB:
         score += 1  # Normal size range
-    elif size_mb > 100:
+    elif size_mb > LARGE_FILE_THRESHOLD_MB:
         score -= 1  # Very large files are suspicious
-    elif size_mb < 0.001:
+    elif size_mb < TINY_FILE_THRESHOLD_MB:
         score -= 2  # Tiny files are very suspicious
 
     # Filename heuristics
@@ -211,8 +226,8 @@ def stage_0_integrity_probe(file_path: Path, known_hashes: set[str] | None = Non
             path=file_path,
             size_bytes=stat.st_size,
             mime_type=detect_mime_type(file_path),
-            created_time=datetime.fromtimestamp(stat.st_ctime),
-            modified_time=datetime.fromtimestamp(stat.st_mtime),
+            created_time=datetime.fromtimestamp(stat.st_ctime, tz=UTC),
+            modified_time=datetime.fromtimestamp(stat.st_mtime, tz=UTC),
         )
 
         # Perform all checks using pure functions
@@ -224,10 +239,10 @@ def stage_0_integrity_probe(file_path: Path, known_hashes: set[str] | None = Non
         is_duplicate = check_file_duplication(file_hash, known_hashes) if known_hashes else False
 
         # Determine processing classification
-        processing_class = determine_processing_class(metadata, is_excel, is_ooxml)
+        processing_class = determine_processing_class(metadata, is_excel=is_excel, is_ooxml=is_ooxml)
 
         # Assess trust level
-        trust_tier = assess_trust_level(metadata, is_excel, is_ooxml)
+        trust_tier = assess_trust_level(metadata, is_excel=is_excel, is_ooxml=is_ooxml)
 
         # Create immutable result
         result = IntegrityResult(
@@ -243,7 +258,7 @@ def stage_0_integrity_probe(file_path: Path, known_hashes: set[str] | None = Non
 
         return Ok(result)
 
-    except Exception as e:
+    except (OSError, ValueError, KeyError) as e:
         return Err(f"Integrity probe failed: {e!s}", {"exception": str(e)})
 
 

@@ -9,12 +9,21 @@ import re
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Final
 
-import defusedxml.ElementTree as defused_et
+import defusedxml.ElementTree as DefusedElementTree
 
 from spreadsheet_analyzer.pipeline.types import Err, Ok, Result, RiskLevel, SecurityReport, SecurityThreat
 
 # ==================== Security Pattern Definitions ====================
+
+# Risk severity thresholds
+HIGH_RISK_SEVERITY_THRESHOLD: Final[int] = 7
+CRITICAL_SEVERITY_THRESHOLD: Final[int] = 9
+MEDIUM_SEVERITY_THRESHOLD: Final[int] = 5
+CRITICAL_RISK_SCORE_THRESHOLD: Final[int] = 80
+HIGH_RISK_SCORE_THRESHOLD: Final[int] = 60
+MEDIUM_RISK_SCORE_THRESHOLD: Final[int] = 40
 
 # Patterns for detecting potentially dangerous content
 SUSPICIOUS_PATTERNS = {
@@ -88,11 +97,11 @@ def check_for_vba_macros(file_path: Path) -> tuple[bool, list[SecurityThreat]]:
                                     details={"pattern": pattern_name},
                                 )
                             )
-                except Exception:
+                except (OSError, ValueError):
                     # Can't read macro content, but we know it exists
                     pass
 
-    except Exception:
+    except (OSError, zipfile.BadZipFile):
         # Not a zip file or other error - handle in calling function
         pass
 
@@ -120,8 +129,8 @@ def check_for_external_links(file_path: Path) -> tuple[bool, list[SecurityThreat
 
             if external_link_files:
                 has_external_links = True
-                for link_file in external_link_files:
-                    threats.append(
+                threats.extend(
+                    [
                         SecurityThreat(
                             threat_type="EXTERNAL_LINKS",
                             severity=5,
@@ -130,7 +139,9 @@ def check_for_external_links(file_path: Path) -> tuple[bool, list[SecurityThreat
                             risk_level="MEDIUM",
                             details={"file": link_file},
                         )
-                    )
+                        for link_file in external_link_files
+                    ]
+                )
 
             # Check workbook relationships for external targets
             if "xl/_rels/workbook.xml.rels" in namelist:
@@ -153,10 +164,10 @@ def check_for_external_links(file_path: Path) -> tuple[bool, list[SecurityThreat
                                     details={"url": match[:100]},  # Truncate long URLs
                                 )
                             )
-                except Exception:
+                except (OSError, ValueError, UnicodeDecodeError):
                     pass
 
-    except Exception:
+    except (OSError, zipfile.BadZipFile):
         pass
 
     return has_external_links, threats
@@ -189,12 +200,12 @@ def check_for_embedded_objects(file_path: Path) -> tuple[bool, list[SecurityThre
                             severity=severity,
                             location=obj_file,
                             description="File contains embedded objects",
-                            risk_level="HIGH" if severity >= 7 else "MEDIUM",
+                            risk_level="HIGH" if severity >= HIGH_RISK_SEVERITY_THRESHOLD else "MEDIUM",
                             details={"file": obj_file},
                         )
                     )
 
-    except Exception:
+    except (OSError, zipfile.BadZipFile):
         pass
 
     return has_embedded_objects, threats
@@ -216,8 +227,8 @@ def check_data_connections(file_path: Path) -> list[SecurityThreat]:
             # Check for connection files
             connection_files = [f for f in namelist if "connections" in f or "queryTable" in f]
 
-            for conn_file in connection_files:
-                threats.append(
+            threats.extend(
+                [
                     SecurityThreat(
                         threat_type="DATA_CONNECTION",
                         severity=5,
@@ -226,9 +237,11 @@ def check_data_connections(file_path: Path) -> list[SecurityThreat]:
                         risk_level="MEDIUM",
                         details={"file": conn_file},
                     )
-                )
+                    for conn_file in connection_files
+                ]
+            )
 
-    except Exception:
+    except (OSError, zipfile.BadZipFile):
         pass
 
     return threats
@@ -248,7 +261,7 @@ def check_hidden_sheets(file_path: Path) -> list[SecurityThreat]:
         with zipfile.ZipFile(file_path, "r") as zip_file:
             if "xl/workbook.xml" in zip_file.namelist():
                 workbook_content = zip_file.read("xl/workbook.xml")
-                root = defused_et.fromstring(workbook_content)
+                root = DefusedElementTree.fromstring(workbook_content)
 
                 # Look for sheets with state attribute
                 for sheet in root.findall(".//{http://schemas.openxmlformats.org/spreadsheetml/2006/main}sheet"):
@@ -276,7 +289,7 @@ def check_hidden_sheets(file_path: Path) -> list[SecurityThreat]:
                             )
                         )
 
-    except Exception:
+    except (OSError, zipfile.BadZipFile, DefusedElementTree.ParseError):
         pass
 
     return threats
@@ -302,22 +315,24 @@ def check_formula_injection(file_path: Path) -> list[SecurityThreat]:
                     content = zip_file.read(sheet_file).decode("utf-8", errors="ignore")
 
                     # Look for formulas with dangerous functions
-                    for func in dangerous_functions:
-                        if func in content.upper():
-                            threats.append(
-                                SecurityThreat(
-                                    threat_type="DANGEROUS_FORMULA",
-                                    severity=6,
-                                    location=sheet_file,
-                                    description=f"Potentially dangerous function {func} detected",
-                                    risk_level="MEDIUM",
-                                    details={"function": func},
-                                )
+                    threats.extend(
+                        [
+                            SecurityThreat(
+                                threat_type="DANGEROUS_FORMULA",
+                                severity=6,
+                                location=sheet_file,
+                                description=f"Potentially dangerous function {func} detected",
+                                risk_level="MEDIUM",
+                                details={"function": func},
                             )
-                except Exception:
+                            for func in dangerous_functions
+                            if func in content.upper()
+                        ]
+                    )
+                except (OSError, ValueError, UnicodeDecodeError):
                     pass
 
-    except Exception:
+    except (OSError, zipfile.BadZipFile):
         pass
 
     return threats
@@ -342,11 +357,11 @@ def calculate_risk_score(threats: list[SecurityThreat]) -> tuple[int, RiskLevel]
     risk_score = min(100, total_score + (threat_count * 2))
 
     # Determine risk level
-    if max_severity >= 9 or risk_score >= 80:
-        risk_level = "CRITICAL"
-    elif max_severity >= 7 or risk_score >= 60:
+    if max_severity >= CRITICAL_SEVERITY_THRESHOLD or risk_score >= CRITICAL_RISK_SCORE_THRESHOLD:
+        risk_level: RiskLevel = "CRITICAL"
+    elif max_severity >= HIGH_RISK_SEVERITY_THRESHOLD or risk_score >= HIGH_RISK_SCORE_THRESHOLD:
         risk_level = "HIGH"
-    elif max_severity >= 5 or risk_score >= 40:
+    elif max_severity >= MEDIUM_SEVERITY_THRESHOLD or risk_score >= MEDIUM_RISK_SCORE_THRESHOLD:
         risk_level = "MEDIUM"
     else:
         risk_level = "LOW"
@@ -424,7 +439,7 @@ def stage_1_security_scan(file_path: Path, scan_options: dict[str, bool] | None 
 
         return Ok(report)
 
-    except Exception as e:
+    except (OSError, ValueError, zipfile.BadZipFile) as e:
         return Err(f"Security scan failed: {e!s}", {"exception": str(e)})
 
 
@@ -432,7 +447,7 @@ def stage_1_security_scan(file_path: Path, scan_options: dict[str, bool] | None 
 
 
 def create_security_validator(
-    max_risk_level: RiskLevel = "MEDIUM", block_macros: bool = False, block_external_links: bool = False
+    max_risk_level: RiskLevel = "MEDIUM", *, block_macros: bool = False, block_external_links: bool = False
 ) -> Callable[[Path], list[str]]:
     """
     Create a customized security validator with specific policies.
@@ -468,8 +483,7 @@ def create_security_validator(
 
         # Report critical threats
         critical_threats = [t for t in report.threats if t.risk_level == "CRITICAL"]
-        for threat in critical_threats:
-            issues.append(f"Critical threat: {threat.description}")
+        issues.extend([f"Critical threat: {threat.description}" for threat in critical_threats])
 
         return issues
 

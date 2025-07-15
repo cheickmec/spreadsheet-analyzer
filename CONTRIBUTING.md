@@ -114,6 +114,158 @@ uv run pytest -v
 
 ## Code Style and Standards
 
+### Pre-commit Best Practices
+
+To avoid pre-commit hook failures and maintain code quality, follow these patterns:
+
+#### Magic Numbers (PLR2004)
+
+Always use typed constants instead of magic numbers:
+
+```python
+from typing import Final
+
+# ✅ DO: Use typed constants
+EXCEL_DATE_MAX: Final[int] = 100000
+SMALL_SHEET_COUNT: Final[int] = 3
+EMAIL_PATTERN_THRESHOLD: Final[float] = 0.7
+
+def detect_date_patterns(values):
+    if date_count > len(values) * EMAIL_PATTERN_THRESHOLD:
+        # More readable and maintainable
+```
+
+```python
+# ❌ DON'T: Use magic numbers
+if date_count > len(values) * 0.7:  # What does 0.7 mean?
+```
+
+#### Boolean Arguments (FBT001/FBT002)
+
+Make boolean parameters keyword-only to improve clarity:
+
+```python
+# ✅ DO: Use keyword-only boolean parameters
+def analyze_workbook(file_path: Path, *, read_only: bool = True, include_formulas: bool = False):
+    pass
+
+# Called with explicit keywords
+analyze_workbook(path, read_only=True, include_formulas=False)
+```
+
+```python
+# ❌ DON'T: Use positional boolean parameters
+def analyze_workbook(file_path: Path, read_only: bool = True, include_formulas: bool = False):
+    pass
+
+# Unclear what True/False mean
+analyze_workbook(path, True, False)
+```
+
+#### Modern Python Syntax (UP038, C408)
+
+Use modern Python 3.12+ syntax patterns:
+
+```python
+# ✅ DO: Use union syntax and tuple literals
+isinstance(value, int | float)
+locations = ()
+
+# ❌ DON'T: Use old syntax
+isinstance(value, (int, float))
+locations = tuple()
+```
+
+#### Exception Handling (BLE001, S110)
+
+Use specific exceptions and proper logging:
+
+```python
+# ✅ DO: Catch specific exceptions
+try:
+    process_excel_file(path)
+except (OSError, ValueError, zipfile.BadZipFile) as e:
+    logger.exception("Failed to process Excel file")
+    return Err(f"Processing failed: {e}")
+```
+
+```python
+# ❌ DON'T: Catch generic exceptions or ignore silently
+try:
+    process_excel_file(path)
+except Exception:  # Too broad
+    pass  # Silent failure
+```
+
+#### Import Organization (E402, PLC0415)
+
+Keep imports at the top and avoid function-level imports:
+
+```python
+# ✅ DO: Top-level imports
+from pathlib import Path
+from typing import Final
+import openpyxl
+from openpyxl.utils import get_column_letter
+
+def calculate_range():
+    # Use imported function
+    return get_column_letter(col)
+```
+
+```python
+# ❌ DON'T: Function-level imports
+def calculate_range():
+    from openpyxl.utils import get_column_letter  # Move to top
+    return get_column_letter(col)
+```
+
+#### ElementTree Naming (N817)
+
+Use descriptive names for security-focused imports:
+
+```python
+# ✅ DO: Use descriptive names
+import defusedxml.ElementTree as DefusedElementTree
+
+root = DefusedElementTree.fromstring(xml_content)
+```
+
+```python
+# ❌ DON'T: Use generic acronyms
+import defusedxml.ElementTree as ET  # Not descriptive enough
+```
+
+#### Performance Patterns (PERF401)
+
+Use list.extend() instead of loops for building lists:
+
+```python
+# ✅ DO: Use list.extend() with comprehensions
+threats.extend([
+    SecurityThreat(type="MACRO", file=f)
+    for f in macro_files
+])
+```
+
+```python
+# ❌ DON'T: Use loops to build lists
+for f in macro_files:
+    threats.append(SecurityThreat(type="MACRO", file=f))
+```
+
+#### Line Length (E501)
+
+Break long lines sensibly, especially with long constant names:
+
+```python
+# ✅ DO: Break long lines logically
+incomplete_columns = [
+    (col, score) for col, score in column_scores.items()
+    if score < LOW_COMPLETENESS_THRESHOLD
+]
+```
+
 ### Type Annotations
 
 Always use type hints for function signatures:
