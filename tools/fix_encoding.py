@@ -20,7 +20,7 @@ def detect_encoding(file_path: Path) -> str | None:
             raw_data = f.read()
             result = chardet.detect(raw_data)
             encoding = result.get("encoding")
-            confidence = result.get("confidence", 0.0)
+            confidence = result.get("confidence", 0.0) if result else 0.0
 
             print(f"File: {file_path}")
             print(f"  Detected encoding: {encoding} (confidence: {confidence:.2f})")
