@@ -179,7 +179,7 @@ def discover_test_files(test_dir: Path) -> dict[str, list[Path]]:
 
 
 def run_pipeline_tests(
-    test_dir: Path, output_file: Optional[Path] = None, options: Optional[dict[str, Any]] = None
+    test_dir: Path, output_file: Path | None = None, options: dict[str, Any] | None = None
 ) -> TestResults:
     """
     Run pipeline on all test files.
@@ -244,7 +244,7 @@ def run_pipeline_tests(
                     print(f"✗ Analysis failed: {result.errors[0] if result.errors else 'Unknown error'}")
 
             except Exception as e:
-                logger.exception(f"Failed to analyze {file_path}")
+                logger.exception("Failed to analyze %s", file_path)
                 print(f"✗ Exception: {e!s}")
 
                 # Create failed result
@@ -299,7 +299,7 @@ def run_pipeline_tests(
         print(f"\nSaving results to {output_file}...")
         report = results.generate_report()
 
-        with open(output_file, "w") as f:
+        with output_file.open("w") as f:
             json.dump(report, f, indent=2)
 
         print("Results saved successfully")

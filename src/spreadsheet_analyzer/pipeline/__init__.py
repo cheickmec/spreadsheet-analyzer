@@ -34,27 +34,27 @@ from .types import (
 )
 
 __all__ = [
+    # Pipeline types
+    "ContentAnalysis",
     # Main interface
     "DeterministicPipeline",
-    "run_analysis",
-    "analyze_with_console_progress",
-    # Result types
-    "Ok",
     "Err",
-    "Result",
-    # Stage results
-    "IntegrityResult",
-    "SecurityReport",
-    "WorkbookStructure",
     "FormulaAnalysis",
-    "ContentAnalysis",
-    # Pipeline types
+    "IntegrityResult",
+    "Ok",
     "PipelineContext",
     "PipelineResult",
-    "ProgressUpdate",
-    # Enums
-    "RiskLevel",
     "ProcessingClass",
+    "ProgressUpdate",
+    "Result",
+    "RiskLevel",
+    "SecurityReport",
+    "WorkbookStructure",
+    "analyze_with_console_progress",
+    "create_fast_pipeline_options",
+    "create_lenient_pipeline_options",
+    "create_strict_pipeline_options",
+    "run_analysis",
 ]
 
 __version__ = "0.1.0"

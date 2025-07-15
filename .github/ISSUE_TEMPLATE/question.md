@@ -2,9 +2,9 @@ ______________________________________________________________________
 
 ## name: Question about: Ask a question about using or understanding the Excel Analyzer title: '[QUESTION] ' labels: ['question', 'needs-triage'] assignees: ''
 
-# ❓ Question
+# â�“ Question
 
-## 📋 Question Category
+## ğŸ“‹ Question Category
 
 - [ ] **Usage**: How to use a feature
 - [ ] **Configuration**: Setup or configuration question
@@ -14,11 +14,11 @@ ______________________________________________________________________
 - [ ] **Development**: Contributing or extending
 - [ ] **Other**: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
 
-## 🔍 Your Question
+## ğŸ”� Your Question
 
 <!-- Ask your question clearly and concisely -->
 
-## 📚 What I've Tried
+## ğŸ“š What I've Tried
 
 <!-- What documentation or resources have you already consulted? -->
 
@@ -29,7 +29,7 @@ ______________________________________________________________________
 - [ ] Looked at code examples
 - [ ] Tried the `--help` command
 
-## 🖥️ Context
+## ğŸ–¥ï¸� Context
 
 <!-- Provide any relevant context -->
 
@@ -51,7 +51,7 @@ ______________________________________________________________________
 # Code or command you're trying
 ```
 
-## 💡 Expected Answer Format
+## ğŸ’¡ Expected Answer Format
 
 <!-- What kind of answer would be most helpful? -->
 
@@ -61,7 +61,7 @@ ______________________________________________________________________
 - [ ] Configuration example
 - [ ] Best practices guidance
 
-## 🔗 Related Issues
+## ğŸ”— Related Issues
 
 <!-- Any related questions or issues -->
 

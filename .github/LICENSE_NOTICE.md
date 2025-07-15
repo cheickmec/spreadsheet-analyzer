@@ -4,7 +4,7 @@ This repository contains **PROPRIETARY** and **CONFIDENTIAL** software owned by 
 
 ## Copyright Notice
 
-Copyright © 2024 Yiriden LLC. All rights reserved.
+Copyright Â© 2024 Yiriden LLC. All rights reserved.
 
 ## Restrictions
 

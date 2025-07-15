@@ -7,15 +7,15 @@ This document provides comprehensive research on tool integration and sandboxing
 ## Table of Contents
 
 1. [Excel Library Comparison](#excel-library-comparison)
-2. [Sandboxing Strategies](#sandboxing-strategies)
-3. [Security Considerations](#security-considerations)
-4. [Performance Benchmarks](#performance-benchmarks)
-5. [Integration Patterns](#integration-patterns)
-6. [Code Execution Environments](#code-execution-environments)
-7. [Excel-Specific Security Risks](#excel-specific-security-risks)
-8. [Latest Developments (2023-2024)](#latest-developments-2023-2024)
-9. [Implementation Examples](#implementation-examples)
-10. [Best Practices and Recommendations](#best-practices-and-recommendations)
+1. [Sandboxing Strategies](#sandboxing-strategies)
+1. [Security Considerations](#security-considerations)
+1. [Performance Benchmarks](#performance-benchmarks)
+1. [Integration Patterns](#integration-patterns)
+1. [Code Execution Environments](#code-execution-environments)
+1. [Excel-Specific Security Risks](#excel-specific-security-risks)
+1. [Latest Developments (2023-2024)](#latest-developments-2023-2024)
+1. [Implementation Examples](#implementation-examples)
+1. [Best Practices and Recommendations](#best-practices-and-recommendations)
 
 ## Excel Library Comparison
 
@@ -24,23 +24,27 @@ This document provides comprehensive research on tool integration and sandboxing
 **Overview**: Pure Python library for reading/writing Excel 2010 xlsx/xlsm/xltx/xltm files.
 
 **Capabilities**:
+
 - Read and write Excel files without Excel installed
 - Support for charts, images, and styles
 - Cell formatting and formulas
 - Data validation and conditional formatting
 
 **Pros**:
+
 - No external dependencies
 - Comprehensive feature set
 - Active development and community
 - Good documentation
 
 **Cons**:
+
 - Slower for large files
 - Memory intensive for big datasets
 - Limited formula evaluation
 
 **Security Profile**:
+
 - Pure Python (easier to sandbox)
 - No system calls
 - File system access required
@@ -72,23 +76,27 @@ class SafeExcelReader:
 **Overview**: Data analysis library with Excel I/O capabilities through openpyxl/xlrd/xlwt engines.
 
 **Capabilities**:
+
 - DataFrame-based Excel manipulation
 - Multiple sheet support
 - Advanced data processing
 - Integration with NumPy/SciPy ecosystem
 
 **Pros**:
+
 - Powerful data manipulation
 - Memory efficient for large datasets
 - Excellent performance with vectorized operations
 - Rich ecosystem integration
 
 **Cons**:
+
 - Heavy dependency footprint
 - Potential security risks from dependencies
 - Complex for simple Excel tasks
 
 **Security Profile**:
+
 - Multiple dependencies increase attack surface
 - Requires careful dependency management
 - Can execute arbitrary code through eval operations
@@ -123,24 +131,28 @@ class SecurePandasExcel:
 **Overview**: Python library that leverages Excel's COM interface for Windows/Mac.
 
 **Capabilities**:
+
 - Full Excel automation
 - Real-time Excel interaction
 - VBA replacement
 - Excel as UI for Python scripts
 
 **Pros**:
+
 - Complete Excel functionality
 - Real-time updates
 - Native Excel features
 - Excellent for automation
 
 **Cons**:
+
 - Requires Excel installation
 - Platform-specific (Windows/Mac)
 - Security risks from COM automation
 - Not suitable for server environments
 
 **Security Profile**:
+
 - High risk - full system access through COM
 - Difficult to sandbox effectively
 - Can execute VBA macros
@@ -171,23 +183,27 @@ class XLWingsSecureWrapper:
 **Overview**: Wrapper library providing uniform API for various Excel libraries.
 
 **Capabilities**:
+
 - Unified interface for multiple formats
 - Simple data extraction
 - Format conversion
 - Lightweight operations
 
 **Pros**:
+
 - Simple API
 - Format agnostic
 - Minimal dependencies
 - Good for basic operations
 
 **Cons**:
+
 - Limited advanced features
 - Less control over specifics
 - Smaller community
 
 **Security Profile**:
+
 - Depends on underlying libraries
 - Minimal attack surface for basic operations
 - Good for restricted environments
@@ -197,6 +213,7 @@ class XLWingsSecureWrapper:
 ### 1. Process Isolation
 
 **Docker Container Sandboxing**:
+
 ```dockerfile
 # Dockerfile for Excel processing sandbox
 FROM python:3.11-slim
@@ -225,6 +242,7 @@ CMD ["python", "-u", "executor.py"]
 ```
 
 **Process Isolation with Resource Limits**:
+
 ```python
 import subprocess
 import resource
@@ -265,6 +283,7 @@ class ProcessSandbox:
 ### 2. Python-Specific Sandboxing
 
 **RestrictedPython Implementation**:
+
 ```python
 from RestrictedPython import compile_restricted, safe_globals
 from RestrictedPython.Guards import guarded_iter_unpack_sequence
@@ -329,6 +348,7 @@ class PythonSandbox:
 ### 3. WebAssembly Sandboxing
 
 **Pyodide Integration**:
+
 ```javascript
 // WebAssembly-based Python sandbox
 class PyodideSandbox {
@@ -401,6 +421,7 @@ class PyodideSandbox {
 ### 4. gVisor Runtime Sandboxing
 
 **gVisor Configuration**:
+
 ```yaml
 # gvisor-sandbox-config.yaml
 apiVersion: v1
@@ -1542,13 +1563,13 @@ if __name__ == "__main__":
 
 ### 1. Library Selection Guidelines
 
-| Use Case | Recommended Library | Rationale |
-|----------|-------------------|-----------|
-| Simple read/write | openpyxl | Pure Python, no dependencies |
-| Data analysis | pandas | Powerful data manipulation |
-| Automation (Windows) | xlwings | Full Excel integration |
-| Server environments | openpyxl/pandas | No Excel dependency |
-| High-performance | pandas with chunks | Memory efficient |
+| Use Case             | Recommended Library | Rationale                    |
+| -------------------- | ------------------- | ---------------------------- |
+| Simple read/write    | openpyxl            | Pure Python, no dependencies |
+| Data analysis        | pandas              | Powerful data manipulation   |
+| Automation (Windows) | xlwings             | Full Excel integration       |
+| Server environments  | openpyxl/pandas     | No Excel dependency          |
+| High-performance     | pandas with chunks  | Memory efficient             |
 
 ### 2. Security Checklist
 
@@ -1566,46 +1587,47 @@ if __name__ == "__main__":
 ### 3. Performance Optimization Tips
 
 1. **Use read-only mode** when not modifying files
-2. **Process in chunks** for large files
-3. **Use data_only=True** to get calculated values
-4. **Leverage pandas** for complex data operations
-5. **Implement caching** for repeated operations
-6. **Use parallel processing** for multiple sheets
-7. **Profile memory usage** and optimize accordingly
+1. **Process in chunks** for large files
+1. **Use data_only=True** to get calculated values
+1. **Leverage pandas** for complex data operations
+1. **Implement caching** for repeated operations
+1. **Use parallel processing** for multiple sheets
+1. **Profile memory usage** and optimize accordingly
 
 ### 4. Integration Architecture
 
 ```
-                                                 
-  LLM Agent      ¶  Validator       ¶  Sandbox   
-                                                 
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½     ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½     ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  LLM Agent  ï¿½ï¿½ï¿½ï¿½Â¶  Validator   ï¿½ï¿½ï¿½ï¿½Â¶  Sandbox   
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½     ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½     ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                                                  
-                            ¼                     ¼
-                                                   
+                            Â¼                     Â¼
+                    ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½     ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                        Security          Executor  
                        Scanner                     
-                                                   
+                    ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½     ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                                                  
-                                                 ¼
-                                                     
+                                                 Â¼
+                                         ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                                             Result   
                                            Handler   
-                                                     
+                                         ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 ```
 
 ### 5. Future Considerations
 
 1. **WebAssembly adoption** for better sandboxing
-2. **Streaming APIs** for real-time processing
-3. **GPU acceleration** for large-scale operations
-4. **Distributed processing** for massive files
-5. **Enhanced LLM integration** with native tool support
+1. **Streaming APIs** for real-time processing
+1. **GPU acceleration** for large-scale operations
+1. **Distributed processing** for massive files
+1. **Enhanced LLM integration** with native tool support
 
 ## Conclusion
 
 Building secure and efficient Excel processing capabilities for LLM agents requires careful consideration of libraries, sandboxing strategies, and security measures. By following the patterns and best practices outlined in this document, developers can create robust systems that safely handle Excel files while maintaining high performance and reliability.
 
 Key takeaways:
+
 - Choose libraries based on specific use cases and security requirements
 - Always implement multiple layers of security (validation, sandboxing, monitoring)
 - Consider performance implications and optimize accordingly

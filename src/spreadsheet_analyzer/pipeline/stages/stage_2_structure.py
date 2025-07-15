@@ -317,7 +317,7 @@ class StructuralMapper:
 
         return structures
 
-    def build_workbook_structure(self, has_vba: bool = False, has_external_links: bool = False) -> WorkbookStructure:
+    def build_workbook_structure(self, *, has_vba: bool = False, has_external_links: bool = False) -> WorkbookStructure:
         """
         Build complete workbook structure using analyzed sheets.
         """

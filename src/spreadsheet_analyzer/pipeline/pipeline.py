@@ -7,7 +7,7 @@ including progress tracking, error handling, and result aggregation.
 
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +43,7 @@ class ProgressTracker:
     def update(self, stage: str, progress: float, message: str, details: dict[str, Any] | None = None):
         """Send progress update."""
         update = ProgressUpdate(
-            stage=stage, progress=progress, message=message, timestamp=datetime.now(), details=details
+            stage=stage, progress=progress, message=message, timestamp=datetime.now(UTC), details=details
         )
 
         self.updates.append(update)
@@ -52,7 +52,7 @@ class ProgressTracker:
         for observer in self.observers:
             try:
                 observer(update)
-            except Exception as e:
+            except (RuntimeError, ValueError) as e:
                 logger.warning("Progress observer failed: %s", str(e))
 
 
@@ -96,7 +96,7 @@ class DeterministicPipeline:
         Returns:
             PipelineResult with all stage results
         """
-        start_time = datetime.now()
+        start_time = datetime.now(UTC)
 
         # Initialize context
         context = PipelineContext(file_path=file_path, start_time=start_time, options=self.options)
@@ -199,7 +199,7 @@ class DeterministicPipeline:
             self.progress_tracker.update("stage_4", 1.0, "Content analysis complete")
 
             # Create successful result
-            execution_time = (datetime.now() - start_time).total_seconds()
+            execution_time = (datetime.now(UTC) - start_time).total_seconds()
 
             return PipelineResult(
                 context=context,
@@ -235,7 +235,7 @@ class DeterministicPipeline:
             logger.exception("Stage 1 failed")
             return Err(f"Stage 1 exception: {e!s}")
 
-    def _run_stage_2(self, file_path: Path, has_vba: bool, has_external: bool) -> Result:
+    def _run_stage_2(self, file_path: Path, *, has_vba: bool, has_external: bool) -> Result:
         """Run Stage 2 with error handling."""
         try:
             return stage_2_structural_mapping(file_path, has_vba=has_vba, has_external_links=has_external)
@@ -264,7 +264,7 @@ class DeterministicPipeline:
         self, context: PipelineContext, errors: list[str], start_time: datetime
     ) -> PipelineResult:
         """Create a failed pipeline result."""
-        execution_time = (datetime.now() - start_time).total_seconds()
+        execution_time = (datetime.now(UTC) - start_time).total_seconds()
 
         return PipelineResult(
             context=context,

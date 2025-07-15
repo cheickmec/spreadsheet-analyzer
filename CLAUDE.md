@@ -18,6 +18,17 @@ Examples:
 - ❌ `uv run python src/spreadsheet_analyzer/main.py` (NEVER do this)
 - ❌ `python src/spreadsheet_analyzer/main.py` (NEVER do this)
 
+## Critical Git Commit Requirements
+
+**IMPORTANT**: NEVER skip pre-commit hooks when committing. All commits MUST pass pre-commit checks.
+
+- ❌ NEVER use `git commit --no-verify`
+- ❌ NEVER use `git commit -n`
+- ✅ ALWAYS ensure all pre-commit hooks pass before committing
+- ✅ Fix all linting, type checking, and security issues before committing
+
+If pre-commit hooks fail, fix the issues first, then commit.
+
 ## Development Commands
 
 ### Setup
@@ -70,21 +81,38 @@ uv run tools/html_to_markdown_converter.py input.html -v
 
 **Note**: Requires pandoc to be installed (`brew install pandoc` on macOS)
 
+#### Encoding Fixer
+
+Fix encoding issues in markdown files to ensure UTF-8 compatibility:
+
+```bash
+# Check encoding of files without making changes
+uv run tools/fix_encoding.py docs/research/*.md --dry-run
+
+# Fix encoding issues in markdown files
+uv run tools/fix_encoding.py docs/research/*.md
+
+# Fix all markdown files in a directory
+find docs/research -name "*.md" | xargs uv run tools/fix_encoding.py
+```
+
+This tool automatically detects file encodings using `chardet` and converts non-UTF-8 files to UTF-8 to ensure compatibility with mdformat and other tools.
+
 ## Project Architecture
 
 The project follows the **src layout** pattern for better import isolation:
 
 ```
 spreadsheet-analyzer/
-├── src/spreadsheet_analyzer/  # Main application code
-├── tests/                     # Test files
-├── tools/                     # Documentation utilities (not part of main app)
-├── docs/                      # Comprehensive documentation
-│   ├── design/               # System design documents
-│   │   ├── comprehensive-system-design.md  # Authoritative design doc
-│   │   └── conversations/    # Historical AI design discussions
-│   ├── complete-guide/       # Implementation guides
-│   └── research/             # Technical research organized by topic
+├──  src/spreadsheet_analyzer/  # Main application code
+├──  tests/                     # Test files
+├──  tools/                     # Documentation utilities (not part of main app)
+├──  docs/                      # Comprehensive documentation
+│   ├──  design/               # System design documents
+│   │   ├──  comprehensive-system-design.md  # Authoritative design doc
+│   │   └──  conversations/    # Historical AI design discussions
+│   ├──  complete-guide/       # Implementation guides
+│   └──  research/             # Technical research organized by topic
 ```
 
 ## Development Philosophy
@@ -218,7 +246,7 @@ Uses conventional commits format:
 - `test:` Test additions/modifications
 - `chore:` Maintenance tasks
 
-**IMPORTANT**: Never include the "🤖 Generated with Claude Code" signature or any Claude-related signatures in commit messages.
+**IMPORTANT**: Never include the "ü§ñ Generated with Claude Code" signature or any Claude-related signatures in commit messages.
 
 ## Pull Request Requirements
 

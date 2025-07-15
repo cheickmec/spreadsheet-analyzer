@@ -2,21 +2,21 @@ ______________________________________________________________________
 
 ## name: Feature Request about: Suggest a new feature or enhancement title: '[FEATURE] ' labels: ['enhancement', 'needs-triage'] assignees: ''
 
-# ✨ Feature Request
+# âœ¨ Feature Request
 
-## 🎯 Problem Statement
+## ğŸ�¯ Problem Statement
 
 <!-- Describe the problem or limitation you're facing -->
 
-## 💡 Proposed Solution
+## ğŸ’¡ Proposed Solution
 
 <!-- Describe your proposed solution or feature -->
 
-## 🔄 Alternatives Considered
+## ğŸ”„ Alternatives Considered
 
 <!-- What alternatives have you considered? -->
 
-## 📊 Use Case
+## ğŸ“Š Use Case
 
 <!-- Provide specific examples of how this feature would be used -->
 
@@ -28,7 +28,7 @@ ______________________________________________________________________
 1.
 1.
 
-## 🚀 Benefits
+## ğŸš€ Benefits
 
 <!-- How would this feature benefit users? -->
 
@@ -38,7 +38,7 @@ ______________________________________________________________________
 - [ ] **Coverage**: Supports new Excel features/patterns
 - [ ] **Integration**: Better integration with other tools
 
-## 📋 Acceptance Criteria
+## ğŸ“‹ Acceptance Criteria
 
 <!-- What needs to be true for this feature to be considered complete? -->
 
@@ -46,13 +46,13 @@ ______________________________________________________________________
 - \[ \]
 - \[ \]
 
-## 🔗 Related Issues
+## ğŸ”— Related Issues
 
 <!-- Link any related issues or PRs -->
 
 - # 
 
-## 🎨 Design Considerations
+## ğŸ�¨ Design Considerations
 
 <!-- Any specific design or implementation thoughts -->
 
@@ -72,7 +72,7 @@ ______________________________________________________________________
 
 <!-- Any security aspects to consider -->
 
-## 📊 Priority
+## ğŸ“Š Priority
 
 <!-- How important is this feature to you? -->
 
@@ -81,7 +81,7 @@ ______________________________________________________________________
 - [ ] **Medium**: Nice to have, would use if available
 - [ ] **Low**: Interesting but not urgent
 
-## 🤝 Contribution
+## ğŸ¤� Contribution
 
 <!-- Are you willing to help implement this feature? -->
 
