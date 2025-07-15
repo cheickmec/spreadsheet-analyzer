@@ -9,27 +9,27 @@ This directory contains GitHub-specific configuration files for the Spreadsheet 
 
 ```
 .github/
-â”œâ”€â”€ workflows/                 # GitHub Actions CI/CD pipelines
-â”   â”œâ”€â”€ ci.yml               # Main CI pipeline (lint, test, security, build)
-â”   â”œâ”€â”€ performance.yml      # Performance testing and benchmarking
-â”   â”œâ”€â”€ claude.yml           # Claude AI assistant integration
-â”   â””â”€â”€ docs.yml             # Documentation building and deployment
+â”œ── workflows/                 # GitHub Actions CI/CD pipelines
+â”   â”œ── ci.yml               # Main CI pipeline (lint, test, security, build)
+â”   â”œ── performance.yml      # Performance testing and benchmarking
+â”   â”œ── claude.yml           # Claude AI assistant integration
+â”   └── docs.yml             # Documentation building and deployment
 â”
-â”œâ”€â”€ ISSUE_TEMPLATE/           # Issue templates for different types
-â”   â”œâ”€â”€ bug_report.md        # Bug report template
-â”   â”œâ”€â”€ feature_request.md   # Feature request template
-â”   â”œâ”€â”€ performance_issue.md # Performance issue template
-â”   â”œâ”€â”€ documentation.md     # Documentation issue template
-â”   â”œâ”€â”€ security_report.md   # Security vulnerability template
-â”   â”œâ”€â”€ question.md          # Question/help template
-â”   â””â”€â”€ config.yml           # Issue template configuration
+â”œ── ISSUE_TEMPLATE/           # Issue templates for different types
+â”   â”œ── bug_report.md        # Bug report template
+â”   â”œ── feature_request.md   # Feature request template
+â”   â”œ── performance_issue.md # Performance issue template
+â”   â”œ── documentation.md     # Documentation issue template
+â”   â”œ── security_report.md   # Security vulnerability template
+â”   â”œ── question.md          # Question/help template
+â”   └── config.yml           # Issue template configuration
 â”
-â”œâ”€â”€ pull_request_template.md  # PR template with comprehensive checklist
-â”œâ”€â”€ dependabot.yml           # Automated dependency updates configuration
-â”œâ”€â”€ CODEOWNERS              # Automatic reviewer assignment
-â”œâ”€â”€ SECURITY.md             # Security policy and procedures
-â”œâ”€â”€ .gitattributes          # Git attributes for file handling
-â””â”€â”€ README.md               # This file
+â”œ── pull_request_template.md  # PR template with comprehensive checklist
+â”œ── dependabot.yml           # Automated dependency updates configuration
+â”œ── CODEOWNERS              # Automatic reviewer assignment
+â”œ── SECURITY.md             # Security policy and procedures
+â”œ── .gitattributes          # Git attributes for file handling
+└── README.md               # This file
 ```
 
 ## 🚀 Workflows
@@ -67,14 +67,14 @@ This directory contains GitHub-specific configuration files for the Spreadsheet 
   - MkDocs site building
   - GitHub Pages deployment
 
-## ğŸ”’ Security Features
+## 🔐 Security Features
 
 1. **Dependency Scanning**: Automated via Dependabot
 1. **Code Scanning**: Bandit for Python, Trivy for containers
 1. **Security Policy**: Clear vulnerability reporting process
 1. **CODEOWNERS**: Security team review for sensitive components
 
-## ğŸ“‹ Issue Management
+## 🔍 Issue Management
 
 Templates provided for:
 
@@ -95,7 +95,7 @@ The PR template ensures:
 - Documentation updates
 - Code quality standards
 
-## ğŸ”§ Configuration Notes
+## 🛠️ Configuration Notes
 
 ### Python/uv Specific
 
@@ -118,13 +118,13 @@ Based on the system design document:
 - File size and type validation
 - Resource limits enforced
 
-## ğŸ“š References
+## 📚 References
 
 - [Comprehensive System Design](../docs/design/comprehensive-system-design.md)
 - [Deterministic Analysis Pipeline](../docs/design/deterministic-analysis-pipeline.md)
 - [CLAUDE.md](../CLAUDE.md) - AI development guidelines
 
-## ğŸ”„ Maintenance
+## 🔄 Maintenance
 
 - Weekly dependency updates via Dependabot
 - Security updates prioritized (daily checks)

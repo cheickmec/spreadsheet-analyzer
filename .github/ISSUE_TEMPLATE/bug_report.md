@@ -19,7 +19,7 @@ ______________________________________________________________________
 
 <!-- What you expected to happen -->
 
-## â�Œ Actual Behavior
+## ❌ Actual Behavior
 
 <!-- What actually happened -->
 
