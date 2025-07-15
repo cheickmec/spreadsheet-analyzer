@@ -145,14 +145,7 @@ addopts = [
     "--cov-fail-under=25",  # Temporary lower threshold while building test suite
 ]
 
-[tool.coverage.run]
-omit = [
-    "*/tests/*",
-    "*/test_*",
-    "*/__pycache__/*",
-    "*/venv/*",
-    "*/.venv/*",
-]
+
 
 [tool.commitizen]
 name = "cz_conventional_commits"
