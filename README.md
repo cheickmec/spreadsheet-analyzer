@@ -15,11 +15,11 @@ Spreadsheet Analyzer is an intelligent system that automatically analyzes Excel 
 ### Key Features
 
 - 📌 **Deep Structural Analysis**: Maps every element from cells to pivot tables
-- 🏗️Â§Â  **AI-Powered Intelligence**: Multi-agent system for semantic understanding
+- 🏗️ **AI-Powered Intelligence**: Multi-agent system for semantic understanding
 - ✅ **Validation-First**: Verifies all findings through actual calculations
 - 🚀 **High Performance**: Analyzes files in seconds, not minutes
 - 🔐 **Enterprise Security**: Sandboxed execution with comprehensive audit trails
-- ğŸ“Š **Comprehensive Reporting**: Detailed insights in multiple formats
+- 📊 **Comprehensive Reporting**: Detailed insights in multiple formats
 
 ## 🚀 Quick Start
 
@@ -63,7 +63,7 @@ uv run python scripts/batch_analyze.py /path/to/excel/files --recursive
 uv run python scripts/run_test_suite.py
 ```
 
-## ğŸ“‹ What It Does
+## 🔍 What It Does
 
 ### 1. **Structural Analysis** (Deterministic)
 
@@ -94,16 +94,16 @@ uv run python scripts/run_test_suite.py
 The system implements a 5-stage deterministic analysis pipeline with hybrid FP/OOP design:
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�
-â”‚ Stage 0: File   â”‚â”€â”€â”€â”€â–¶â”‚ Stage 1:        â”‚â”€â”€â”€â”€â–¶â”‚ Stage 2:        â”‚
-â”‚ Integrity (FP)  â”‚     â”‚ Security (FP)   â”‚     â”‚ Structure(Hybrid)â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-         â”‚                       â”‚                        â”‚
-         â–¼                       â–¼                        â–¼
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”�
-â”‚ Stage 3: Formulaâ”‚     â”‚ Stage 4: Contentâ”‚     â”‚ Pipeline         â”‚
-â”‚ Analysis (OOP)  â”‚â”€â”€â”€â”€â–¶â”‚ Intelligence(FP)â”‚â”€â”€â”€â”€â–¶â”‚ Orchestrator    â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Stage 0: File   │────▶│ Stage 1:        │────▶│ Stage 2:        │
+│ Integrity (FP)  │     │ Security (FP)   │     │ Structure(Hybrid)│
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                       │                        │
+         ▼                       ▼                        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Stage 3: Formula│     │ Stage 4: Content│     │ Pipeline         │
+│ Analysis (OOP)  │────▶│ Intelligence(FP)│────▶│ Orchestrator    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
 **Key Components:**
@@ -114,7 +114,7 @@ The system implements a 5-stage deterministic analysis pipeline with hybrid FP/O
 - **Stage 4**: Functional programming for content intelligence
 - **Pipeline**: Progress tracking with observer pattern
 
-## ğŸ”§ Development
+## 🛠️ Development
 
 ### Setup Development Environment
 
@@ -136,23 +136,23 @@ uv run pre-commit run --all-files
 
 ```
 spreadsheet-analyzer/
-│Å“── src/spreadsheet_analyzer/     # Main application code
+│├──── src/spreadsheet_analyzer/     # Main application code
 │   │└── pipeline/                 # 5-stage analysis pipeline
-│       │Å“── stages/               # Individual stage implementations
-│       │Å“── types.py              # Immutable data structures
+│       │├──── stages/               # Individual stage implementations
+│       │├──── types.py              # Immutable data structures
 │       │└── pipeline.py           # Main orchestrator
-│Å“── scripts/                      # Analysis utilities
-│   │Å“── analyze_excel.py          # Single file analyzer
-│   │Å“── batch_analyze.py          # Batch processing
+│├──── scripts/                      # Analysis utilities
+│   │├──── analyze_excel.py          # Single file analyzer
+│   │├──── batch_analyze.py          # Batch processing
 │   │└── run_test_suite.py         # Comprehensive testing
-│Å“── test-files/                   # Example Excel files
-│Å“── tests/                        # Test suite
+│├──── test-files/                   # Example Excel files
+│├──── tests/                        # Test suite
 │└── docs/                         # Documentation
-    │Å“── design/                   # System design documents
+    │├──── design/                   # System design documents
     │└── research/                 # AI/LLM research
 ```
 
-## ğŸ“š Documentation
+## 📚 Documentation
 
 - **[Pipeline Design](docs/design/deterministic-analysis-pipeline.md)**: 5-stage pipeline architecture
 - **[System Design](docs/design/comprehensive-system-design.md)**: Complete technical specification
@@ -170,7 +170,7 @@ Designed for enterprise-scale analysis:
 | Deep AI Analysis (< 50 sheets) | < 30 seconds       |
 | Memory Usage                   | < 512MB per agent  |
 
-## ğŸ”’ Security
+## 🔐 Security
 
 - **Sandboxed Execution**: All analysis runs in isolated Jupyter kernels
 - **No Macro Execution**: VBA/macros analyzed statically only
@@ -186,7 +186,7 @@ This is proprietary software owned by Yiriden LLC. External contributions requir
 1. Adherence to coding standards in CLAUDE.md
 1. Passing all tests and security checks
 
-## ğŸ“„ License
+## 📜 License
 
 Proprietary Software - Yiriden LLC. All rights reserved.
 
