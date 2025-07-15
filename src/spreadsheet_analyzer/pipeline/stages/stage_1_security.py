@@ -25,6 +25,10 @@ CRITICAL_RISK_SCORE_THRESHOLD: Final[int] = 80
 HIGH_RISK_SCORE_THRESHOLD: Final[int] = 60
 MEDIUM_RISK_SCORE_THRESHOLD: Final[int] = 40
 
+# Size limits for security scanning
+MAX_MACRO_SCAN_SIZE: Final[int] = 1024 * 1024  # 1MB limit for macro content scanning
+MAX_XML_PARSE_SIZE: Final[int] = 10 * 1024 * 1024  # 10MB limit for XML parsing
+
 # Patterns for detecting potentially dangerous content
 SUSPICIOUS_PATTERNS = {
     "auto_open": re.compile(r"auto_open|workbook_open", re.IGNORECASE),
@@ -81,22 +85,45 @@ def check_for_vba_macros(file_path: Path) -> tuple[bool, list[SecurityThreat]]:
 
                 # Try to analyze macro content (without executing)
                 try:
-                    macro_content = zip_file.read("xl/vbaProject.bin")
-                    # Check for suspicious patterns in binary
-                    content_str = str(macro_content)
+                    macro_info = zip_file.getinfo("xl/vbaProject.bin")
 
-                    for pattern_name, pattern in SUSPICIOUS_PATTERNS.items():
-                        if pattern.search(content_str):
-                            threats.append(
-                                SecurityThreat(
-                                    threat_type=f"SUSPICIOUS_MACRO_{pattern_name.upper()}",
-                                    severity=9,
-                                    location="xl/vbaProject.bin",
-                                    description=f"Macro contains suspicious {pattern_name} patterns",
-                                    risk_level="CRITICAL",
-                                    details={"pattern": pattern_name},
-                                )
+                    # Check file size before reading
+                    if macro_info.file_size > MAX_MACRO_SCAN_SIZE:
+                        threats.append(
+                            SecurityThreat(
+                                threat_type="LARGE_MACRO_FILE",
+                                severity=8,
+                                location="xl/vbaProject.bin",
+                                description=f"Macro file exceeds size limit ({macro_info.file_size} bytes)",
+                                risk_level="HIGH",
+                                details={"size": macro_info.file_size, "limit": MAX_MACRO_SCAN_SIZE},
                             )
+                        )
+                    else:
+                        macro_content = zip_file.read("xl/vbaProject.bin")
+                        # Safely decode binary content with error handling
+                        # CLAUDE-SECURITY: VBA macros can contain various encodings
+                        try:
+                            content_str = macro_content.decode("utf-8", errors="ignore")
+                        except (UnicodeDecodeError, AttributeError):
+                            # Fallback to latin-1 which accepts all byte values
+                            content_str = macro_content.decode("latin-1", errors="ignore")
+
+                        # Limit search to first portion of content for performance
+                        search_content = content_str[:MAX_MACRO_SCAN_SIZE]
+
+                        for pattern_name, pattern in SUSPICIOUS_PATTERNS.items():
+                            if pattern.search(search_content):
+                                threats.append(
+                                    SecurityThreat(
+                                        threat_type=f"SUSPICIOUS_MACRO_{pattern_name.upper()}",
+                                        severity=9,
+                                        location="xl/vbaProject.bin",
+                                        description=f"Macro contains suspicious {pattern_name} patterns",
+                                        risk_level="CRITICAL",
+                                        details={"pattern": pattern_name},
+                                    )
+                                )
                 except (OSError, ValueError):
                     # Can't read macro content, but we know it exists
                     pass
@@ -146,24 +173,27 @@ def check_for_external_links(file_path: Path) -> tuple[bool, list[SecurityThreat
             # Check workbook relationships for external targets
             if "xl/_rels/workbook.xml.rels" in namelist:
                 try:
-                    rels_content = zip_file.read("xl/_rels/workbook.xml.rels")
-                    rels_str = rels_content.decode("utf-8", errors="ignore")
+                    # Check file size before reading
+                    rels_info = zip_file.getinfo("xl/_rels/workbook.xml.rels")
+                    if rels_info.file_size <= MAX_XML_PARSE_SIZE:
+                        rels_content = zip_file.read("xl/_rels/workbook.xml.rels")
+                        rels_str = rels_content.decode("utf-8", errors="ignore")
 
-                    # Look for external targets
-                    for link_type, pattern in EXTERNAL_LINK_PATTERNS.items():
-                        matches = pattern.findall(rels_str)
-                        for match in matches:
-                            has_external_links = True
-                            threats.append(
-                                SecurityThreat(
-                                    threat_type=f"EXTERNAL_{link_type.upper()}_LINK",
-                                    severity=6,
-                                    location="xl/_rels/workbook.xml.rels",
-                                    description=f"External {link_type} link detected",
-                                    risk_level="MEDIUM",
-                                    details={"url": match[:100]},  # Truncate long URLs
+                        # Look for external targets
+                        for link_type, pattern in EXTERNAL_LINK_PATTERNS.items():
+                            matches = pattern.findall(rels_str)
+                            for match in matches:
+                                has_external_links = True
+                                threats.append(
+                                    SecurityThreat(
+                                        threat_type=f"EXTERNAL_{link_type.upper()}_LINK",
+                                        severity=6,
+                                        location="xl/_rels/workbook.xml.rels",
+                                        description=f"External {link_type} link detected",
+                                        risk_level="MEDIUM",
+                                        details={"url": match[:100]},  # Truncate long URLs
+                                    )
                                 )
-                            )
                 except (OSError, ValueError, UnicodeDecodeError):
                     pass
 
@@ -260,7 +290,28 @@ def check_hidden_sheets(file_path: Path) -> list[SecurityThreat]:
     try:
         with zipfile.ZipFile(file_path, "r") as zip_file:
             if "xl/workbook.xml" in zip_file.namelist():
+                # Check XML file size before parsing
+                xml_info = zip_file.getinfo("xl/workbook.xml")
+                if xml_info.file_size > MAX_XML_PARSE_SIZE:
+                    threats.append(
+                        SecurityThreat(
+                            threat_type="LARGE_XML_FILE",
+                            severity=6,
+                            location="xl/workbook.xml",
+                            description=f"XML file exceeds safe parsing size ({xml_info.file_size} bytes)",
+                            risk_level="MEDIUM",
+                            details={"size": xml_info.file_size, "limit": MAX_XML_PARSE_SIZE},
+                        )
+                    )
+                    return threats
+
                 workbook_content = zip_file.read("xl/workbook.xml")
+
+                # CLAUDE-SECURITY: Validate XML structure before parsing
+                # defusedxml already protects against XML bombs, but we add size check
+                if len(workbook_content) > MAX_XML_PARSE_SIZE:
+                    return threats
+
                 root = DefusedElementTree.fromstring(workbook_content)
 
                 # Look for sheets with state attribute
@@ -305,6 +356,14 @@ def check_formula_injection(file_path: Path) -> list[SecurityThreat]:
     threats = []
     dangerous_functions = {"HYPERLINK", "WEBSERVICE", "FILTERXML", "RUN", "EXEC", "CALL", "REGISTER"}
 
+    # Patterns for external references in formulas
+    external_formula_patterns = {
+        "external_workbook": re.compile(r"\[.*?\]", re.IGNORECASE),  # [workbook.xlsx]Sheet1!A1
+        "http_in_formula": re.compile(r"https?://[^\s\"\'<>]+", re.IGNORECASE),
+        "file_path": re.compile(r"[A-Za-z]:\\\\.*?\.xls[xm]?", re.IGNORECASE),  # C:\\path\\file.xlsx
+        "unc_path": re.compile(r"\\\\\\\\[^\\\\]+\\\\.*?\.xls[xm]?", re.IGNORECASE),  # \\\\server\\share\\file.xlsx
+    }
+
     try:
         with zipfile.ZipFile(file_path, "r") as zip_file:
             # Check worksheet files
@@ -312,6 +371,11 @@ def check_formula_injection(file_path: Path) -> list[SecurityThreat]:
 
             for sheet_file in sheet_files:
                 try:
+                    # Check file size first
+                    sheet_info = zip_file.getinfo(sheet_file)
+                    if sheet_info.file_size > MAX_XML_PARSE_SIZE:
+                        continue
+
                     content = zip_file.read(sheet_file).decode("utf-8", errors="ignore")
 
                     # Look for formulas with dangerous functions
@@ -329,6 +393,22 @@ def check_formula_injection(file_path: Path) -> list[SecurityThreat]:
                             if func in content.upper()
                         ]
                     )
+
+                    # Check for external references in formulas
+                    for ref_type, pattern in external_formula_patterns.items():
+                        matches = pattern.findall(content)
+                        if matches:
+                            threats.append(
+                                SecurityThreat(
+                                    threat_type=f"FORMULA_EXTERNAL_{ref_type.upper()}",
+                                    severity=7,
+                                    location=sheet_file,
+                                    description=f"Formula contains external {ref_type.replace('_', ' ')} reference",
+                                    risk_level="HIGH",
+                                    # Limit to first 5 references
+                                    details={"references": matches[:5], "total_count": len(matches)},
+                                )
+                            )
                 except (OSError, ValueError, UnicodeDecodeError):
                     pass
 
