@@ -23,7 +23,10 @@ WORKDIR /app
 COPY pyproject.toml ./
 
 # Install dependencies using uv
-RUN uv sync --all-extras
+RUN uv venv && uv sync --all-extras
+
+# Activate virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy source code
 COPY src/ ./src/
