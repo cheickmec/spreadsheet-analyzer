@@ -1,168 +1,200 @@
 # Spreadsheet Analyzer
 
-A Python project for analyzing spreadsheet data.
+**AI-Powered Excel Analysis System**\
+*Proprietary Software - Yiriden LLC*
 
-## Development Setup
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Type Checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue)](https://mypy-lang.org/)
+[![Security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 
-This project uses `uv` for dependency management and `pre-commit` for code quality checks.
+## 🎯 Overview
+
+Spreadsheet Analyzer is an intelligent system that automatically analyzes Excel files to reveal hidden structures, relationships, and potential issues. By combining deterministic parsing with AI-powered insights, it transforms complex spreadsheets from opaque data containers into transparent, well-documented systems.
+
+### Key Features
+
+- 🔍 **Deep Structural Analysis**: Maps every element from cells to pivot tables
+- 🧠 **AI-Powered Intelligence**: Multi-agent system for semantic understanding
+- ✅ **Validation-First**: Verifies all findings through actual calculations
+- 🚀 **High Performance**: Analyzes files in seconds, not minutes
+- 🔒 **Enterprise Security**: Sandboxed execution with comprehensive audit trails
+- 📊 **Comprehensive Reporting**: Detailed insights in multiple formats
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Python 3.12+
-- [uv](https://github.com/astral-sh/uv) package manager
+- [uv](https://docs.astral.sh/uv/) package manager
+- 8GB+ RAM recommended
+- macOS, Linux, or Windows with WSL2
 
 ### Installation
 
-1. Clone the repository:
-
 ```bash
-git clone <repository-url>
+# Clone the repository
+git clone https://github.com/yiriden/spreadsheet-analyzer.git
 cd spreadsheet-analyzer
-```
 
-2. Install dependencies:
-
-```bash
+# Install dependencies using uv
 uv sync
+
+# Run a simple analysis
+uv run python scripts/analyze_excel.py test-files/data-analysis/advanced_excel_formulas.xlsx
 ```
 
-3. Install development dependencies:
+### Basic Usage
 
 ```bash
+# Analyze a single Excel file
+uv run python scripts/analyze_excel.py financial-model.xlsx
+
+# Quick analysis with fast mode
+uv run python scripts/analyze_excel.py data.xlsx --mode fast
+
+# Strict security analysis
+uv run python scripts/analyze_excel.py sensitive.xlsx --mode strict --detailed
+
+# Batch analyze directory
+uv run python scripts/batch_analyze.py /path/to/excel/files --recursive
+
+# Run comprehensive test suite
+uv run python scripts/run_test_suite.py
+```
+
+## 📋 What It Does
+
+### 1. **Structural Analysis** (Deterministic)
+
+- Sheet enumeration and classification
+- Formula parsing and dependency mapping
+- Named range detection and validation
+- Chart and visual element extraction
+- External reference identification
+
+### 2. **Intelligent Analysis** (AI-Powered)
+
+- Pattern recognition across sheets
+- Semantic understanding of business logic
+- Anomaly and error detection
+- Optimization recommendations
+- Cross-sheet relationship mapping
+
+### 3. **Validation & Verification**
+
+- Formula calculation verification
+- Data integrity checks
+- Circular reference detection
+- Security vulnerability scanning
+- Performance bottleneck identification
+
+## 🏗️ Architecture
+
+The system implements a 5-stage deterministic analysis pipeline with hybrid FP/OOP design:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Stage 0: File   │────▶│ Stage 1:        │────▶│ Stage 2:        │
+│ Integrity (FP)  │     │ Security (FP)   │     │ Structure(Hybrid)│
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                       │                        │
+         ▼                       ▼                        ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Stage 3: Formula│     │ Stage 4: Content│     │ Pipeline         │
+│ Analysis (OOP)  │────▶│ Intelligence(FP)│────▶│ Orchestrator    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+**Key Components:**
+
+- **Stage 0-1**: Pure functional programming for stateless validation
+- **Stage 2**: Hybrid approach for complex structural mapping
+- **Stage 3**: Object-oriented for graph-based formula analysis
+- **Stage 4**: Functional programming for content intelligence
+- **Pipeline**: Progress tracking with observer pattern
+
+## 🔧 Development
+
+### Setup Development Environment
+
+```bash
+# Install development dependencies
 uv sync --dev
-```
 
-4. Install pre-commit hooks:
-
-```bash
+# Install pre-commit hooks
 uv run pre-commit install
-uv run pre-commit install --hook-type commit-msg
-```
 
-### Pre-commit Hooks
+# Run tests
+uv run pytest
 
-This project uses comprehensive pre-commit hooks to ensure code quality:
-
-- **Code Formatting**: Ruff (replaces Black, isort, and many flake8 plugins)
-- **Type Checking**: mypy
-- **Security Scanning**: bandit and safety
-- **File Checks**: YAML/JSON/TOML validation, large file detection, etc.
-- **Commit Messages**: Conventional commits enforced by commitizen
-
-#### Running Pre-commit
-
-To run all hooks manually:
-
-```bash
+# Check code quality
 uv run pre-commit run --all-files
 ```
 
-To run specific hooks:
-
-```bash
-uv run pre-commit run ruff --all-files
-uv run pre-commit run mypy --all-files
-```
-
-To update hooks to latest versions:
-
-```bash
-uv run pre-commit autoupdate
-```
-
-To skip specific hooks:
-
-```bash
-SKIP=bandit,mypy uv run pre-commit run --all-files
-```
-
-### Code Style
-
-This project follows:
-
-- Line length: 120 characters
-- Python 3.12+ syntax
-- Type hints encouraged but not required
-- Docstrings for public functions/classes
-
-### Testing
-
-Run tests with:
-
-```bash
-uv run pytest
-```
-
-Run tests with coverage:
-
-```bash
-uv run pytest --cov
-```
-
-### Commit Messages
-
-This project uses conventional commits. Examples:
-
-- `feat: add new analysis function`
-- `fix: correct data parsing error`
-- `docs: update README`
-- `refactor: simplify data processing`
-- `test: add unit tests for analyzer`
-- `chore: update dependencies`
-
-The commit message format is enforced by pre-commit hooks.
-
-## Project Structure
+### Project Structure
 
 ```
 spreadsheet-analyzer/
-├── .pre-commit-config.yaml     # Pre-commit configuration
-├── pyproject.toml              # Project configuration and dependencies
-├── README.md                   # This file
-├── main.py                     # Main entry point
-├── docs/                       # 📚 Comprehensive Documentation Hub
-│   ├── README.md              # Documentation overview and navigation
-│   ├── complete-guide/        # 📖 Complete Implementation Guide
-│   │   └── building-intelligent-spreadsheet-analyzers.md  # 318KB comprehensive guide
-│   └── research/              # 🔬 Detailed Research Documentation
-│       ├── 1-llm-agentic-fundamentals/
-│       ├── 2-engineering-techniques/
-│       ├── 3-workflow-orchestration/
-│       ├── 4-implementation-optimization/
-│       └── 5-broader-considerations/
-├── comprehensive-system-design.md  # System design document
-└── tests/                      # Test files (when added)
+├── src/spreadsheet_analyzer/     # Main application code
+│   └── pipeline/                 # 5-stage analysis pipeline
+│       ├── stages/               # Individual stage implementations
+│       ├── types.py              # Immutable data structures
+│       └── pipeline.py           # Main orchestrator
+├── scripts/                      # Analysis utilities
+│   ├── analyze_excel.py          # Single file analyzer
+│   ├── batch_analyze.py          # Batch processing
+│   └── run_test_suite.py         # Comprehensive testing
+├── test-files/                   # Example Excel files
+├── tests/                        # Test suite
+└── docs/                         # Documentation
+    ├── design/                   # System design documents
+    └── research/                 # AI/LLM research
 ```
 
 ## 📚 Documentation
 
-This project includes extensive documentation for building AI-powered spreadsheet analysis systems:
+- **[Pipeline Design](docs/design/deterministic-analysis-pipeline.md)**: 5-stage pipeline architecture
+- **[System Design](docs/design/comprehensive-system-design.md)**: Complete technical specification
+- **[Script Usage](scripts/README.md)**: Guide to analysis utilities
+- **[Contributing](CONTRIBUTING.md)**: Development practices and testing philosophy
 
-### 🎯 **Complete Implementation Guide**
+## ⚡ Performance
 
-**[Building Intelligent Spreadsheet Analyzers: A Complete Guide to AI Agents, RAG Systems, and Multi-Agent Orchestration](./docs/complete-guide/building-intelligent-spreadsheet-analyzers.md)**
+Designed for enterprise-scale analysis:
 
-A comprehensive 318KB guide covering:
+| Operation                      | Target Performance |
+| ------------------------------ | ------------------ |
+| File Upload (< 10MB)           | < 2 seconds        |
+| Basic Analysis (< 10 sheets)   | < 5 seconds        |
+| Deep AI Analysis (< 50 sheets) | < 30 seconds       |
+| Memory Usage                   | < 512MB per agent  |
 
-- 🏗️ **AI Agent Architectures** with enhanced Mermaid diagrams
-- 🔧 **Practical Implementation** strategies and code examples
-- 📊 **Multi-Agent Orchestration** frameworks and patterns
-- 🚀 **Production Deployment** considerations and optimization
-- 🎯 **Domain-Specific Guidance** for spreadsheet/Excel analysis
+## 🔒 Security
 
-### 🔬 **Research Documentation**
+- **Sandboxed Execution**: All analysis runs in isolated Jupyter kernels
+- **No Macro Execution**: VBA/macros analyzed statically only
+- **File Validation**: Comprehensive format and content validation
+- **Audit Logging**: Complete trail of all operations
+- **Data Privacy**: No data persistence without explicit consent
 
-**[Detailed Research Hub](./docs/research/)**
+## 🤝 Contributing
 
-In-depth analysis of:
+This is proprietary software owned by Yiriden LLC. External contributions require:
 
-- Latest LLM agentic systems research (2023-2024)
-- Framework comparisons (LangGraph, CrewAI, AutoGen)
-- Implementation patterns and best practices
-- Performance optimization and security considerations
+1. Signed Contributor License Agreement (CLA)
+1. Adherence to coding standards in CLAUDE.md
+1. Passing all tests and security checks
 
-See **[docs/README.md](./docs/README.md)** for complete navigation guide.
+## 📄 License
 
-## License
+Proprietary Software - Yiriden LLC. All rights reserved.
 
-[Add your license here]
+**Contact**:\
+Cheick Berthe\
+Email: cab25004@vt.edu\
+Organization: Yiriden LLC
+
+______________________________________________________________________
+
+*Built with Python, powered by AI, designed for analysts.*

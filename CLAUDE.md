@@ -220,6 +220,20 @@ Uses conventional commits format:
 
 **IMPORTANT**: Never include the "🤖 Generated with Claude Code" signature or any Claude-related signatures in commit messages.
 
+## Pull Request Requirements
+
+**IMPORTANT**: All pull requests MUST use the PR template located at `.github/pull_request_template.md`.
+
+When creating a PR:
+
+1. Fill out ALL sections of the template completely
+1. Check all applicable boxes in the checklists
+1. Provide detailed testing evidence
+1. Include performance metrics if applicable
+1. List specific areas for reviewer focus
+
+The PR template ensures consistent quality, proper testing, and thorough documentation of changes.
+
 ## Anchor Comments System
 
 Use these standardized comment anchors to provide essential context for future development:
