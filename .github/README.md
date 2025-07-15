@@ -5,34 +5,34 @@
 
 This directory contains GitHub-specific configuration files for the Spreadsheet Analyzer project.
 
-## 📁 Structure Overview
+## ğŸ“� Structure Overview
 
 ```
 .github/
-├── workflows/                 # GitHub Actions CI/CD pipelines
-│   ├── ci.yml               # Main CI pipeline (lint, test, security, build)
-│   ├── performance.yml      # Performance testing and benchmarking
-│   ├── claude.yml           # Claude AI assistant integration
-│   └── docs.yml             # Documentation building and deployment
-│
-├── ISSUE_TEMPLATE/           # Issue templates for different types
-│   ├── bug_report.md        # Bug report template
-│   ├── feature_request.md   # Feature request template
-│   ├── performance_issue.md # Performance issue template
-│   ├── documentation.md     # Documentation issue template
-│   ├── security_report.md   # Security vulnerability template
-│   ├── question.md          # Question/help template
-│   └── config.yml           # Issue template configuration
-│
-├── pull_request_template.md  # PR template with comprehensive checklist
-├── dependabot.yml           # Automated dependency updates configuration
-├── CODEOWNERS              # Automatic reviewer assignment
-├── SECURITY.md             # Security policy and procedures
-├── .gitattributes          # Git attributes for file handling
-└── README.md               # This file
+â”œâ”€â”€ workflows/                 # GitHub Actions CI/CD pipelines
+â”   â”œâ”€â”€ ci.yml               # Main CI pipeline (lint, test, security, build)
+â”   â”œâ”€â”€ performance.yml      # Performance testing and benchmarking
+â”   â”œâ”€â”€ claude.yml           # Claude AI assistant integration
+â”   â””â”€â”€ docs.yml             # Documentation building and deployment
+â”
+â”œâ”€â”€ ISSUE_TEMPLATE/           # Issue templates for different types
+â”   â”œâ”€â”€ bug_report.md        # Bug report template
+â”   â”œâ”€â”€ feature_request.md   # Feature request template
+â”   â”œâ”€â”€ performance_issue.md # Performance issue template
+â”   â”œâ”€â”€ documentation.md     # Documentation issue template
+â”   â”œâ”€â”€ security_report.md   # Security vulnerability template
+â”   â”œâ”€â”€ question.md          # Question/help template
+â”   â””â”€â”€ config.yml           # Issue template configuration
+â”
+â”œâ”€â”€ pull_request_template.md  # PR template with comprehensive checklist
+â”œâ”€â”€ dependabot.yml           # Automated dependency updates configuration
+â”œâ”€â”€ CODEOWNERS              # Automatic reviewer assignment
+â”œâ”€â”€ SECURITY.md             # Security policy and procedures
+â”œâ”€â”€ .gitattributes          # Git attributes for file handling
+â””â”€â”€ README.md               # This file
 ```
 
-## 🚀 Workflows
+## ğŸš€ Workflows
 
 ### CI/CD Pipeline (`ci.yml`)
 
@@ -67,14 +67,14 @@ This directory contains GitHub-specific configuration files for the Spreadsheet 
   - MkDocs site building
   - GitHub Pages deployment
 
-## 🔒 Security Features
+## ğŸ”’ Security Features
 
 1. **Dependency Scanning**: Automated via Dependabot
 1. **Code Scanning**: Bandit for Python, Trivy for containers
 1. **Security Policy**: Clear vulnerability reporting process
 1. **CODEOWNERS**: Security team review for sensitive components
 
-## 📋 Issue Management
+## ğŸ“‹ Issue Management
 
 Templates provided for:
 
@@ -85,7 +85,7 @@ Templates provided for:
 - Security vulnerabilities
 - General questions
 
-## 🤝 Contributing
+## ğŸ¤� Contributing
 
 The PR template ensures:
 
@@ -95,7 +95,7 @@ The PR template ensures:
 - Documentation updates
 - Code quality standards
 
-## 🔧 Configuration Notes
+## ğŸ”§ Configuration Notes
 
 ### Python/uv Specific
 
@@ -118,13 +118,13 @@ Based on the system design document:
 - File size and type validation
 - Resource limits enforced
 
-## 📚 References
+## ğŸ“š References
 
 - [Comprehensive System Design](../docs/design/comprehensive-system-design.md)
 - [Deterministic Analysis Pipeline](../docs/design/deterministic-analysis-pipeline.md)
 - [CLAUDE.md](../CLAUDE.md) - AI development guidelines
 
-## 🔄 Maintenance
+## ğŸ”„ Maintenance
 
 - Weekly dependency updates via Dependabot
 - Security updates prioritized (daily checks)

@@ -27,7 +27,7 @@ def detect_date_patterns(values: list[Any]) -> DataPattern | None:
     pattern detection complex.
     """
     date_count = 0
-    date_formats = Counter()
+    date_formats: Counter[str] = Counter()
 
     for value in values:
         if value is None:
@@ -272,7 +272,7 @@ def generate_pattern_insights(patterns: list[DataPattern]) -> list[ContentInsigh
     insights = []
 
     # Group patterns by type
-    pattern_groups = {}
+    pattern_groups: dict[str, list[DataPattern]] = {}
     for pattern in patterns:
         pattern_groups.setdefault(pattern.pattern_type, []).append(pattern)
 

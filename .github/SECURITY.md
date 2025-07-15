@@ -1,10 +1,10 @@
 # Security Policy
 
-## 🔒 Overview
+## ğŸ”’ Overview
 
 The Spreadsheet Analyzer is a proprietary product of Yiriden LLC that processes potentially sensitive Excel files and must maintain strict security standards. This document outlines our security policies, procedures, and best practices.
 
-## 🛡️ Supported Versions
+## ğŸ›¡ï¸� Supported Versions
 
 We provide security updates for the following versions:
 
@@ -13,7 +13,7 @@ We provide security updates for the following versions:
 | 0.x.x   | :white_check_mark: | Active development         |
 | < 0.1.0 | :x:                | Pre-release, not supported |
 
-## 🚨 Reporting a Vulnerability
+## ğŸš¨ Reporting a Vulnerability
 
 ### For Critical Vulnerabilities
 
@@ -35,7 +35,7 @@ We will acknowledge receipt within 48 hours and provide an initial assessment wi
 
 For non-critical security improvements, you may create a GitHub issue using the Security Report template.
 
-## 🔐 Security Considerations
+## ğŸ”� Security Considerations
 
 ### Excel File Handling
 
@@ -91,7 +91,7 @@ All code execution occurs within sandboxed Jupyter kernels with:
 - Dependabot monitors for security updates
 - Security updates are prioritized and fast-tracked
 
-## 🛠️ Security Best Practices
+## ğŸ› ï¸� Security Best Practices
 
 ### For Contributors
 
@@ -133,7 +133,7 @@ All code execution occurs within sandboxed Jupyter kernels with:
    - Keep the system updated
    - Monitor logs for suspicious activity
 
-## 🔍 Security Features
+## ğŸ”� Security Features
 
 ### Built-in Protections
 
@@ -153,14 +153,14 @@ security:
   quarantine_suspicious: true
 ```
 
-## 📊 Security Audit Schedule
+## ğŸ“Š Security Audit Schedule
 
 - **Weekly**: Dependency vulnerability scans
 - **Monthly**: Code security review
 - **Quarterly**: Full security audit
 - **Annually**: Third-party security assessment
 
-## 🚀 Security Roadmap
+## ğŸš€ Security Roadmap
 
 ### Planned Enhancements
 
@@ -170,7 +170,7 @@ security:
 1. **Anomaly detection** in analysis patterns
 1. **Zero-trust architecture** implementation
 
-## 📞 Contact
+## ğŸ“� Contact
 
 - Security issues: security@yiriden.com
 - General inquiries: contact@yiriden.com

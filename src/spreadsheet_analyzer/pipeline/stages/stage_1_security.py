@@ -6,10 +6,11 @@ to detect macros, external links, embedded objects, and other potential threats.
 """
 
 import re
-import xml.etree.ElementTree as ET
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
+
+import defusedxml.ElementTree as ET
 
 from ..types import Err, Ok, Result, RiskLevel, SecurityReport, SecurityThreat
 

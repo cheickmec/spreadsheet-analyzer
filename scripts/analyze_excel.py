@@ -26,54 +26,25 @@ from spreadsheet_analyzer.pipeline import (
 )
 
 
-def main():
-    """Analyze a single Excel file."""
-    parser = argparse.ArgumentParser(description="Analyze an Excel file with the deterministic pipeline")
-    parser.add_argument("file", help="Path to Excel file to analyze")
-    parser.add_argument(
-        "--mode", choices=["lenient", "strict", "fast"], default="lenient", help="Analysis mode (default: lenient)"
-    )
-    parser.add_argument("--detailed", action="store_true", help="Show detailed analysis results")
-
-    args = parser.parse_args()
-    test_file = Path(args.file)
-
-    if not test_file.exists():
-        print(f"Test file not found: {test_file}")
-        return 1
-
-    print(f"Analyzing: {test_file}")
-    print("=" * 60)
-
-    # Select pipeline options based on mode
-    if args.mode == "strict":
-        options = create_strict_pipeline_options()
-    elif args.mode == "fast":
-        options = create_fast_pipeline_options()
+def print_summary(result):
+    """Print summary results."""
+    if result.success:
+        print("\n✅ Analysis completed successfully!")
+        if result.structure:
+            cells = f"{result.structure.total_cells:,}"
+            formulas = f"{result.structure.total_formulas:,}"
+            print(f"   Sheets: {result.structure.sheet_count}, Cells: {cells}, Formulas: {formulas}")
+        if result.security:
+            print(f"   Security: {result.security.risk_level} risk")
+        if result.content:
+            print(f"   Data Quality: {result.content.data_quality_score}%")
     else:
-        options = create_lenient_pipeline_options()
+        error_msg = result.errors[0] if result.errors else "Unknown error"
+        print(f"\n❌ Analysis failed: {error_msg}")
 
-    # Run analysis
-    result = analyze_with_console_progress(test_file, options=options)
 
-    # Print summary or detailed results
-    if not args.detailed:
-        # Just print summary
-        if result.success:
-            print("\n✅ Analysis completed successfully!")
-            if result.structure:
-                print(
-                    f"   Sheets: {result.structure.sheet_count}, Cells: {result.structure.total_cells:,}, Formulas: {result.structure.total_formulas:,}"
-                )
-            if result.security:
-                print(f"   Security: {result.security.risk_level} risk")
-            if result.content:
-                print(f"   Data Quality: {result.content.data_quality_score}%")
-        else:
-            print(f"\n❌ Analysis failed: {result.errors[0] if result.errors else 'Unknown error'}")
-        return 0 if result.success else 1
-
-    # Detailed results
+def print_detailed_results(result):
+    """Print detailed analysis results."""
     print("\nDetailed Results:")
     print("-" * 60)
 
@@ -121,6 +92,43 @@ def main():
             print("\n  Key Insights:")
             for insight in result.content.insights[:5]:  # Show first 5
                 print(f"    - [{insight.severity}] {insight.title}")
+
+
+def main():
+    """Analyze a single Excel file."""
+    parser = argparse.ArgumentParser(description="Analyze an Excel file with the deterministic pipeline")
+    parser.add_argument("file", help="Path to Excel file to analyze")
+    parser.add_argument(
+        "--mode", choices=["lenient", "strict", "fast"], default="lenient", help="Analysis mode (default: lenient)"
+    )
+    parser.add_argument("--detailed", action="store_true", help="Show detailed analysis results")
+
+    args = parser.parse_args()
+    test_file = Path(args.file)
+
+    if not test_file.exists():
+        print(f"Test file not found: {test_file}")
+        return 1
+
+    print(f"Analyzing: {test_file}")
+    print("=" * 60)
+
+    # Select pipeline options based on mode
+    if args.mode == "strict":
+        options = create_strict_pipeline_options()
+    elif args.mode == "fast":
+        options = create_fast_pipeline_options()
+    else:
+        options = create_lenient_pipeline_options()
+
+    # Run analysis
+    result = analyze_with_console_progress(test_file, options=options)
+
+    # Print summary or detailed results
+    if not args.detailed:
+        print_summary(result)
+    else:
+        print_detailed_results(result)
 
     return 0 if result.success else 1
 

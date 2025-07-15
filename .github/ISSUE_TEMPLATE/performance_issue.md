@@ -2,13 +2,13 @@ ______________________________________________________________________
 
 ## name: Performance Issue about: Report slow analysis or high resource usage title: '[PERF] ' labels: ['performance', 'needs-triage'] assignees: ''
 
-# ⚡ Performance Issue
+# âš¡ Performance Issue
 
-## 📋 Description
+## ğŸ“‹ Description
 
 <!-- Describe the performance issue you're experiencing -->
 
-## 📊 File Characteristics
+## ğŸ“Š File Characteristics
 
 - **File Size**: [e.g., 50MB]
 - **Number of Sheets**: [e.g., 100]
@@ -23,7 +23,7 @@ ______________________________________________________________________
   - [ ] Data Validation Rules
   - [ ] Conditional Formatting
 
-## ⏱️ Performance Metrics
+## â�±ï¸� Performance Metrics
 
 ### Observed Performance
 
@@ -39,7 +39,7 @@ Based on the [performance targets](../../docs/design/comprehensive-system-design
 - Basic Analysis (< 10 sheets, < 10K cells): < 5 seconds
 - Deep AI Analysis (< 50 sheets, < 100K cells): < 30 seconds
 
-## 🔍 Analysis Details
+## ğŸ”� Analysis Details
 
 ### Command Used
 
@@ -60,7 +60,7 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - [ ] Report generation
 - [ ] Unknown
 
-## 🖥️ System Information
+## ğŸ–¥ï¸� System Information
 
 - **OS**: [e.g., macOS 14.0 on M2 Max]
 - **CPU**: [e.g., Apple M2 Max, Intel i9-12900K]
@@ -70,7 +70,7 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - **Running in Docker**: Yes/No
 - **Other Running Applications**: [anything consuming significant resources]
 
-## 📊 Profiling Data
+## ğŸ“Š Profiling Data
 
 <!-- If possible, run with profiling enabled -->
 
@@ -94,14 +94,14 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 
 </details>
 
-## 🔄 Reproducibility
+## ğŸ”„ Reproducibility
 
 - [ ] Issue occurs consistently
 - [ ] Issue occurs intermittently
 - [ ] Issue occurs only with specific files
 - [ ] Issue occurs after extended usage
 
-## 📎 Sample File
+## ğŸ“� Sample File
 
 <!-- Can you provide a file that demonstrates the issue? -->
 
@@ -110,7 +110,7 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - [ ] I cannot share the file but can describe its structure
 - [ ] I can create a synthetic file that reproduces the issue
 
-## 🚀 Workarounds Tried
+## ğŸš€ Workarounds Tried
 
 <!-- What have you tried to improve performance? -->
 
@@ -120,11 +120,11 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - [ ] Increasing system resources
 - [ ] Other: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
 
-## 💡 Suggestions
+## ğŸ’¡ Suggestions
 
 <!-- Any ideas for performance improvements? -->
 
-## 📋 Checklist
+## ğŸ“‹ Checklist
 
 - [ ] I've checked that I'm using the latest version
 - [ ] I've reviewed the performance documentation

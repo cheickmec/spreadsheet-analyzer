@@ -10,111 +10,111 @@ Request for o3 pro
 
 Reasoned for 4m 10s
 
-### 1. What *fileintel‑prototype* is doing today
+### 1. What *fileintel-prototype* is doing today
 
-`fileintel‑prototype` is essentially a **file‑hash intelligence aggregator**: it takes one or more hashes (MD5, SHA‑1, SHA‑256), queries several public/commercial threat‑intelligence sources, then returns a single, normalized CSV row per file. The open‑source implementation it is based on (keithjjones/**fileintel**) makes three architectural choices worth keeping in mind:
+`fileintel-prototype` is essentially a **file-hash intelligence aggregator**: it takes one or more hashes (MD5, SHA-1, SHA-256), queries several public/commercial threat-intelligence sources, then returns a single, normalized CSV row per file. The open-source implementation it is based on (keithjjones/**fileintel**) makes three architectural choices worth keeping in mind:
 
 Layer Purpose Current implementation details
 
 ______________________________________________________________________
 
-**CLI/Runner** Parses command‑line flags (`‑a`, `‑v`, `‑n` ...) and dispatches look‑ups `fileintel.py`
+**CLI/Runner** Parses command-line flags (`-a`, `-v`, `-n` ...) and dispatches look-ups `fileintel.py`
 **Configuration/Secrets** API keys & local paths Flat `sampleconfig.conf` INI file
-**Source adapters ("providers")** One Python module per intel source (VirusTotal, NSRL, OTX, ThreatCrowd, ThreatExpert) Loaded via a light plug‑in registry; each returns a dict
-**Coordinator** Loops over each hash, calls the chosen providers, merges results Sequential loop, basic rate‑limit sleeps
-**Output writer** Flattens dicts → CSV on `STDOUT`; optional `‑r` for CR/LF No database or streaming sink
-**Utilities** Hash validation, NSRL ZIP reader (optionally using 7‑Zip), throttling helper Standalone helper functions
+**Source adapters ("providers")** One Python module per intel source (VirusTotal, NSRL, OTX, ThreatCrowd, ThreatExpert) Loaded via a light plug-in registry; each returns a dict
+**Coordinator** Loops over each hash, calls the chosen providers, merges results Sequential loop, basic rate-limit sleeps
+**Output writer** Flattens dicts ↑ CSV on `STDOUT`; optional `-r` for CR/LF No database or streaming sink
+**Utilities** Hash validation, NSRL ZIP reader (optionally using 7-Zip), throttling helper Standalone helper functions
 
 The design is intentionally **monolithic but pluggable**: adding a new data source usually means dropping one more file into `libs/`, updating `requirements.txt`, and extending the switch logic. \[\[\[\[\[[github.com]\]\]\][4]\]\]
 
 ______________________________________________________________________
 
-### 2. Key gaps & pain points
+### 2. Key gaps & pain points
 
 Area Gap today Impact
 
 ______________________________________________________________________
 
-**Scalability / performance** All provider calls are synchronous; long lists → hour‑long runs Cannot be used in pipelines or near‑real‑time alerting
-**Resilience** Retry/back‑off logic is minimal; a single 502 can kill the run Unreliable overnight jobs
-**State / history** Results stream to CSV only; no durable store or delta logic Hard to trend, dedup, or re‑enrich later
-**Security** Secrets live in plain‑text config; no RBAC around the data Risk of API‑key leakage and uncontrolled intel sharing
+**Scalability / performance** All provider calls are synchronous; long lists ↑ hour-long runs Cannot be used in pipelines or near-real-time alerting
+**Resilience** Retry/back-off logic is minimal; a single 502 can kill the run Unreliable overnight jobs
+**State / history** Results stream to CSV only; no durable store or delta logic Hard to trend, dedup, or re-enrich later
+**Security** Secrets live in plain-text config; no RBAC around the data Risk of API-key leakage and uncontrolled intel sharing
 **Testing & CI/CD** Few unit tests; no contract tests for adapters Updates to one provider can silently break others
-**Extensibility ceiling** Only hash inputs supported; no carving, EXIF, or dynamic analysis Limits usefulness for insider‑risk, DLP, DFIR cases
+**Extensibility ceiling** Only hash inputs supported; no carving, EXIF, or dynamic analysis Limits usefulness for insider-risk, DLP, DFIR cases
 **Observability** Just `print` logging; no metrics, tracing, or health probes Ops teams fly blind in prod
-**Packaging** Python 2‑compatible code base; no wheels/containers Ups migration cost for modern stacks
+**Packaging** Python 2-compatible code base; no wheels/containers Ups migration cost for modern stacks
 
 ______________________________________________________________________
 
-### 3. Concrete improvement plan
+### 3. Concrete improvement plan
 
 Horizon Recommendation Quick win? Comment
 
 ______________________________________________________________________
 
-**Short term (≤ 1 month)** *Refactor runner to asyncio* (e.g., `asyncio.gather` with provider‑level semaphores) ✅ Often 5‑10× faster with I/O‑bound calls
-Introduce **structured logging & basic Prometheus counters** ✅ Gives you duration, error‑rate dashboards quickly
-Move secrets to **dotenv → HashiCorp Vault (or AWS Secrets Manager)** ✅ Zero code change for callers, higher security
-**Medium term (1‑3 months)** Split **provider adapters into an entry‑point plug‑in interface** (e.g., `pkg_resources.entry_points` or `importlib.metadata`) ⚠️ Decouples core from third‑party code; unlocks optional installs
-Replace CSV sink with a **typed events queue** (Kafka or Redis Streams) + **PostgreSQL/ClickHouse** warehouse ⚠️ Allows incremental enrichment and BI queries
-Add **unit tests + pytest‑vcr** fixtures per provider ⚠️ Stops regressions and throttling during CI
-**Long term (3‑6 months)** Containerize each tier; expose a **REST/GraphQL service** so other systems can enrich on demand 🚀 Turns the tool into a micro‑service usable by SIEM/SOAR
-Augment with **dynamic & static analysis back‑ends** (Cuckoo, yara‑rule scans, SAST) 🚀 Closes coverage gap beyond mere hash reputation
-Adopt **OpenCyberSecurity Schema Framework (OCSF)** or STIX 2.1 for output 🚀 Makes sharing across orgs & tools easier
+**Short term (§ 1 month)** *Refactor runner to asyncio* (e.g., `asyncio.gather` with provider-level semaphores) ✅ Often 5-10√ó faster with I/O-bound calls
+Introduce **structured logging & basic Prometheus counters** ✅ Gives you duration, error-rate dashboards quickly
+Move secrets to **dotenv ↑ HashiCorp Vault (or AWS Secrets Manager)** ✅ Zero code change for callers, higher security
+**Medium term (1-3 months)** Split **provider adapters into an entry-point plug-in interface** (e.g., `pkg_resources.entry_points` or `importlib.metadata`) … Decouples core from third-party code; unlocks optional installs
+Replace CSV sink with a **typed events queue** (Kafka or Redis Streams) + **PostgreSQL/ClickHouse** warehouse … Allows incremental enrichment and BI queries
+Add **unit tests + pytest-vcr** fixtures per provider … Stops regressions and throttling during CI
+**Long term (3-6 months)** Containerize each tier; expose a **REST/GraphQL service** so other systems can enrich on demand üöÄ Turns the tool into a micro-service usable by SIEM/SOAR
+Augment with **dynamic & static analysis back-ends** (Cuckoo, yara-rule scans, SAST) üöÄ Closes coverage gap beyond mere hash reputation
+Adopt **OpenCyberSecurity Schema Framework (OCSF)** or STIX 2.1 for output üöÄ Makes sharing across orgs & tools easier
 
 ______________________________________________________________________
 
-### 4. Illustrative target architecture (after improvements)
+### 4. Illustrative target architecture (after improvements)
 
 1. **API / CLI Gateway**\
-   *Fast path* for single‑hash look‑ups and a *batch ingestion* endpoint that drops jobs onto a queue.
+   *Fast path* for single-hash look-ups and a *batch ingestion* endpoint that drops jobs onto a queue.
 
-1. **Message queue (Kafka/Redis Streams/SQS)**\
-   Stores enrichment jobs; acts as a buffer for bursts and a work‑distribution backbone.
+1. **Message queue (Kafka/Redis Streams/SQS)**\
+   Stores enrichment jobs; acts as a buffer for bursts and a work-distribution backbone.
 
-1. **Worker pool (K8s Deployment)**\
-   Async Python workers hosting the provider plug‑ins.
+1. **Worker pool (K8s Deployment)**\
+   Async Python workers hosting the provider plug-ins.
 
-- Side‑cars export Prometheus metrics; OpenTelemetry spans trace each provider call.
+- Side-cars export Prometheus metrics; OpenTelemetry spans trace each provider call.
 
-- Workers pull secrets from Vault at start‑up.
+- Workers pull secrets from Vault at start-up.
 
-4. **Provider plug‑ins** (pip‑installable Python packages)\
-   Implement `lookup(hash:str) → Dict[str,Any]` and declare their own rate‑limit config.
+4. **Provider plug-ins** (pip-installable Python packages)\
+   Implement `lookup(hash:str) ↑ Dict[str,Any]` and declare their own rate-limit config.
 
 1. **Result broker**\
    Writes finished results to\\
 
-- «hot» Redis cache (for immediate API replies) and\\
-- «cold» warehouse table (PostgreSQL/ClickHouse) partitioned by date/provider.
+- ¬´hot¬ª Redis cache (for immediate API replies) and\\
+- ¬´cold¬ª warehouse table (PostgreSQL/ClickHouse) partitioned by date/provider.
 
 6. **Search / BI layer**\
-   Grafana, Superset, or Looker dashboards on top of the warehouse; Jupyter notebooks for ad‑hoc DFIR.
+   Grafana, Superset, or Looker dashboards on top of the warehouse; Jupyter notebooks for ad-hoc DFIR.
 
 1. **Policy & RBAC layer**\
    OPA/Gatekeeper rules that filter fields by user role (e.g., remove personal data when sharing with partners).
 
 ______________________________________________________________________
 
-### 5. Checklist you can start tomorrow
+### 5. Checklist you can start tomorrow
 
 Task Owner Effort
 
 ______________________________________________________________________
 
-Spin up private Git repo; enable Dependabot & pre‑commit hooks Dev lead ½ day
-Add `pytest`, CI workflow, and at least one provider fixture Dev 1 day
-Replace `print` with `structlog` + JSON formatter Dev ½ day
-Refactor hash loop to `asyncio` Dev 2 days
-Store API keys in `.env` → Vault; update README SecOps 1 day
-Create Dockerfile, push to internal registry DevOps 1 day
-Instrument Prometheus metrics (`requests_total`, `errors_total`, `latency_ms`) DevOps 1 day
+Spin up private Git repo; enable Dependabot & pre-commit hooks Dev lead ¬Ω day
+Add `pytest`, CI workflow, and at least one provider fixture Dev 1 day
+Replace `print` with `structlog` + JSON formatter Dev ¬Ω day
+Refactor hash loop to `asyncio` Dev 2 days
+Store API keys in `.env` ↑ Vault; update README SecOps 1 day
+Create Dockerfile, push to internal registry DevOps 1 day
+Instrument Prometheus metrics (`requests_total`, `errors_total`, `latency_ms`) DevOps 1 day
 
 ______________________________________________________________________
 
 #### Bottom line
 
-`fileintel‑prototype` already proves out the *value* of consolidating multiple intel feeds with a minimal amount of glue code. Its main architectural weakness is that everything still runs in a single, synchronous process with no persistent state or observability. By introducing **async I/O, message‑queue‑based workers, secure secret management, and a durable results store** you can turn the prototype into a production‑ready micro‑service while keeping the same modular philosophy that makes it easy to plug in new intelligence feeds.
+`fileintel-prototype` already proves out the *value* of consolidating multiple intel feeds with a minimal amount of glue code. Its main architectural weakness is that everything still runs in a single, synchronous process with no persistent state or observability. By introducing **async I/O, message-queue-based workers, secure secret management, and a durable results store** you can turn the prototype into a production-ready micro-service while keeping the same modular philosophy that makes it easy to plug in new intelligence feeds.
 
 ##### You said:
 
@@ -131,16 +131,16 @@ ______________________________________________________________________
 ## 1 . High-level flow
 
 ```
-pgsqlCopy[User sources]  → 1️⃣ Connectors      → 2️⃣ Deterministic Pipeline (0-5)
+pgsqlCopy[User sources]  ↑ 1Ô∏è≤ Connectors      ↑ 2Ô∏è≤ Deterministic Pipeline (0-5)
 (G-Drive, e-mail, drag-&-drop)          │
-↓
-3️⃣ FileCard store (+ object storage)
-↓
-4️⃣ Agent Orchestration  → 5️⃣ Tool Bus
-↓
-6️⃣ PersonaGraph  → 7️⃣ Profile Service
-↓
-8️⃣ Chronicle / Analytics / UI
+←
+3Ô∏è≤ FileCard store (+ object storage)
+←
+4Ô∏è≤ Agent Orchestration  ↑ 5Ô∏è≤ Tool Bus
+←
+6Ô∏è≤ PersonaGraph  ↑ 7Ô∏è≤ Profile Service
+←
+8Ô∏è≤ Chronicle / Analytics / UI
 ```
 
 ______________________________________________________________________
@@ -151,14 +151,14 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-1️⃣ **Connectors** Incremental, OAuth-scoped crawlers for Drive, e-mail, local uploads; emit *FileStub* metadata Extensibility checklist & interface
-2️⃣ **Deterministic pipeline (Stages 0-5)** Hashing, dedup, MIME & container walk, polyglot/entropy guards---*no AI yet* ADR-020 "deterministic-first" decision
-3️⃣ **FileCard entity** Canonical record per file or file-component; carries purpose, semantic labels, extracted text, confidence etc.
-4️⃣ **Agent Orchestration layer** Planner → Retriever → Extractor → Verifier agents run in a reflexive loop under a cost/iteration cap
-5️⃣ **Tool Bus (Security + Audit)** Mediates every tool call, enforces budgets, logs to Chronicle; blocks prompt-injection & data exfiltration
-6️⃣ **PersonaGraph (Neo4j)** Stores people, businesses, accounts & relationships built from verified facts
-7️⃣ **Profile Service** Aggregates graph facts per user; decides when profile is "publishable" and issues events
-8️⃣ **Observability & fallback** Dashboards for latency, confidence, cost; degraded-mode rules when LLM or graph is down
+1Ô∏è≤ **Connectors** Incremental, OAuth-scoped crawlers for Drive, e-mail, local uploads; emit *FileStub* metadata Extensibility checklist & interface
+2Ô∏è≤ **Deterministic pipeline (Stages 0-5)** Hashing, dedup, MIME & container walk, polyglot/entropy guards---*no AI yet* ADR-020 "deterministic-first" decision
+3Ô∏è≤ **FileCard entity** Canonical record per file or file-component; carries purpose, semantic labels, extracted text, confidence etc.
+4Ô∏è≤ **Agent Orchestration layer** Planner ↑ Retriever ↑ Extractor ↑ Verifier agents run in a reflexive loop under a cost/iteration cap
+5Ô∏è≤ **Tool Bus (Security + Audit)** Mediates every tool call, enforces budgets, logs to Chronicle; blocks prompt-injection & data exfiltration
+6Ô∏è≤ **PersonaGraph (Neo4j)** Stores people, businesses, accounts & relationships built from verified facts
+7Ô∏è≤ **Profile Service** Aggregates graph facts per user; decides when profile is "publishable" and issues events
+8Ô∏è≤ **Observability & fallback** Dashboards for latency, confidence, cost; degraded-mode rules when LLM or graph is down
 
 ______________________________________________________________________
 
@@ -168,9 +168,9 @@ ______________________________________________________________________
 
 - **Progressive enhancement.** Simple CSV bank exports finish in Stage 2; gnarly multi-sheet workbooks trigger the full agent loop.
 
-- **Trust Tier × Confidence matrix.** Every fact carries source reliability + extraction quality, so profile scoring is explainable.
+- **Trust Tier √ó Confidence matrix.** Every fact carries source reliability + extraction quality, so profile scoring is explainable.
 
-- **Clear data contracts.** *FileCard* → Chronicle events → PersonaGraph keep services loosely coupled.
+- **Clear data contracts.** *FileCard* ↑ Chronicle events ↑ PersonaGraph keep services loosely coupled.
 
 - **Audit & cost control baked-in.** Tool Bus logs every request/response, enforces $5 / user / day and 20-iteration caps.
 
@@ -196,7 +196,7 @@ ______________________________________________________________________
 
 1. **Stand-up minimal happy-path PoC**
 
-- DriveConnector → deterministic Stages 0-2 → basic CSV/OFX FileCards.
+- DriveConnector ↑ deterministic Stages 0-2 ↑ basic CSV/OFX FileCards.
 
 2. **Wire in Tool Bus skeleton** so agents run in a sandbox---even if the only tool is "echo".
 
@@ -218,20 +218,20 @@ what's the filecard component?
 
 **FileCard = the canonical, self-contained "index card" for every file (or file fragment) your pipeline touches.**
 
-### 1 · Why it exists
+### 1 ¬∑ Why it exists
 
 The pipeline's deterministic stages (0-5) shred incoming files into safely parsed components; each component is wrapped in a **FileCard** so all downstream systems---Chronicle, PersonaGraph, dashboards---handle a single, uniform object instead of raw blobs or source-specific structures. A FileCard therefore *bridges* raw content and higher-level financial intelligence.
 
 ______________________________________________________________________
 
-### 2 · Core schema (grouped)
+### 2 ¬∑ Core schema (grouped)
 
 Category Key fields
 
 ______________________________________________________________________
 
 **Identity** `file_id` (provider : user : hash#component), `source_file_id`, optional `component_id`
-**Classification** `purpose` → `FileCardPurpose` enum, `semantic_label_hierarchy`, `format_family`
+**Classification** `purpose` ↑ `FileCardPurpose` enum, `semantic_label_hierarchy`, `format_family`
 **Content payload** `title`, `natural_summary` (LLM), `key_facts` (typed `FinancialFact` list), optional `raw_text` for search
 **Quality & provenance** `confidence` (0-1), `trust_tier` (source reliability), rich `extraction_metadata` (OCR %, pipeline ver., timings)
 **Linkage** `parent_file_id`, `related_file_ids`, `evidence_for` (PersonaGraph node IDs)
@@ -242,7 +242,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### 3 · Lifecycle in the pipeline
+### 3 ¬∑ Lifecycle in the pipeline
 
 1. **Creation** -- after extraction, `create_filecard()` assembles the object and stores it in Chronicle; dedup links identical content to existing IDs.
 
@@ -256,17 +256,17 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### 4 · Where it fits in the big picture
+### 4 ¬∑ Where it fits in the big picture
 
 ```
 arduinoCopy ┌──────────────┐           ┌───────────────┐
-│  File Ingest │ ──┬─▶ … ▶ │  FileCard DB  │ ──▶ Chronicle events
-└──────────────┘   │       └───────────────┘
+│  File Ingest │ ──┬─┼ •  ┼ │  FileCard DB  │ ──┼ Chronicle events
+└── ────────────┘   │       └── ─────────────┘
 │
-▼
+┴
 PersonaGraph
 │
-▼
+┴
 Profile Service
 ```
 
@@ -278,13 +278,13 @@ Profile Service
 
 ______________________________________________________________________
 
-### 5 · Extending or querying FileCards
+### 5 ¬∑ Extending or querying FileCards
 
-- **New formats** → write a **format adapter** that emits populated FileCards; no schema change needed.
+- **New formats** ↑ write a **format adapter** that emits populated FileCards; no schema change needed.
 
-- **Semantic search** → vector-index on `natural_summary`; combine with full-text filters (`purpose`, `confidence` mins).
+- **Semantic search** ↑ vector-index on `natural_summary`; combine with full-text filters (`purpose`, `confidence` mins).
 
-- **Analytics** → aggregation helpers (`summarize_filecards_by_purpose`) power dashboards and quota reports.
+- **Analytics** ↑ aggregation helpers (`summarize_filecards_by_purpose`) power dashboards and quota reports.
 
 ______________________________________________________________________
 
@@ -341,110 +341,110 @@ Request for o3 pro
 
 Reasoned for 2m 33s
 
-A quick take‑away: **yes---structured "explorer/extractor" modules for every major document family are essential.** Off‑the‑shelf parsers already cover ~80 % of what you need (tabs, charts, macros, tables, metadata, etc.), but you must wrap them in a common, defensive, plug‑in framework so they (1) cooperate with each other, (2) expose a uniform JSON surface to the LLM layer, and (3) keep you safe from malicious or pathological files. Below is a concrete map of the best open‑source ingredients and a blueprint for turning them into the kind of deep discovery engine you envision.
+A quick take-away: **yes---structured "explorer/extractor" modules for every major document family are essential.** Off-the-shelf parsers already cover ~80 % of what you need (tabs, charts, macros, tables, metadata, etc.), but you must wrap them in a common, defensive, plug-in framework so they (1) cooperate with each other, (2) expose a uniform JSON surface to the LLM layer, and (3) keep you safe from malicious or pathological files. Below is a concrete map of the best open-source ingredients and a blueprint for turning them into the kind of deep discovery engine you envision.
 
 ______________________________________________________________________
 
-## 1. Why deep exploration per format is indispensable
+## 1. Why deep exploration per format is indispensable
 
-- **Semantic granularity.** A single XLSX can hide hundreds of business‑critical tables, pivot caches, and array formulas; without enumerating them you leak facts the LLM can never see.
+- **Semantic granularity.** A single XLSX can hide hundreds of business-critical tables, pivot caches, and array formulas; without enumerating them you leak facts the LLM can never see.
 
-- **Security & provenance.** Hidden VBA, Excel 4 (XLM) macro sheets, or embedded App Scripts change the trust level of any fact you later derive.
+- **Security & provenance.** Hidden VBA, Excel 4 (XLM) macro sheets, or embedded App Scripts change the trust level of any fact you later derive.
 
-- **Cost control.** If you detect that an Excel workbook is just a flat data dump, you can bypass heavy‑weight LLM summarisation and use deterministic CSV logic instead.
+- **Cost control.** If you detect that an Excel workbook is just a flat data dump, you can bypass heavy-weight LLM summarisation and use deterministic CSV logic instead.
 
-- **Auditable lineage.** Fine‑grained explorers let every extracted "FinancialFact" point back to *sheet → range → cell* coordinates or *page → bounding‑box* in a PDF.
+- **Auditable lineage.** Fine-grained explorers let every extracted "FinancialFact" point back to *sheet ↑ range ↑ cell* coordinates or *page ↑ bounding-box* in a PDF.
 
 ______________________________________________________________________
 
-## 2. Survey of open‑source "explorer" options
+## 2. Survey of open-source "explorer" options
 
-### 2.1 Spreadsheets (Excel, Google Sheets)
+### 2.1 Spreadsheets (Excel, Google Sheets)
 
 Need Library / Technique Notes
 
 ______________________________________________________________________
 
-Enumerate sheets, cells, charts, pivot caches **openpyxl** (pure‑Python XLSX/XLSM/XLTX) exposes the full XML tree, including `chart` parts and shared formula definitions \[\[\[\[\[[stackoverflow.com]\]\]\][11]\]\]; Real Python has an excellent guide to traversing sheets and cell objects \[\[\[\[\[[realpython.com]\]\]\][12]\]\].
+Enumerate sheets, cells, charts, pivot caches **openpyxl** (pure-Python XLSX/XLSM/XLTX) exposes the full XML tree, including `chart` parts and shared formula definitions \[\[\[\[\[[stackoverflow.com]\]\]\][11]\]\]; Real Python has an excellent guide to traversing sheets and cell objects \[\[\[\[\[[realpython.com]\]\]\][12]\]\].
 Evaluate or translate formulas **xlcalculator** converts Excel formulas to Python AST and computes results offline---handy when the original client app isn't available \[\[\[\[\[[github.com]\]\]\][13]\]\].
-Detect VBA & Excel 4 macros **oletools / olevba** parses both OLE binaries (`.xls`) and Open XML (`.xlsm`) to dump macro source and flag suspicious keywords \[\[\[\[\[[github.com]\]\]\][14]\]\]\[\[\[\[\[[github.com]\]\]\][15]\]\].
-Google Sheets structure The Sheets REST API lists every sheet, grid range, and embedded chart; the Python quick‑start shows token‑scoped access with `gspread/pygsheets` wrappers \[\[\[\[\[[developers.google.com]\]\]\][16]\]\].
+Detect VBA & Excel 4 macros **oletools / olevba** parses both OLE binaries (`.xls`) and Open XML (`.xlsm`) to dump macro source and flag suspicious keywords \[\[\[\[\[[github.com]\]\]\][14]\]\]\[\[\[\[\[[github.com]\]\]\][15]\]\].
+Google Sheets structure The Sheets REST API lists every sheet, grid range, and embedded chart; the Python quick-start shows token-scoped access with `gspread/pygsheets` wrappers \[\[\[\[\[[developers.google.com]\]\]\][16]\]\].
 
-### 2.2 Word processors (DOCX / Google Docs)
+### 2.2 Word processors (DOCX / Google Docs)
 
 Need Library / Technique Notes
 
 ______________________________________________________________________
 
-Headings, paragraphs, tables, images **python‑docx** walks the XML tree; community snippets extract specific tables or images relative to heading anchors \[\[\[\[\[[stackoverflow.com]\]\]\][17]\]\].
-Rich metadata `doc.core_properties` in python‑docx or zip‑level parsing yields author, revision, etc. \[\[\[\[\[[stackoverflow.com]\]\]\][18]\]\].
-Macros & embedded OLE objects `olevba` again covers DOC/DOCM; it flags auto‑exec macros and dumps payloads --- key for risk scoring \[\[\[\[\[[socfortress.medium.com]\]\]\][19]\]\].
+Headings, paragraphs, tables, images **python-docx** walks the XML tree; community snippets extract specific tables or images relative to heading anchors \[\[\[\[\[[stackoverflow.com]\]\]\][17]\]\].
+Rich metadata `doc.core_properties` in python-docx or zip-level parsing yields author, revision, etc. \[\[\[\[\[[stackoverflow.com]\]\]\][18]\]\].
+Macros & embedded OLE objects `olevba` again covers DOC/DOCM; it flags auto-exec macros and dumps payloads --- key for risk scoring \[\[\[\[\[[socfortress.medium.com]\]\]\][19]\]\].
 Bulk text/structure alternative **docx2python** extracts headers, footers, comments and returns a nested Python object ready for traversal \[\[\[\[\[[github.com]\]\]\][20]\]\].
 
-### 2.3 PDF documents
+### 2.3 PDF documents
 
 Need Library / Technique Notes
 
 ______________________________________________________________________
 
-Character‑level & table‑aware parsing **pdfplumber** provides precise glyph coordinates and a `extract_table` helper \[\[\[\[\[[github.com]\]\]\][21]\]\]; **Camelot**/`tabula‑java` specialise in table detection across lattice/stream modes \[\[\[\[\[[camelot-py.readthedocs.io]\]\]\][22]\]\]\[\[\[\[\[[github.com]\]\]\][23]\]\].
+Character-level & table-aware parsing **pdfplumber** provides precise glyph coordinates and a `extract_table` helper \[\[\[\[\[[github.com]\]\]\][21]\]\]; **Camelot**/`tabula-java` specialise in table detection across lattice/stream modes \[\[\[\[\[[camelot-py.readthedocs.io]\]\]\][22]\]\]\[\[\[\[\[[github.com]\]\]\][23]\]\].
 OCR or scanned pages Pair Tesseract with docTR or pdfplumber's image hooks for layered OCR when text is absent \[\[\[\[\[[lucidworks.com]\]\]\][24]\]\].
 Images & attachments `PyPDF2/pypdf` exposes `Page.images` and stream filters for embedded binaries \[\[\[\[\[[pypdf2.readthedocs.io]\]\]\][25]\]\]\[\[\[\[\[[pypdf.readthedocs.io]\]\]\][26]\]\].
 
-### 2.4 Universal metadata & format sniffing
+### 2.4 Universal metadata & format sniffing
 
-- **Apache Tika** detects >1 400 MIME types and streams text/metadata via a single REST/TCP call --- perfect for your Stage 0 "what is this file?" step \[\[\[\[\[[tika.apache.org]\]\]\][27]\]\].
+- **Apache Tika** detects >1 400 MIME types and streams text/metadata via a single REST/TCP call --- perfect for your Stage 0 "what is this file?" step \[\[\[\[\[[tika.apache.org]\]\]\][27]\]\].
 
 - Tika's content handler plugs easily into Solr/Elastic pipelines; Lucidworks' guide shows sample code for PDF/Office ingestion \[\[\[\[\[[lucidworks.com]\]\]\][24]\]\].
 
 ______________________________________________________________________
 
-## 3. Design recommendations for a robust explorer framework
+## 3. Design recommendations for a robust explorer framework
 
-### 3.1 Multi‑phase exploration pipeline
+### 3.1 Multi-phase exploration pipeline
 
-1. **Sniff & sanity‑check (Tika).** Reject >2 GB, encrypted, or high‑entropy files early.
+1. **Sniff & sanity-check (Tika).** Reject >2 GB, encrypted, or high-entropy files early.
 
 1. **Container walk.** Unzip OOXML, traverse sheet parts, embedded OLE packages.
 
-1. **Surface map.** Build an *in‑memory graph* that lists every addressable artefact (sheet, range, chart, pivot, macro module, image, PDF page, text block).
+1. **Surface map.** Build an *in-memory graph* that lists every addressable artefact (sheet, range, chart, pivot, macro module, image, PDF page, text block).
 
 1. **Targeted extraction handlers.** Dispatch to the specialised libraries above; return normalised `ExtractionUnit` objects with byte offsets, lineage, and partial hashes.
 
 1. **Yield to LLM agents.** Pass only the artefacts whose `format_family` and `size` fall under cost/complexity thresholds.
 
-### 3.2 Macro & script risk gating
+### 3.2 Macro & script risk gating
 
-- Treat any file with VBA, XLM, App Script, or `docOpen()`‑style callbacks as **Trust Tier 3**; require explicit policy before LLMs see raw code.
+- Treat any file with VBA, XLM, App Script, or `docOpen()`-style callbacks as **Trust Tier 3**; require explicit policy before LLMs see raw code.
 
-- Run `olevba –deobf` on a jailed worker; store de‑obfuscated source as an *attachment* to the FileCard for later analysis.
+- Run `olevba "deobf` on a jailed worker; store de-obfuscated source as an *attachment* to the FileCard for later analysis.
 
-### 3.3 Performance & cost notes
+### 3.3 Performance & cost notes
 
-- **Chunking:** For giant workbooks, hash sheet XML separately; skip re‑processing unchanged sheets on re‑ingest.
+- **Chunking:** For giant workbooks, hash sheet XML separately; skip re-processing unchanged sheets on re-ingest.
 
-- **Parallel IO:** Spreadsheet parsing is CPU‑light but XML‑heavy---use asyncio with a process pool for compression/decompression steps.
+- **Parallel IO:** Spreadsheet parsing is CPU-light but XML-heavy---use asyncio with a process pool for compression/decompression steps.
 
-- **Fail‑open strategy:** If a specialised extractor crashes, fall back to Tika's plain‑text, flag `processing_status=PARTIAL`, and queue for human review.
+- **Fail-open strategy:** If a specialised extractor crashes, fall back to Tika's plain-text, flag `processing_status=PARTIAL`, and queue for human review.
 
 ______________________________________________________________________
 
-## 4. Gap analysis & roadmap
+## 4. Gap analysis & roadmap
 
 Gap Mitigation
 
 ______________________________________________________________________
 
-Sheets "Apps Script" enumeration lacks first‑class Python client Use the Drive API's Apps Script project listing + Sheets API's `developerMetadata` as a stop‑gap; long‑term, wrap Google's HTTP discovery doc in an internal client.
-DOCX SmartArt, equations, tracked changes Extend python‑docx with lxml to walk `<w:smartArt>` and `<m:oMath>` nodes; community PRs are welcome.
+Sheets "Apps Script" enumeration lacks first-class Python client Use the Drive API's Apps Script project listing + Sheets API's `developerMetadata` as a stop-gap; long-term, wrap Google's HTTP discovery doc in an internal client.
+DOCX SmartArt, equations, tracked changes Extend python-docx with lxml to walk `<w:smartArt>` and `<m:oMath>` nodes; community PRs are welcome.
 PDF vector diagrams (SVG/AI embeds) Hook in `pdf2svg` + a lightweight graph walker; label objects so LLM can decide if they encode numeric charts.
-XLSB or legacy OLE `.xls` "BIFF8" files Combine `pyxlsb` for data, `oletools/olevba` for macros; schedule a macro to convert to XLSX if S3 scratch space permits.
+XLSB or legacy OLE `.xls` "BIFF8" files Combine `pyxlsb` for data, `oletools/olevba` for macros; schedule a macro to convert to XLSX if S3 scratch space permits.
 
 ______________________________________________________________________
 
-## 5. Bottom line
+## 5. Bottom line
 
-Building **format‑aware explorers** is not a "nice to have" but a prerequisite for trustworthy, cost‑efficient LLM enrichment. Fortunately the open‑source ecosystem already gives you most of the heavy lifting---`openpyxl`, `olevba`, `pdfplumber`, `Camelot`, `Tika`, and friends---so the main work is *gluing them together behind a common interface, enforcing safety policies, and emitting richly annotated ExtractionUnits that slot into your FileCard schema.* Invest there, and you unlock deterministic accuracy, lower token bills, and fully auditable financial insight downstream.
+Building **format-aware explorers** is not a "nice to have" but a prerequisite for trustworthy, cost-efficient LLM enrichment. Fortunately the open-source ecosystem already gives you most of the heavy lifting---`openpyxl`, `olevba`, `pdfplumber`, `Camelot`, `Tika`, and friends---so the main work is *gluing them together behind a common interface, enforcing safety policies, and emitting richly annotated ExtractionUnits that slot into your FileCard schema.* Invest there, and you unlock deterministic accuracy, lower token bills, and fully auditable financial insight downstream.
 
 ##### You said:
 
@@ -470,16 +470,16 @@ Layer Scope Deterministic? AI? Notes
 
 ______________________________________________________________________
 
-**Stage-0 → 2 Explorers** hash, MIME, provider hints, macro flags ✅ ❌ Already implemented in prototype; filename/MIME heuristics feed confidence scores [financial-fidelity-anal...]
+**Stage-0 ↑ 2 Explorers** hash, MIME, provider hints, macro flags ✅ ❌ Already implemented in prototype; filename/MIME heuristics feed confidence scores [financial-fidelity-anal...]
 **Structural Parsers** enumerate sheets, tables, ranges, pages ✅ ❌ Use openpyxl, pdfplumber, Tika etc.
-**LLM Agents (Stage-4+)** classification, code generation, fact extraction ⚠️ ✅ Run via Tool Bus with guard-rails [financial-fidelity-anal...] & policy layer [financial-fidelity-anal...]
+**LLM Agents (Stage-4+)** classification, code generation, fact extraction … ✅ Run via Tool Bus with guard-rails [financial-fidelity-anal...] & policy layer [financial-fidelity-anal...]
 **FileCard Builder** merge raw text, AI summaries, key facts Mixed Mixed See FileCard entity spec [financial-fidelity-anal...]
 
 ### Why keep explorers deterministic?
 
 - Early exits save tokens: a large duplicate PDF is skipped long before any LLM runs.
 
-- Security: VBA or App Script detected → route to sandbox rather than ChatGPT.
+- Security: VBA or App Script detected ↑ route to sandbox rather than ChatGPT.
 
 ## 2 LLM sandbox & Tool Bus
 
@@ -493,9 +493,9 @@ ______________________________________________________________________
 
 1. **Read utilities**
 
-- `read_sheet_range(sheet_id, "A1:F500")` → pandas DF (openpyxl pattern)\[\[\[\[\[[stackoverflow.com]\]\]\][35]\]\]
+- `read_sheet_range(sheet_id, "A1:F500")` ↑ pandas DF (openpyxl pattern)\[\[\[\[\[[stackoverflow.com]\]\]\][35]\]\]
 
-- `read_pdf_page(file_id, 3)` → text & bbox.
+- `read_pdf_page(file_id, 3)` ↑ text & bbox.
 
 - These wrappers hide library quirks and emit *ExtractionUnit* objects with lineage coordinates.
 
@@ -509,13 +509,13 @@ ______________________________________________________________________
 
 - After each chunk parse, agent sends a *summary-patch* to a token-limited scratchpad (map-reduce / "collapse" pattern)\[\[\[\[\[[python.langchain.com]\]\]\][38]\]\].
 
-- This running précis plus FileCard history provides memory.
+- This running pr√©cis plus FileCard history provides memory.
 
 ## 4 Auto-generated extractors
 
 - **CodeGenerator service** (design already sketched in prototype) [financial-fidelity-anal...].
 
-- Flow: LLM writes code → validator runs unit tests → if pass, tool is packaged and versioned.
+- Flow: LLM writes code ↑ validator runs unit tests ↑ if pass, tool is packaged and versioned.
 
 - Compile-once-run-many amortises cost for repetitive forms (e.g., one bank CSV template).
 
@@ -581,7 +581,7 @@ Together they give Claude the "query this range, summarise, then move on" behavi
 
 ______________________________________________________________________
 
-## 1 What ships with Claude Code
+## 1- What ships with Claude Code
 
 - CLI agent that can read the working directory, run shell commands, edit files, and stream results back in real time.\[\[\[\[\[[docs.anthropic.com]\]\]\][44]\]\]
 
@@ -595,9 +595,9 @@ Out of the box Claude can already open a CSV, run pandas, and chart the output; 
 
 ______________________________________________________________________
 
-## 2 Range-based reading via MCP
+## 2- Range-based reading via MCP
 
-### 2.1 Excel
+### 2.1- Excel
 
 The popular **`excel-mcp-server`** exposes:
 
@@ -607,15 +607,15 @@ The popular **`excel-mcp-server`** exposes:
 
 - `EXCEL_MCP_PAGING_CELLS_LIMIT` env-var (default = 4 000) throttles how many cells a single call can return, forcing Claude to page through a workbook chunk-by-chunk.\[\[\[\[\[[github.com]\]\]\][42]\]\]\[\[\[\[\[[github.com]\]\]\][47]\]\]
 
-### 2.2 Google Sheets
+### 2.2- Google Sheets
 
 The **`mcp-google-sheets`** server offers `get_sheet_data` and `get_sheet_formulas`, each with an optional A1-notation `range` argument; omit it and Claude grabs the whole sheet, specify it and Claude streams just that rectangle.\[\[\[\[\[[github.com]\]\]\][43]\]\]
 
-### 2.3 Why this matters
+### 2.3- Why this matters
 
 Because MCP tools enforce explicit ranges and paging limits, Claude can:
 
-1. **Plan → read 5 000 cells → summarise → discard raw cells**, keeping the conversation within the 200 k-token window.
+1. **Plan ↑ read 5 000 cells ↑ summarise ↑ discard raw cells**, keeping the conversation within the 200 k-token window.
 
 1. Retry or branch if a formula error crops up (the server returns structured JSON, not raw text).
 
@@ -623,13 +623,13 @@ Because MCP tools enforce explicit ranges and paging limits, Claude can:
 
 ______________________________________________________________________
 
-## 3 Workflow in practice
+## 3- Workflow in practice
 
 1. **Explorer stub (deterministic)** finds a 20 MB XLSX and hashes it.
 
-1. Claude's Planner agent notices "xlsm with macros" → routes to the **Excel MCP server**.
+1. Claude's Planner agent notices "xlsm with macros" ↑ routes to the **Excel MCP server**.
 
-1. Agent calls `excel_describe_sheets` → sees 12 sheets.
+1. Agent calls `excel_describe_sheets` ↑ sees 12 sheets.
 
 1. For each sheet:
 
@@ -645,7 +645,7 @@ All tool invocations, intermediate JSON, and token spend are logged by Claude Co
 
 ______________________________________________________________________
 
-## 4 Limits & caveats
+## 4- Limits & caveats
 
 - **Upload limits still apply** -- the web UI caps individual files at ~30 MB and total content must fit in the context window.\[\[\[\[\[[datastudios.org]\]\]\][49]\]\]
 
@@ -655,7 +655,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 5 Take-aways for your project
+## 5- Take-aways for your project
 
 1. **Yes, Claude Code already walks files range-by-range**, but only when you pair it with the right MCP servers.
 
@@ -672,7 +672,7 @@ With these pieces in place, you'll get the same incremental-reading, auto-summar
 give me a final design, here are more resources that may help in your decision making: https://blog.langchain.com/context-engineering-for-agents https://www.promptingguide.ai/prompts/reasoning/indirect-reasoning https://cognition.ai/blog/dont-build-multi-agents And here are some un-tested designs:
 
 ```overflow-x-auto
-Below is a concrete blueprint for giving your File Intelligence pipeline the “agentic brain” you’re envisioning—one where deterministic “explorers” scan the surface, then a tightly-governed LLM layer writes code, walks ranges, and publishes facts.  The design borrows proven ideas from frameworks such as LangGraph and AutoGen, plus lessons from the current **fileintel-prototype** (e.g., Stage-1 filename/MIME hints, FileCard schema, Agent Tool Bus).
+Below is a concrete blueprint for giving your File Intelligence pipeline the "agentic brain" youÄôre envisioning—one where deterministic "explorers" scan the surface, then a tightly-governed LLM layer writes code, walks ranges, and publishes facts.  The design borrows proven ideas from frameworks such as LangGraph and AutoGen, plus lessons from the current **fileintel-prototype** (e.g., Stage-1 filename/MIME hints, FileCard schema, Agent Tool Bus).
 
 ## Key takeaway (summary)
 
@@ -684,28 +684,28 @@ Explorers should stay deterministic—hashing, format sniffing, security checks�
 
 | Layer                     | Scope                                            | Deterministic? | AI?   | Notes                                                                              |
 | ------------------------- | ------------------------------------------------ | -------------- | ----- | ---------------------------------------------------------------------------------- |
-| **Stage-0 → 2 Explorers** | hash, MIME, provider hints, macro flags          | ✅              | ❌     | Already implemented in prototype; filename/MIME heuristics feed confidence scores  |
+| **Stage-0 ↑ 2 Explorers** | hash, MIME, provider hints, macro flags          | ✅              | ❌     | Already implemented in prototype; filename/MIME heuristics feed confidence scores  |
 | **Structural Parsers**    | enumerate sheets, tables, ranges, pages          | ✅              | ❌     | Use openpyxl, pdfplumber, Tika etc.                                                |
-| **LLM Agents (Stage-4+)** | classification, code generation, fact extraction | ⚠️             | ✅     | Run via Tool Bus with guard-rails  & policy layer                                  |
+| **LLM Agents (Stage-4+)** | classification, code generation, fact extraction | …             | ✅     | Run via Tool Bus with guard-rails  & policy layer                                  |
 | **FileCard Builder**      | merge raw text, AI summaries, key facts          | Mixed          | Mixed | See FileCard entity spec                                                           |
 
 ### Why keep explorers deterministic?
 
 * Early exits save tokens: a large duplicate PDF is skipped long before any LLM runs.
-* Security: VBA or App Script detected → route to sandbox rather than ChatGPT.
+* Security: VBA or App Script detected ↑ route to sandbox rather than ChatGPT.
 
 ## 2  LLM sandbox & Tool Bus
 
-* **Code Interpreter**: expose a *local* Python sandbox modelled on OpenAI’s Code Interpreter (runs 30 s, 512 MB RAM, no network).
-* **Tool Registry**: every callable (`read_sheet_range`, `list_sheets`, `write_fact`) is described in JSON Schema; LangGraph’s guarded-edge pattern lets you add human-in-the-loop moderation if autonomy > N%.
-* **Multi-Agent Patterns**: borrow AutoGen’s “planner+worker+critic” loop so one agent writes code, another evaluates output, a third decides if more context is needed.  This matches ADR-022’s vision of a secure, auditable Tool Bus .
+* **Code Interpreter**: expose a *local* Python sandbox modelled on OpenAIÄôs Code Interpreter (runs 30 s, 512 MB RAM, no network).
+* **Tool Registry**: every callable (`read_sheet_range`, `list_sheets`, `write_fact`) is described in JSON Schema; LangGraphÄôs guarded-edge pattern lets you add human-in-the-loop moderation if autonomy > N%.
+* **Multi-Agent Patterns**: borrow AutoGenÄôs "planner+worker+critic" loop so one agent writes code, another evaluates output, a third decides if more context is needed.  This matches ADR-022Äôs vision of a secure, auditable Tool Bus .
 
 ## 3  Range-based reading & summarisation
 
 1. **Read utilities**
 
-* `read_sheet_range(sheet_id, "A1:F500")` → pandas DF (openpyxl pattern)
-* `read_pdf_page(file_id, 3)` → text & bbox.
+* `read_sheet_range(sheet_id, "A1:F500")` ↑ pandas DF (openpyxl pattern)
+* `read_pdf_page(file_id, 3)` ↑ text & bbox.
 * These wrappers hide library quirks and emit *ExtractionUnit* objects with lineage coordinates.
 
 2. **Hierarchical chunking**
@@ -715,13 +715,13 @@ Explorers should stay deterministic—hashing, format sniffing, security checks�
 
 3. **Streaming summariser**
 
-* After each chunk parse, agent sends a *summary-patch* to a token-limited scratchpad (map-reduce / “collapse” pattern).
-* This running précis plus FileCard history provides memory.
+* After each chunk parse, agent sends a *summary-patch* to a token-limited scratchpad (map-reduce / "collapse" pattern).
+* This running pr√©cis plus FileCard history provides memory.
 
 ## 4  Auto-generated extractors
 
 * **CodeGenerator service** (design already sketched in prototype) .
-* Flow: LLM writes code → validator runs unit tests → if pass, tool is packaged and versioned.
+* Flow: LLM writes code ↑ validator runs unit tests ↑ if pass, tool is packaged and versioned.
 * Compile-once-run-many amortises cost for repetitive forms (e.g., one bank CSV template).
 
 ## 5  Memory & knowledge graph updates
@@ -758,7 +758,7 @@ Explorers should stay deterministic—hashing, format sniffing, security checks�
 
 ### Bottom line
 
-Your instinct is correct: deterministic explorers alone aren’t enough; but giving an LLM raw files without structure is wasteful.  A **two-layer design—“structured explorers + sandboxed agent coders”**—delivers precision, safety, and scalability.  Most building blocks already exist in your prototype and in the open-source ecosystem; the main work is stitching them together under a governed Tool Bus and enriching them with smart range utilities and hierarchical summarisation.  Implement these pieces, and you unlock fully autonomous, auditable extraction with predictable cost.
+Your instinct is correct: deterministic explorers alone arenÄôt enough; but giving an LLM raw files without structure is wasteful.  A **two-layer design—"structured explorers + sandboxed agent coders"**—delivers precision, safety, and scalability.  Most building blocks already exist in your prototype and in the open-source ecosystem; the main work is stitching them together under a governed Tool Bus and enriching them with smart range utilities and hierarchical summarisation.  Implement these pieces, and you unlock fully autonomous, auditable extraction with predictable cost.
 ```
 
 ```overflow-x-auto
@@ -932,7 +932,7 @@ The proposed architecture employs a **hybrid analysis approach** that combines t
 ### System Components
 ```
 
-┌─────────────────┐ ┌──────────────┐ ┌─────────────────┐ │ API Gateway │────▶│ Upload Service│────▶│ File Storage │ │ (Kong) │ │ (Go) │ │ (MinIO/S3) │ └────────┬────────┘ └───────┬───────┘ └─────────────────┘ │ │ │ ┌───────▼────────┐ │ │ Message Queue │ │ │ (Apache Kafka) │ │ └───────┬────────┘ │ │ ┌────────▼────────┐ ┌───────▼────────┐ ┌─────────────────┐ │ Results Service │◀────│ Orchestrator │────▶│ Security Scanner│ │ (GraphQL) │ │ Service │ │ (Sandboxed) │ └─────────────────┘ └───────┬────────┘ └─────────────────┘ │ ┌───────────┴────────────┐ │ │ ┌───────▼────────┐ ┌───────▼────────┐ │ Parser Service │ │ AI Analysis │ │ (Deterministic)│ │ Multi-Agent │ └────────────────┘ └────────────────┘
+┌─────────────────┐ ┌──────────────┐ ┌─────────────────┐ │ API Gateway │────┼│ Upload Service│────┼│ File Storage │ │ (Kong) │ │ (Go) │ │ (MinIO/S3) │ └── ──────┬────────┘ └── ─────┬───────┘ └── ───────────────┘ │ │ │ ┌───────┴────────┐ │ │ Message Queue │ │ │ (Apache Kafka) │ │ └── ─────┬────────┘ │ │ ┌────────┴────────┐ ┌───────┴────────┐ ┌─────────────────┐ │ Results Service │┬────│ Orchestrator │────┼│ Security Scanner│ │ (GraphQL) │ │ Service │ │ (Sandboxed) │ └── ───────────────┘ └── ─────┬────────┘ └── ───────────────┘ │ ┌───────────┤────────────┐ │ │ ┌───────┴────────┐ ┌───────┴────────┐ │ Parser Service │ │ AI Analysis │ │ (Deterministic)│ │ Multi-Agent │ └── ──────────────┘ └── ──────────────┘
 
 ```overflow-x-auto
 
@@ -973,7 +973,7 @@ python class ExcelParser: def __init__(self): self.strategies = def parse(self, 
 The **AI Analysis Service** employs a specialized agent architecture:
 ```
 
-┌─────────────────────┐ │ Coordinator Agent │ │ (Orchestration) │ └──────────┬──────────┘ │ ┌──────┴──────┬──────────┬──────────┬──────────┐ │ │ │ │ │ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ ┌───▼───┐ │Formula │ │ Data │ │ Chart │ │Pattern│ │Insight│ │Analyst │ │Quality│ │Reader │ │Finder │ │ Gen │ └────────┘ └───────┘ └───────┘ └───────┘ └───────┘
+┌─────────────────────┐ │ Coordinator Agent │ │ (Orchestration) │ └── ────────┬──────────┘ │ ┌──────┤──────┬──────────┬──────────┬──────────┐ │ │ │ │ │ ┌───┴───┐ ┌───┴───┐ ┌───┴───┐ ┌───┴───┐ ┌───┴───┐ │Formula │ │ Data │ │ Chart │ │Pattern│ │Insight│ │Analyst │ │Quality│ │Reader │ │Finder │ │ Gen │ └── ──────┘ └── ─────┘ └── ─────┘ └── ─────┘ └── ─────┘
 
 ```overflow-x-auto
 **Agent Specializations**:
@@ -1199,7 +1199,7 @@ Deployment Options:
 - Cloud-hosted (e.g., AWS Lambda for scalability).
 
 Tech Stack Rationale:
-- **Language**: Python 3.12+ – Ubiquitous, excellent libraries for Excel (openpyxl, pandas, xlrd), and seamless LLM integration.
+- **Language**: Python 3.12+ " Ubiquitous, excellent libraries for Excel (openpyxl, pandas, xlrd), and seamless LLM integration.
 - **Excel Parsing Libraries**:
 - openpyxl (primary for .xlsx: reads formulas, charts, pivot tables, metadata without execution).
 - xlrd (for legacy .xls support).
@@ -1256,14 +1256,14 @@ Tech Stack Rationale:
 - Auto-scales via Kubernetes for large files (e.g., split sheets across workers).
 
 #### Data Flows
-1. **Ingestion**: User uploads file → Validation → Parser Engine extracts raw data (e.g., JSON dump of workbook structure).
-2. **Orchestration**: Master Agent receives raw data → Plans graph (e.g., "Parallel: Structure + Feature Agents → Sequential: Dependency → Issue").
+1. **Ingestion**: User uploads file ↑ Validation ↑ Parser Engine extracts raw data (e.g., JSON dump of workbook structure).
+2. **Orchestration**: Master Agent receives raw data ↑ Plans graph (e.g., "Parallel: Structure + Feature Agents ↑ Sequential: Dependency ↑ Issue").
 3. **Analysis Loop**:
 - Agents process in parallel/sequence, querying parser as needed.
 - State shared via LangGraph (e.g., Dependency Agent uses Structure Agent's output).
 - Iteration: If Issue Agent flags ambiguity, loop back to relevant agent.
 4. **Aggregation**: Master Agent synthesizes results (e.g., LLM prompt: "Summarize findings from all agents").
-5. **Output**: Generate reports → Deliver to user (e.g., download link).
+5. **Output**: Generate reports ↑ Deliver to user (e.g., download link).
 
 Example Flow for a File:
 - Parse: Extract sheets, formulas.
@@ -1288,60 +1288,60 @@ Request for o3 pro
 
 Reasoned for 3m 13s
 
-**Summary -- Why this design works:**\
-The final architecture keeps *exploration deterministic* and *interpretation agentic*: low‑level "explorers" built on proven open‑source parsers map every sheet, range, page and macro **before** a single token is spent, while a single *orchestrator agent*---backed by a sandboxed code‑interpreter and a governed Tool Bus---uses context‑engineering tricks (write / select / compress / isolate) to iteratively read the file in small ranges, generate extraction code, and publish auditable facts. This hybrid model respects the cautions to "avoid un‑coordinated swarms of agents" while still reaping the benefits of specialised skills, and it plugs straight into your existing FileCard → PersonaGraph pipeline with strong security, cost and observability guarantees. \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]\[\[\[\[\[[Cognition]\]\]\][53]\]\]
+**Summary -- Why this design works:**\
+The final architecture keeps *exploration deterministic* and *interpretation agentic*: low-level "explorers" built on proven open-source parsers map every sheet, range, page and macro **before** a single token is spent, while a single *orchestrator agent*---backed by a sandboxed code-interpreter and a governed Tool Bus---uses context-engineering tricks (write / select / compress / isolate) to iteratively read the file in small ranges, generate extraction code, and publish auditable facts. This hybrid model respects the cautions to "avoid un-coordinated swarms of agents" while still reaping the benefits of specialised skills, and it plugs straight into your existing FileCard ↑ PersonaGraph pipeline with strong security, cost and observability guarantees. \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]\[\[\[\[\[[Cognition]\]\]\][53]\]\]
 
 ______________________________________________________________________
 
-## 1  High‑level layers
+## 1  High-level layers
 
 Stage Responsibility Key tech / library
 
 ______________________________________________________________________
 
-0--1 **Sniff & Hash** MIME detection, entropy checks Apache Tika (1 400+ types) \[\[\[\[\[[Wikipedia]\]\]\][54]\]\] ; Magika (optional ML fallback) \[\[\[\[\[[arXiv]\]\]\][55]\]\]
-2 **Structural Explorers** Enumerate sheets, pages, tables, macros openpyxl, pdfplumber, ole‑vba \[\[\[\[\[[openpyxl]\]\]\][56]\]\]\[\[\[\[\[[GitHub]\]\]\][21]\]\]\[\[\[\[\[[GitHub]\]\]\][15]\]\]
-3 **Tool Bus / Sandbox** JSON‑schema registry, code‑interpreter (30 s / 512 MB, no network) LangGraph guarded edges \[\[\[\[\[[LangChain]\]\]\][57]\]\]
-4 **Orchestrator Agent** Plan → read range → summarise → decide next step Context engineering patterns \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]
-5 **Validator + Critic (optional)** Unit‑test generated code, flag hallucinations AutoGen reflection team pattern \[\[\[\[\[[Microsoft GitHub]\]\]\][58]\]\]
+0--1 **Sniff & Hash** MIME detection, entropy checks Apache Tika (1 400+ types) \[\[\[\[\[[Wikipedia]\]\]\][54]\]\] ; Magika (optional ML fallback) \[\[\[\[\[[arXiv]\]\]\][55]\]\]
+2 **Structural Explorers** Enumerate sheets, pages, tables, macros openpyxl, pdfplumber, ole-vba \[\[\[\[\[[openpyxl]\]\]\][56]\]\]\[\[\[\[\[[GitHub]\]\]\][21]\]\]\[\[\[\[\[[GitHub]\]\]\][15]\]\]
+3 **Tool Bus / Sandbox** JSON-schema registry, code-interpreter (30 s / 512 MB, no network) LangGraph guarded edges \[\[\[\[\[[LangChain]\]\]\][57]\]\]
+4 **Orchestrator Agent** Plan ↑ read range ↑ summarise ↑ decide next step Context engineering patterns \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]
+5 **Validator + Critic (optional)** Unit-test generated code, flag hallucinations AutoGen reflection team pattern \[\[\[\[\[[Microsoft GitHub]\]\]\][58]\]\]
 6 **FileCard Builder** Merge raw + derived fields, store lineage existing FileCard schema
 7 **PersonaGraph Sync** Insert FinancialFacts with source offsets existing graph service
 
 ______________________________________________________________________
 
-## 2  Deterministic explorers (Stage 2)
+## 2  Deterministic explorers (Stage 2)
 
 ### Spreadsheet explorer
 
 - openpyxl lists every sheet, cell, chart, pivot cache; formulas are captured as raw strings and dependency graphs are built without execution. \[\[\[\[\[[openpyxl]\]\]\][56]\]\]
 
-- ole‑vba flags any `.xlsm` or Excel 4 macro sheet and extracts source for offline inspection. \[\[\[\[\[[GitHub]\]\]\][15]\]\]
+- ole-vba flags any `.xlsm` or Excel 4 macro sheet and extracts source for offline inspection. \[\[\[\[\[[GitHub]\]\]\][15]\]\]
 
 ### PDF explorer
 
-- pdfplumber gives character‑level text plus `extract_table()` helpers for lattice/stream tables, and returns bounding boxes for lineage. \[\[\[\[\[[GitHub]\]\]\][21]\]\]
+- pdfplumber gives character-level text plus `extract_table()` helpers for lattice/stream tables, and returns bounding boxes for lineage. \[\[\[\[\[[GitHub]\]\]\][21]\]\]
 
 ### Universal metadata
 
-- Tika REST call adds a single pass that normalises MIME type, language and basic XMP metadata for >1 400 formats. \[\[\[\[\[[Wikipedia]\]\]\][54]\]\]
+- Tika REST call adds a single pass that normalises MIME type, language and basic XMP metadata for >1 400 formats. \[\[\[\[\[[Wikipedia]\]\]\][54]\]\]
 
-Explorers write **ExtractionUnit** JSON blobs (id, parent‑file, coordinates, sha256, size) that the agent can fetch on demand.
+Explorers write **ExtractionUnit** JSON blobs (id, parent-file, coordinates, sha256, size) that the agent can fetch on demand.
 
 ______________________________________________________________________
 
-## 3  Tool Bus & sandbox
+## 3  Tool Bus & sandbox
 
-- Each callable---`read_sheet_range`, `read_pdf_page`, `write_fact`, `run_test`---is described in JSON Schema and surfaced to the LLM via function‑calling.
+- Each callable---`read_sheet_range`, `read_pdf_page`, `write_fact`, `run_test`---is described in JSON Schema and surfaced to the LLM via function-calling.
 
-- The sandbox mimics OpenAI's Code‑Interpreter limits (30 s CPU, 512 MB RAM, no outbound network), ensuring any code the agent writes is safe and cheap to run.
+- The sandbox mimics OpenAI's Code-Interpreter limits (30 s CPU, 512 MB RAM, no outbound network), ensuring any code the agent writes is safe and cheap to run.
 
-- A *range gate* env var (default **4 000 cells / 5 PDF pages**) throttles I/O so context never blows up.
+- A *range gate* env var (default **4 000 cells / 5 PDF pages**) throttles I/O so context never blows up.
 
 The pattern aligns with LangGraph's *guarded edge* design: the Orchestrator can loop back to itself or hand off to Critic only when policy allows. \[\[\[\[\[[LangChain]\]\]\][57]\]\]
 
 ______________________________________________________________________
 
-## 4  Orchestrator agent logic
+## 4  Orchestrator agent logic
 
 ```
 mermaidCopygraph TD
@@ -1350,71 +1350,71 @@ B
 C(Read next range via Tool)
 D(LLM summarises & emits facts)
 E[Collapse running scratchpad]
-F[Write summary‑patch + facts]
+F[Write summary-patch + facts]
 G[Finish]
 A-->B
 B--Yes-->C-->D-->E-->F-->B
 B--No-->G
 ```
 
-- **Context filling** uses LangChain's *write → select → compress → isolate* cycle to keep only the scratchpad, current range, and task instructions in the prompt. \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]
+- **Context filling** uses LangChain's *write ↑ select ↑ compress ↑ isolate* cycle to keep only the scratchpad, current range, and task instructions in the prompt. \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]
 
-- For tricky classifications the agent may invoke an **indirect‑reasoning chain** (generate contrapositives → check contradictions) to boost reliability on edge cases. \[\[\[\[\[[Prompting Guide]\]\]\][59]\]\]
+- For tricky classifications the agent may invoke an **indirect-reasoning chain** (generate contrapositives ↑ check contradictions) to boost reliability on edge cases. \[\[\[\[\[[Prompting Guide]\]\]\][59]\]\]
 
 - The design keeps a **single orchestrator** plus an optional critic, in line with Cognition's "don't build zombie swarms" advice. \[\[\[\[\[[Cognition]\]\]\][53]\]\]
 
 ______________________________________________________________________
 
-## 5  Safety, governance & cost
+## 5  Safety, governance & cost
 
 Control Mechanism Source
 
 ______________________________________________________________________
 
-Macro risk `.xlsm` flagged, Trust Tier downgraded; no macro execution ole‑vba \[\[\[\[\[[GitHub]\]\]\][15]\]\]
-Apps Script Drive API lists bound scripts; same Trust Tier drop MCP pattern (excel server) \[\[\[\[\[[GitHub]\]\]\][47]\]\]
-Token / CPU budgets Per‑file cap enforced by Tool Bus config Cognition article on cost caps \[\[\[\[\[[Cognition]\]\]\][53]\]\]
+Macro risk `.xlsm` flagged, Trust Tier downgraded; no macro execution ole-vba \[\[\[\[\[[GitHub]\]\]\][15]\]\]
+Apps Script Drive API lists bound scripts; same Trust Tier drop MCP pattern (excel server) \[\[\[\[\[[GitHub]\]\]\][47]\]\]
+Token / CPU budgets Per-file cap enforced by Tool Bus config Cognition article on cost caps \[\[\[\[\[[Cognition]\]\]\][53]\]\]
 Audit trail Every Tool call, code snippet, and LLM output logged LangGraph tracing \[\[\[\[\[[Medium]\]\]\][60]\]\]
 Fallback mode If LLM fails, explorer output alone forms a "raw" FileCard version process doc
 
 ______________________________________________________________________
 
-## 6  Integration with MCP servers (optional)
+## 6  Integration with MCP servers (optional)
 
-Claude‑style incremental reading is already available through the **excel‑mcp‑server**:\
-`excel_describe_sheets` → `excel_read_sheet(range="A1:F500")` with paging limits. \[\[\[\[\[[GitHub]\]\]\][47]\]\]\
-Mounting the server behind the same Tool Bus lets you swap parser back‑ends without changing agent prompts.
+Claude-style incremental reading is already available through the **excel-mcp-server**:\
+`excel_describe_sheets` ↑ `excel_read_sheet(range="A1:F500")` with paging limits. \[\[\[\[\[[GitHub]\]\]\][47]\]\]\
+Mounting the server behind the same Tool Bus lets you swap parser back-ends without changing agent prompts.
 
 ______________________________________________________________________
 
-## 7  Implementation roadmap
+## 7  Implementation roadmap
 
 Week Milestone
 
 ______________________________________________________________________
 
-1‑2 Implement Apache Tika sniff + openpyxl/pdfplumber explorers; emit ExtractionUnits.
-3‑4 Stand‑up Tool Bus + sandbox; expose `read_*` utilities and budget limits.
-5 Build Orchestrator agent with LangGraph; apply context‑engineering heuristics.
+1-2 Implement Apache Tika sniff + openpyxl/pdfplumber explorers; emit ExtractionUnits.
+3-4 Stand-up Tool Bus + sandbox; expose `read_*` utilities and budget limits.
+5 Build Orchestrator agent with LangGraph; apply context-engineering heuristics.
 6 Add Critic validator using AutoGen reflection pattern. \[\[\[\[\[[Microsoft GitHub]\]\]\][58]\]\]
 7 Wire FileCard merge + PersonaGraph sync; store lineage offsets.
-8+ Continuous evaluation set, nightly indirect‑reasoning re‑train, cost dashboards.
+8+ Continuous evaluation set, nightly indirect-reasoning re-train, cost dashboards.
 
 ______________________________________________________________________
 
-## 8  Why this meets the brief
+## 8  Why this meets the brief
 
 - **Deterministic first** -- duplicates, malware and giant binaries are rejected or triaged before the LLM ever sees them.
 
 - **Minimal agent count** -- one orchestrator (plus optional critic) keeps reasoning coherent and avoids the pitfalls flagged by Cognition AI. \[\[\[\[\[[Cognition]\]\]\][53]\]\]
 
-- **Scales by paging** -- range utilities and MCP paging caps guarantee memory safety even on 100 MB workbooks. \[\[\[\[\[[GitHub]\]\]\][47]\]\]
+- **Scales by paging** -- range utilities and MCP paging caps guarantee memory safety even on 100 MB workbooks. \[\[\[\[\[[GitHub]\]\]\][47]\]\]
 
-- **Grounded, auditable facts** -- every extracted `FinancialFact` links back to `sheet=Revenue, range=B2:E50` or `page=3, bbox=…` so reviewers can replay the evidence.
+- **Grounded, auditable facts** -- every extracted `FinancialFact` links back to `sheet=Revenue, range=B2:E50` or `page=3, bbox=• ` so reviewers can replay the evidence.
 
-- **Future‑proof** -- new file types just add an explorer plug‑in; new reasoning tricks drop in as Tool Bus functions without touching the core.
+- **Future-proof** -- new file types just add an explorer plug-in; new reasoning tricks drop in as Tool Bus functions without touching the core.
 
-Adopting this design turns your prototype into a **production‑grade File Intelligence platform**: cheap on tokens, rich in insight, bullet‑proof on security, and fully explainable end‑to‑end.
+Adopting this design turns your prototype into a **production-grade File Intelligence platform**: cheap on tokens, rich in insight, bullet-proof on security, and fully explainable end-to-end.
 
 ##### You said:
 
@@ -1426,43 +1426,43 @@ Request for o3 pro
 
 Reasoned for 2m 49s
 
-In a **single‑process, single‑language Python service** you can still preserve clear separation of concerns by packaging each stage of the pipeline as an *internal module* instead of an external micro‑service. The design below shows how to run deterministic explorers, a governed LLM "agent brain," persistence, and an HTTP API in one FastAPI/Uvicorn instance while keeping performance, security, and extensibility on par with a micro‑service fleet. Because everything shares one address space you avoid network overhead and deployment complexity, yet you keep *logical* boundaries through packages, plugin entry‑points, and asyncio task queues.
+In a **single-process, single-language Python service** you can still preserve clear separation of concerns by packaging each stage of the pipeline as an *internal module* instead of an external micro-service. The design below shows how to run deterministic explorers, a governed LLM "agent brain," persistence, and an HTTP API in one FastAPI/Uvicorn instance while keeping performance, security, and extensibility on par with a micro-service fleet. Because everything shares one address space you avoid network overhead and deployment complexity, yet you keep *logical* boundaries through packages, plugin entry-points, and asyncio task queues.
 
 ______________________________________________________________________
 
-## 1  High‑level runtime layout
+## 1  High-level runtime layout
 
 ```
 pgsqlCopyexcelai/
-├─ api.py              ← FastAPI routers
+├─ api.py              → FastAPI routers
 ├─ core/
-│   ├─ ingest.py       ← upload & validation
-│   ├─ explore.py      ← deterministic parsers
-│   ├─ toolbus.py      ← sandbox + JSON‑schema registry
-│   ├─ orchestrator.py ← LLM agent loop
-│   ├─ filecard.py     ← unified data model (Pydantic)
-│   └─ persist.py      ← SQLite/‑to‑Postgres switch
-├─ plugins/            ← optional explorers added via entry_points
-└─ tasks.py            ← in‑memory asyncio queues
+│   ├─ ingest.py       → upload & validation
+│   ├─ explore.py      → deterministic parsers
+│   ├─ toolbus.py      → sandbox + JSON-schema registry
+│   ├─ orchestrator.py → LLM agent loop
+│   ├─ filecard.py     → unified data model (Pydantic)
+│   └─ persist.py      → SQLite/-to-Postgres switch
+├─ plugins/            → optional explorers added via entry_points
+└─ tasks.py            → in-memory asyncio queues
 ```
 
 - **FastAPI + Uvicorn** is the outer interface; one binary to build, ship and scale horizontally with extra Gunicorn workers if needed \[\[\[\[\[[Medium]\]\]\][64]\]\].
 
 - **Asyncio queues** (`asyncio.Queue`) coordinate background jobs without Redis or RabbitMQ \[\[\[\[\[[Python documentation]\]\]\][65]\]\].
 
-- A **shared SQLite DB** (WAL‑mode) works for single‑node deployment and can be swapped for Postgres when multi‑node scaling is required \[\[\[\[\[[PowerSync]\]\]\][66]\]\].
+- A **shared SQLite DB** (WAL-mode) works for single-node deployment and can be swapped for Postgres when multi-node scaling is required \[\[\[\[\[[PowerSync]\]\]\][66]\]\].
 
-- Plugins load through **importlib entry_points**, giving you micro‑service‑like extensibility inside one process \[\[\[\[\[[Python Packaging]\]\]\][67]\]\].
+- Plugins load through **importlib entry_points**, giving you micro-service-like extensibility inside one process \[\[\[\[\[[Python Packaging]\]\]\][67]\]\].
 
 ______________________________________________________________________
 
-## 2  Internal modules
+## 2  Internal modules
 
 ### 2.1 `ingest.py`
 
-- Verifies MIME and magic bytes with Apache Tika bindings.
+- Verifies MIME and magic bytes with Apache Tika bindings.
 
-- Computes SHA‑256 and rejects encrypted or > 2 GB blobs before they hit token budgets.
+- Computes SHA-256 and rejects encrypted or > 2 GB blobs before they hit token budgets.
 
 ### 2.2 `explore.py`
 
@@ -1476,19 +1476,19 @@ ______________________________________________________________________
 
 ### 2.3 `toolbus.py`
 
-- Wraps a local **code‑interpreter sandbox** (sub‑process under `/tmp/sandbox`, 30 s CPU, 512 MB RAM, no network) similar to OpenAI ADA limits \[\[\[\[\[[OpenAI Platform]\]\]\][68]\]\].
+- Wraps a local **code-interpreter sandbox** (sub-process under `/tmp/sandbox`, 30 s CPU, 512 MB RAM, no network) similar to OpenAI ADA limits \[\[\[\[\[[OpenAI Platform]\]\]\][68]\]\].
 
-- Registers allowed functions (`read_sheet_range`, `read_pdf_page`, `write_fact`) with JSON Schema auto‑generated by **Pydantic v2** \[\[\[\[\[[Pydantic]\]\]\][69]\]\].
+- Registers allowed functions (`read_sheet_range`, `read_pdf_page`, `write_fact`) with JSON Schema auto-generated by **Pydantic v2** \[\[\[\[\[[Pydantic]\]\]\][69]\]\].
 
-- Enforces per‑call token and CPU quotas and logs every invocation for audit.
+- Enforces per-call token and CPU quotas and logs every invocation for audit.
 
 ### 2.4 `orchestrator.py`
 
-- **Single Orchestrator Agent** (no uncontrolled swarm) follows LangChain "context engineering" best practice: *write → select → compress → isolate* \[\[\[\[\[[LangChain Blog]\]\]\][70]\]\].
+- **Single Orchestrator Agent** (no uncontrolled swarm) follows LangChain "context engineering" best practice: *write ↑ select ↑ compress ↑ isolate* \[\[\[\[\[[LangChain Blog]\]\]\][70]\]\].
 
-- Optional **Critic validator** runs unit‑tests on any code the LLM writes, echoing Cognition's advice to keep agent teams minimal \[\[\[\[\[[LangChain Blog]\]\]\][71]\]\]\[\[\[\[\[[Business Insider]\]\]\][72]\]\].
+- Optional **Critic validator** runs unit-tests on any code the LLM writes, echoing Cognition's advice to keep agent teams minimal \[\[\[\[\[[LangChain Blog]\]\]\][71]\]\]\[\[\[\[\[[Business Insider]\]\]\][72]\]\].
 
-- Uses indirect‑reasoning prompts for tricky classifications, per prompting‑guide patterns. \[\[\[\[\[[Medium]\]\]\][64]\]\]
+- Uses indirect-reasoning prompts for tricky classifications, per prompting-guide patterns. \[\[\[\[\[[Medium]\]\]\][64]\]\]
 
 ### 2.5 `filecard.py`
 
@@ -1496,47 +1496,47 @@ ______________________________________________________________________
 
 ### 2.6 `persist.py`
 
-- Starts with SQLite WAL for zero‑config. WAL plus pragma tuning gives > 10 k writes / s on commodity SSD \[\[\[\[\[[PowerSync]\]\]\][66]\]\].
+- Starts with SQLite WAL for zero-config. WAL plus pragma tuning gives > 10 k writes / s on commodity SSD \[\[\[\[\[[PowerSync]\]\]\][66]\]\].
 
 - Switch to Postgres by flipping a `DATABASE_URL` env var when sharding is needed.
 
 ______________________________________________________________________
 
-## 3  Concurrency & scalability inside one process
+## 3  Concurrency & scalability inside one process
 
-- **FastAPI** runs async request handlers; long‑running workbooks are off‑loaded to background `asyncio.create_task()` jobs that process in chunks.
+- **FastAPI** runs async request handlers; long-running workbooks are off-loaded to background `asyncio.create_task()` jobs that process in chunks.
 
-- Each chunk read by the agent passes through the sandbox and returns a summary, so the orchestrator never keeps more than ~4 k tokens in memory.
+- Each chunk read by the agent passes through the sandbox and returns a summary, so the orchestrator never keeps more than ~4 k tokens in memory.
 
-- Extra Gunicorn workers = *scaled reads*; more asyncio tasks = *scaled background throughput*---all without splitting into micro‑services \[\[\[\[\[[Python in Plain English]\]\]\][73]\]\].
+- Extra Gunicorn workers = *scaled reads*; more asyncio tasks = *scaled background throughput*---all without splitting into micro-services \[\[\[\[\[[Python in Plain English]\]\]\][73]\]\].
 
 ______________________________________________________________________
 
-## 4  Extensibility without micro‑services
+## 4  Extensibility without micro-services
 
 Need Monolith technique
 
 ______________________________________________________________________
 
-New format parser Drop `myfmt.py` in `plugins/` and advertise `myapp.plugins` entry‑point \[\[\[\[\[[GitHub]\]\]\][74]\]\]
+New format parser Drop `myfmt.py` in `plugins/` and advertise `myapp.plugins` entry-point \[\[\[\[\[[GitHub]\]\]\][74]\]\]
 New LLM tool Add a function in `toolbus.py`; Pydantic autogenerates schema; orchestrator can call it next run
-Data store upgrade Change `DATABASE_URL`; Alembic migrations run in‑process
+Data store upgrade Change `DATABASE_URL`; Alembic migrations run in-process
 
 Thus the deployment artefact remains *one wheel, one Docker image*.
 
 ______________________________________________________________________
 
-## 5  Security & cost controls
+## 5  Security & cost controls
 
-- Macro‑bearing files are parsed but **never executed**; VBA source stored for offline review.
+- Macro-bearing files are parsed but **never executed**; VBA source stored for offline review.
 
-- All LLM calls routed through the sandbox with per‑file budget caps (tokens, calls, CPU).
+- All LLM calls routed through the sandbox with per-file budget caps (tokens, calls, CPU).
 
 - Audit logger writes every prompt, tool call, and output, satisfying enterprise traceability.
 
 ______________________________________________________________________
 
-## 6  Deployment & ops
+## 6  Deployment & ops
 
 1. **Package**: `poetry build && docker build -t excelai:latest .`
 
@@ -1544,11 +1544,11 @@ ______________________________________________________________________
 
 1. **Run prod**: `gunicorn -k uvicorn.workers.UvicornWorker -w 4 api:app` (Postgres).
 
-1. **Scale**: add more Gunicorn workers or run multiple containers behind a load‑balancer; still a monolith per replica. Atlassian notes monoliths' simpler deploy story compared with micro‑services \[\[\[\[\[[Atlassian]\]\]\][75]\]\]; AWS likewise lists "one artefact, fewer moving parts" as a key monolith benefit \[\[\[\[\[[Amazon Web Services]\]\]\][76]\]\].
+1. **Scale**: add more Gunicorn workers or run multiple containers behind a load-balancer; still a monolith per replica. Atlassian notes monoliths' simpler deploy story compared with micro-services \[\[\[\[\[[Atlassian]\]\]\][75]\]\]; AWS likewise lists "one artefact, fewer moving parts" as a key monolith benefit \[\[\[\[\[[Amazon Web Services]\]\]\][76]\]\].
 
 ______________________________________________________________________
 
-## 7  Roadmap snapshot
+## 7  Roadmap snapshot
 
 Week Deliverable
 
@@ -1557,7 +1557,7 @@ ______________________________________________________________________
 1 Project scaffolding, FastAPI routes, SQLite WAL
 2 Implement Tika + openpyxl/pdfplumber explorers
 3 Sandbox & ToolBus with `read_*` utilities
-4 Single Orchestrator Agent with context‑engineering loop
+4 Single Orchestrator Agent with context-engineering loop
 5 Critic validator & audit logger
 6 CLI & HTML report generator; first alpha release
 
@@ -1565,7 +1565,7 @@ ______________________________________________________________________
 
 ### Bottom line
 
-You keep **one Python code‑base, one deployable image, one datastore** and still gain deterministic safety, governed LLM power, and plugin‑level extensibility. Async FastAPI plus in‑process queues handle thousands of concurrent analyses on a single node, and the architecture is ready to scale horizontally when traffic spikes---without ever breaking the monolith.
+You keep **one Python code-base, one deployable image, one datastore** and still gain deterministic safety, governed LLM power, and plugin-level extensibility. Async FastAPI plus in-process queues handle thousands of concurrent analyses on a single node, and the architecture is ready to scale horizontally when traffic spikes---without ever breaking the monolith.
 
 ##### You said:
 
@@ -1605,9 +1605,9 @@ Request for o3 pro
 
 Reasoned for 2m 28s
 
-The design you sketched introduces three big additions to the monolithic blueprint we just discussed: (1) **injectable "prior context" that may be true or false**, (2) a **persistent Jupyter‑style notebook sandbox** in which the LLM writes and edits Python code step‑by‑step, and (3) a **hybrid sequential + concurrent, per‑sheet multi‑agent plan**.\
-None of these ideas is wrong, but each trades simplicity, cost and safety for flexibility.\
-Below is an evidence‑based comparison and a set of concrete tweaks you can adopt if you decide to keep the approach.
+The design you sketched introduces three big additions to the monolithic blueprint we just discussed: (1) **injectable "prior context" that may be true or false**, (2) a **persistent Jupyter-style notebook sandbox** in which the LLM writes and edits Python code step-by-step, and (3) a **hybrid sequential + concurrent, per-sheet multi-agent plan**.\
+None of these ideas is wrong, but each trades simplicity, cost and safety for flexibility.\
+Below is an evidence-based comparison and a set of concrete tweaks you can adopt if you decide to keep the approach.
 
 ______________________________________________________________________
 
@@ -1615,15 +1615,15 @@ ______________________________________________________________________
 
 ### 1.1 Notebook sandbox = great visibility & reproducibility
 
-- Code‑sandboxes have become a proven pattern for agent systems because every cell's I/O is logged and replayable \[\[\[\[\[[amirmalik.net]\]\]\][80]\]\].
+- Code-sandboxes have become a proven pattern for agent systems because every cell's I/O is logged and replayable \[\[\[\[\[[amirmalik.net]\]\]\][80]\]\].
 
 - Keeping the raw notebook outside the prompt while passing only summaries into context aligns with current best practice in "context engineering" for long tasks \[\[\[\[\[[LangChain Blog]\]\]\][81]\]\]\[\[\[\[\[[arXiv]\]\]\][82]\]\]\[\[\[\[\[[Google Cloud]\]\]\][83]\]\].
 
-### 1.2 Self‑verifying workflow
+### 1.2 Self-verifying workflow
 
-- Forcing the agent to run aggregations, NULL checks, etc. is a concrete instantiation of the **"LLM‑as‑judge / validator"** pattern that research shows improves factual accuracy by 10‑20 pp over single‑pass generation \[\[\[\[\[[Evidently AI]\]\]\][84]\]\]\[\[\[\[\[[arXiv]\]\]\][85]\]\].
+- Forcing the agent to run aggregations, NULL checks, etc. is a concrete instantiation of the **"LLM-as-judge / validator"** pattern that research shows improves factual accuracy by 10-20 pp over single-pass generation \[\[\[\[\[[Evidently AI]\]\]\][84]\]\]\[\[\[\[\[[arXiv]\]\]\][85]\]\].
 
-### 1.3 Explicit prior‑context channel
+### 1.3 Explicit prior-context channel
 
 - Supplying a previous report---truthful or intentionally false---lets you measure *verification skill*, not just extraction. This matches current evaluation guidance for agent systems \[\[\[\[\[[Evidently AI]\]\]\][84]\]\].
 
@@ -1635,42 +1635,42 @@ Risk Evidence Mitigation
 
 ______________________________________________________________________
 
-**Multi‑agent overhead** -- per‑sheet agents dramatically increase tokens exchanged, orchestration logic and failure modes. Cognition AI's own post details why half the teams that tried this reverted to a **single planner+worker** model \[\[\[\[\[[Cognition]\]\]\][53]\]\]\[\[\[\[\[[Anupam Ranku]\]\]\][86]\]\]\[\[\[\[\[[LangChain Blog]\]\]\][87]\]\]. Use **one orchestrator agent** and spawn lightweight, stateless *tasks* for each sheet inside the same context; keep true independent agents only when sheets exceed N rows or cross‑reference heavily.
-**Concurrency inside a notebook** -- Jupyter kernels are single‑threaded; a dozen agents editing cells will race. Run each sheet task in its own *ephemeral* kernel; merge results through the orchestrator's scratchpad.
-**False prior context can balloon cost** if the agent tries to debunk every line. Pass prior context behind a TOOLS flag ("`context_hint`") and instruct the agent to *sample‑verify* until a discrepancy is found. Stop early if P(discrepancy) < ε.
-**openpyxl I/O bottleneck** -- per‑sheet parsing in Python is CPU‑bound and doesn't parallelise well \[\[\[\[\[[Openpyxl]\]\]\][88]\]\]; pandas copies data into RAM and may OOM on large sheets \[\[\[\[\[[Pandas]\]\]\][89]\]\]\[\[\[\[\[[Stack Overflow]\]\]\][90]\]\]. Use **read‑only** mode and slice ranges by row‑blocks; cache parsed sheets on disk; consider `pyxlsb` for `.xlsb` and pyarrow tables for memory‑mapped access.
+**Multi-agent overhead** -- per-sheet agents dramatically increase tokens exchanged, orchestration logic and failure modes. Cognition AI's own post details why half the teams that tried this reverted to a **single planner+worker** model \[\[\[\[\[[Cognition]\]\]\][53]\]\]\[\[\[\[\[[Anupam Ranku]\]\]\][86]\]\]\[\[\[\[\[[LangChain Blog]\]\]\][87]\]\]. Use **one orchestrator agent** and spawn lightweight, stateless *tasks* for each sheet inside the same context; keep true independent agents only when sheets exceed N rows or cross-reference heavily.
+**Concurrency inside a notebook** -- Jupyter kernels are single-threaded; a dozen agents editing cells will race. Run each sheet task in its own *ephemeral* kernel; merge results through the orchestrator's scratchpad.
+**False prior context can balloon cost** if the agent tries to debunk every line. Pass prior context behind a TOOLS flag ("`context_hint`") and instruct the agent to *sample-verify* until a discrepancy is found. Stop early if P(discrepancy) < Œµ.
+**openpyxl I/O bottleneck** -- per-sheet parsing in Python is CPU-bound and doesn't parallelise well \[\[\[\[\[[Openpyxl]\]\]\][88]\]\]; pandas copies data into RAM and may OOM on large sheets \[\[\[\[\[[Pandas]\]\]\][89]\]\]\[\[\[\[\[[Stack Overflow]\]\]\][90]\]\]. Use **read-only** mode and slice ranges by row-blocks; cache parsed sheets on disk; consider `pyxlsb` for `.xlsb` and pyarrow tables for memory-mapped access.
 **Autonomy & safety** -- every extra agent hop raises autonomy level and, therefore, risk profile \[\[\[\[\[[arXiv]\]\]\][91]\]\]. Keep critical steps (e.g., formula graph build, macro risk scoring) fully deterministic; let the agent only *interpret* results.
 
 ______________________________________________________________________
 
 ## 3 Is it "superior" to the simpler monolith?
 
-Criterion Single‑orchestrator design Your notebook + multi‑agent variant
+Criterion Single-orchestrator design Your notebook + multi-agent variant
 
 ______________________________________________________________________
 
-**Deployment complexity** one FastAPI app, one asyncio loop one app **plus** per‑agent kernels and IPC layer
-**Token/CPU costs** bounded by orchestrator budget multiplied by # agents and inter‑agent chatter
-**Explain‑ability** prompt + tool log richer (entire notebook) ✔
-**Debuggability** log replay cell‑level replay ✔
-**Throughput on many small files** higher (no kernel spin‑up) lower
-**Exploration depth on massive workbooks** OK (paged reads) better pattern detection per sheet ✔
+**Deployment complexity** one FastAPI app, one asyncio loop one app **plus** per-agent kernels and IPC layer
+**Token/CPU costs** bounded by orchestrator budget multiplied by # agents and inter-agent chatter
+**Explain-ability** prompt + tool log richer (entire notebook) úî
+**Debuggability** log replay cell-level replay úî
+**Throughput on many small files** higher (no kernel spin-up) lower
+**Exploration depth on massive workbooks** OK (paged reads) better pattern detection per sheet úî
 
-**Verdict:** For *very large, analytical workbooks (dozens of sheets, 100 k+ formulas)* the notebook‑per‑sheet plan can surface cross‑sheet inconsistencies faster and leaves a gold‑standard audit trail.\
-For the long tail of small and medium files it is over‑kill; the cadence of kernel start‑up, context‑swapping and agent chat will cost more than it saves.
+**Verdict:** For *very large, analytical workbooks (dozens of sheets, 100 k+ formulas)* the notebook-per-sheet plan can surface cross-sheet inconsistencies faster and leaves a gold-standard audit trail.\
+For the long tail of small and medium files it is over-kill; the cadence of kernel start-up, context-swapping and agent chat will cost more than it saves.
 
 ______________________________________________________________________
 
 ## 4 Pragmatic hybrid: "elastic notebook mode"
 
-1. **Default path** -- run the single‑orchestrator/Tool‑Bus loop exactly as in the monolith.
+1. **Default path** -- run the single-orchestrator/Tool-Bus loop exactly as in the monolith.
 
 1. **Escalate** if explorer counts\\
 
-- sheets > X **or**\\
-- distinct formulas > Y **or**\\
+- sheets > X **or**\\
+- distinct formulas > Y **or**\\
 - macro flags present\
-  → spin up the notebook sandbox and let the orchestrator fork per‑sheet tasks inside it.
+  ↑ spin up the notebook sandbox and let the orchestrator fork per-sheet tasks inside it.
 
 3. **Collapse** -- once sheet reports are merged, stop the extra kernels to free RAM.
 
@@ -1678,30 +1678,30 @@ This keeps the simple path fast, yet unlocks the strengths of your proposal only
 
 ______________________________________________________________________
 
-## 5 Implementation check‑list (single‑service version)
+## 5 Implementation check-list (single-service version)
 
 Task Library / trick
 
 ______________________________________________________________________
 
-Spin‑up throw‑away Jupyter kernel programmatically `jupyter_client.KernelManager` \[\[\[\[\[[Microsoft Support]\]\]\][92]\]\]
+Spin-up throw-away Jupyter kernel programmatically `jupyter_client.KernelManager` \[\[\[\[\[[Microsoft Support]\]\]\][92]\]\]
 Async cell execution inside FastAPI `anyio.from_thread.run_sync`
-Cell diff & rewrite on error parse with `ast` → rewrite → `kernel.do_execute`
-Context compression map‑reduce summariser (`langchain.text_splitter`, `recursive_character`) \[\[\[\[\[[arXiv]\]\]\][82]\]\]\[\[\[\[\[[Google Cloud]\]\]\][83]\]\]
-Inter‑task messaging `asyncio.Queue` objects shared by sheet tasks
-Prior‑context toggle `Pydantic BaseModel` field \`context_hint: str
+Cell diff & rewrite on error parse with `ast` ↑ rewrite ↑ `kernel.do_execute`
+Context compression map-reduce summariser (`langchain.text_splitter`, `recursive_character`) \[\[\[\[\[[arXiv]\]\]\][82]\]\]\[\[\[\[\[[Google Cloud]\]\]\][83]\]\]
+Inter-task messaging `asyncio.Queue` objects shared by sheet tasks
+Prior-context toggle `Pydantic BaseModel` field \`context_hint: str
 
 ______________________________________________________________________
 
-## 6 Take‑aways
+## 6 Take-aways
 
 - **Notebook sandboxes + verified code** give unmatched auditability and are worth using---*selectively*.
 
-- Per‑sheet agents replicate work and add coordination overhead; use them only beyond a complexity threshold, otherwise stay with a single orchestrator agent as Cognition AI and LangChain warn.
+- Per-sheet agents replicate work and add coordination overhead; use them only beyond a complexity threshold, otherwise stay with a single orchestrator agent as Cognition AI and LangChain warn.
 
 - Even in a monolithic Python service you can switch modes dynamically, keeping the deploy story simple while paying only for complexity when it actually buys you value.
 
-Adopting this hybrid compromise will give you **the best of both worlds**: the speed and operational simplicity of the core monolith for everyday files, and the deeper, highly‑auditable analysis notebook workflow for the gnarly monsters that truly need it.
+Adopting this hybrid compromise will give you **the best of both worlds**: the speed and operational simplicity of the core monolith for everyday files, and the deeper, highly-auditable analysis notebook workflow for the gnarly monsters that truly need it.
 
 ##### You said:
 
@@ -1713,7 +1713,7 @@ Request for o3 pro
 
 Reasoned for 2m 31s
 
-Below is a **formal specification** for the single‑process, *"overkill"* Excel/document--intelligence service you requested. It keeps every capability (per‑sheet agents, persistent Jupyter notebook sandbox, injected true/false context, strong validation, inter‑agent messaging) inside **one Python binary** while closing the gaps we identified earlier. Where design choices rely on external best‑practice or library behaviour, citations are provided.
+Below is a **formal specification** for the single-process, *"overkill"* Excel/document--intelligence service you requested. It keeps every capability (per-sheet agents, persistent Jupyter notebook sandbox, injected true/false context, strong validation, inter-agent messaging) inside **one Python binary** while closing the gaps we identified earlier. Where design choices rely on external best-practice or library behaviour, citations are provided.
 
 ______________________________________________________________________
 
@@ -1723,9 +1723,9 @@ ______________________________________________________________________
 
 - **Zero implicit trust** -- the LLM must *prove* every claim using deterministic operations and record the proof path.
 
-- **Single‑language, single‑artifact ops** -- FastAPI + asyncio app; horizontal scale via extra Gunicorn workers, not micro‑services.
+- **Single-language, single-artifact ops** -- FastAPI + asyncio app; horizontal scale via extra Gunicorn workers, not micro-services.
 
-- **Hard safety & cost ceilings** -- sandboxed Python kernel (30 s CPU, 512 MB RAM, no network) mirrors OpenAI ADA limits \[\[\[\[\[[OpenAI Help Center]\]\]\][93]\]\].
+- **Hard safety & cost ceilings** -- sandboxed Python kernel (30 s CPU, 512 MB RAM, no network) mirrors OpenAI ADA limits \[\[\[\[\[[OpenAI Help Center]\]\]\][93]\]\].
 
 - **Resilient to bad hints** -- prior context is treated as *hypotheses* and verified statistically before being trusted.
 
@@ -1735,18 +1735,18 @@ ______________________________________________________________________
 
 ```
 textCopy┌──────────────────────────┐   HTTP
-│        FastAPI           │─────────► /analyze   (upload, status, report)
+│        FastAPI           │─────────┻ /analyze   (upload, status, report)
 │  (uvicorn/gunicorn)      │
 │                          │<──────── /stream     (SSE for progress)
-├──────────────────────────┤
+├── ────────────────────────┐
 │  asyncio task orchestrator│
 │  (core.orchestrator)     │
-├──────────────────────────┤
+├── ────────────────────────┐
 │  Notebook sandbox pool   │ 1 kernel / sheet
 │  (core.sandbox)          │   via jupyter_client
-├──────────────────────────┤
-│  SQLite‑WAL  /  Postgres │  FileCards, jobs, logs
-└──────────────────────────┘
+├── ────────────────────────┐
+│  SQLite-WAL  /  Postgres │  FileCards, jobs, logs
+└── ────────────────────────┘
 ```
 
 Everything runs in one process; kernels are child subprocesses started with **`jupyter_client.AsyncKernelManager`** \[\[\[\[\[[Jupyter Community Forum]\]\]\][94]\]\].
@@ -1759,11 +1759,11 @@ Module Responsibility Key libs
 
 ______________________________________________________________________
 
-`core.ingest` MIME sniff (Apache Tika) \[\[\[\[\[[Medium]\]\]\][95]\]\]; SHA‑256; size/entropy guard `tika`, `hashlib`
-`core.explore` Deterministic parsers: openpyxl read‑only \[\[\[\[\[[Openpyxl]\]\]\][96]\]\], pdfplumber tables \[\[\[\[\[[Stack Overflow]\]\]\][97]\]\], ole‑vba macro flag \[\[\[\[\[[GitHub]\]\]\][15]\]\] `openpyxl`, `pdfplumber`, `oletools`
-`core.sandbox` Spin/teardown kernels; expose JSON‑schema tools (`read_sheet_range`, ...) `jupyter_client` \[\[\[\[\[[jupyter-client.readthedocs.io]\]\]\][98]\]\], `pydantic`
-`core.agent` Orchestrator + per‑sheet worker agents; indirect‑reasoning & context‑engineering \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]\[\[\[\[\[[Prompting Guide]\]\]\][59]\]\] `langgraph`, `openai`
-`core.notebook` Cell CRUD, diff‑rewrite on error; saves `.ipynb` alongside FileCard `nbformat`
+`core.ingest` MIME sniff (Apache Tika) \[\[\[\[\[[Medium]\]\]\][95]\]\]; SHA-256; size/entropy guard `tika`, `hashlib`
+`core.explore` Deterministic parsers: openpyxl read-only \[\[\[\[\[[Openpyxl]\]\]\][96]\]\], pdfplumber tables \[\[\[\[\[[Stack Overflow]\]\]\][97]\]\], ole-vba macro flag \[\[\[\[\[[GitHub]\]\]\][15]\]\] `openpyxl`, `pdfplumber`, `oletools`
+`core.sandbox` Spin/teardown kernels; expose JSON-schema tools (`read_sheet_range`, ...) `jupyter_client` \[\[\[\[\[[jupyter-client.readthedocs.io]\]\]\][98]\]\], `pydantic`
+`core.agent` Orchestrator + per-sheet worker agents; indirect-reasoning & context-engineering \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]\[\[\[\[\[[Prompting Guide]\]\]\][59]\]\] `langgraph`, `openai`
+`core.notebook` Cell CRUD, diff-rewrite on error; saves `.ipynb` alongside FileCard `nbformat`
 `core.persist` SQLite WAL default; swap to Postgres via env var `sqlalchemy`
 `core.metrics` Prometheus counters; error & token dashboard `prometheus_client`
 `api` FastAPI routes; background jobs via `BackgroundTasks` \[\[\[\[\[[FastAPI]\]\]\][99]\]\]
@@ -1774,11 +1774,11 @@ ______________________________________________________________________
 
 ## 4 Execution flow
 
-### 4.1 Job start
+### 4.1 Job start
 
 1. `POST /analyze` uploads file + optional `context_hint`.
 
-1. `ingest.validate()` rejects encrypted / >2 GB files.
+1. `ingest.validate()` rejects encrypted / >2 GB files.
 
 1. Deterministic explorers emit **ExtractionUnit** objects (sheet maps, page maps).
 
@@ -1788,7 +1788,7 @@ ______________________________________________________________________
 
 - global **CriticTask** for validation/merge.
 
-### 4.2 Sandbox & tools
+### 4.2 Sandbox & tools
 
 - Each sheet gets a dedicated Jupyter kernel.
 
@@ -1798,14 +1798,14 @@ Tool Signature Notes
 
 ______________________________________________________________________
 
-`read_sheet_range` (`sheet:str`, `range:str`) → `pandas.DataFrame` slices via openpyxl read‑only to avoid RAM bloat \[\[\[\[\[[Openpyxl]\]\]\][96]\]\]
-`describe_formula_graph` (`sheet`) → JSON pre‑computed by explorer; avoids macro execution
-`agg_summary` (`df`, `metrics:list[str]`) → dict fast numeric checks
-`write_fact` (`json`) → None stores into FileCard
+`read_sheet_range` (`sheet:str`, `range:str`) ↑ `pandas.DataFrame` slices via openpyxl read-only to avoid RAM bloat \[\[\[\[\[[Openpyxl]\]\]\][96]\]\]
+`describe_formula_graph` (`sheet`) ↑ JSON pre-computed by explorer; avoids macro execution
+`agg_summary` (`df`, `metrics:list[str]`) ↑ dict fast numeric checks
+`write_fact` (`json`) ↑ None stores into FileCard
 
-Each call is metered; token + CPU budgets per sheet enforce safety (Business Insider on compound error risk \[\[\[\[\[[Business Insider]\]\]\][72]\]\]).
+Each call is metered; token + CPU budgets per sheet enforce safety (Business Insider on compound error risk \[\[\[\[\[[Business Insider]\]\]\][72]\]\]).
 
-### 4.3 Agent logic per sheet
+### 4.3 Agent logic per sheet
 
 ```
 pythonCopywhile unexplored_ranges:
@@ -1817,11 +1817,11 @@ write_fact()
 compress_context_if_needed()
 ```
 
-- **Indirect reasoning** chain fires when a claim conflicts with `context_hint`; generates contrapositives until a contradiction is found (Prompting‑guide) \[\[\[\[\[[Prompting Guide]\]\]\][59]\]\].
+- **Indirect reasoning** chain fires when a claim conflicts with `context_hint`; generates contrapositives until a contradiction is found (Prompting-guide) \[\[\[\[\[[Prompting Guide]\]\]\][59]\]\].
 
 - On Python exception, Orchestrator patches the failing cell, preserving traceback as comment.
 
-### 4.4 Cross‑sheet communication
+### 4.4 Cross-sheet communication
 
 Agents publish lightweight **QueryEvents** into an `asyncio.Queue`; orchestrator routes them to target sheet tasks. No kernel locks---messages are processed between cell executions.
 
@@ -1833,7 +1833,7 @@ Artefact Location Purpose
 
 ______________________________________________________________________
 
-`.ipynb` notebook / sheet object storage full replay, debugging
+`.ipynb` notebook / sheet object storage full replay, debugging
 FileCard (Pydantic) DB table `filecards` raw+derived fields
 JobLog DB table `job_events` prompt, tool call, stats
 Report JSON object storage returned to user
@@ -1847,19 +1847,19 @@ Gap previously noted Resolution
 ______________________________________________________________________
 
 Kernel race conditions one kernel per sheet; orchestrator serialises edits; no shared state
-openpyxl I/O slowness read‑only streaming + row‑block slice; large `.xlsb` via `pyxlsb` \[\[\[\[\[[LangChain Blog]\]\]\][81]\]\]
-False context cost blow‑up β‑verification: sample 5 rows & formulas; if ≤ 1 error, treat as mostly true
-Multi‑agent error cascade single orchestrator controls all tasks (Cognition warning) \[\[\[\[\[[Cognition]\]\]\][53]\]\]
-Memory creep in context `write‑select‑compress‑isolate` strategy \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]; drop raw dfs after summary
+openpyxl I/O slowness read-only streaming + row-block slice; large `.xlsb` via `pyxlsb` \[\[\[\[\[[LangChain Blog]\]\]\][81]\]\]
+False context cost blow-up Œ≤-verification: sample 5 rows & formulas; if § 1 error, treat as mostly true
+Multi-agent error cascade single orchestrator controls all tasks (Cognition warning) \[\[\[\[\[[Cognition]\]\]\][53]\]\]
+Memory creep in context `write-select-compress-isolate` strategy \[\[\[\[\[[LangChain Blog]\]\]\][52]\]\]; drop raw dfs after summary
 Macro safety olevba extracts but never executes \[\[\[\[\[[GitHub]\]\]\][15]\]\]
 
 ______________________________________________________________________
 
 ## 7 Security hardening
 
-- **Sandbox profile**: gVisor or Docker seccomp; no net, 512 MB tmpfs, 30 s CPU.
+- **Sandbox profile**: gVisor or Docker seccomp; no net, 512 MB tmpfs, 30 s CPU.
 
-- **Row‑level redaction**: values hashed when sent to LLM except when aggregation required.
+- **Row-level redaction**: values hashed when sent to LLM except when aggregation required.
 
 - **Audit**: every prompt, tool call, and kernel stdout captured; immutable.
 
@@ -1882,27 +1882,27 @@ bashCopypoetry install --with prod
 uvicorn api:app --factory --workers 4 --host 0.0.0.0 --port 8080
 ```
 
-- SQLite WAL for single‑node; switch to Postgres via `DATABASE_URL`.
+- SQLite WAL for single-node; switch to Postgres via `DATABASE_URL`.
 
 - Horizontal scale = more containers; notebook kernels remain child procs of each worker.
 
 ______________________________________________________________________
 
-## 10 Next engineering milestones (3‑sprint plan)
+## 10 Next engineering milestones (3-sprint plan)
 
 Sprint Deliverables
 
 ______________________________________________________________________
 
 1 ingest + explorer + FileCard schema; sandbox pool; FastAPI `/analyze`
-2 orchestrator agent with per‑sheet kernels; context‑engineering; prior‑context verifier
+2 orchestrator agent with per-sheet kernels; context-engineering; prior-context verifier
 3 Critic validator; Prom/ELK telemetry; SSE progress; alpha release
 
 ______________________________________________________________________
 
 ### In closing
 
-This **monolithic, notebook‑centric, per‑sheet‑agent design** achieves maximum analytical depth, iron‑clad validation, and full replayability without sacrificing the single‑binary deployment constraint. All previously identified gaps---kernel races, cost explosion, macro risk, context bloat---have concrete mitigations, and every critical step is backed by widely‑used Python libraries or peer‑reviewed agent patterns.
+This **monolithic, notebook-centric, per-sheet-agent design** achieves maximum analytical depth, iron-clad validation, and full replayability without sacrificing the single-binary deployment constraint. All previously identified gaps---kernel races, cost explosion, macro risk, context bloat---have concrete mitigations, and every critical step is backed by widely-used Python libraries or peer-reviewed agent patterns.
 
 ##### You said:
 
@@ -1918,13 +1918,13 @@ Request for o3 pro
 
 Reasoned for 3m 20s
 
-Below is a developer‑focused guide for setting up a **single‑process "over‑kill" spreadsheet‑analysis laboratory** on your Apple‑silicon MacBook Pro. It shows how each local component maps to the production design, explains the interactions among agents, kernels and file readers, and highlights the practical limits of what you can (and cannot) share in‑memory.
+Below is a developer-focused guide for setting up a **single-process "over-kill" spreadsheet-analysis laboratory** on your Apple-silicon MacBook Pro. It shows how each local component maps to the production design, explains the interactions among agents, kernels and file readers, and highlights the practical limits of what you can (and cannot) share in-memory.
 
 ______________________________________________________________________
 
-## 1  Base tool‑chain on macOS Sequoia 15.5
+## 1  Base tool-chain on macOS Sequoia 15.5
 
-### 1.1 Python build & virtual envs
+### 1.1 Python build & virtual envs
 
 *Install once, switch often.*
 
@@ -1932,39 +1932,39 @@ Step Why Command
 
 ______________________________________________________________________
 
-Install **pyenv** via Homebrew lets you juggle 3.11/3.12 side‑by‑side `brew install pyenv`
-Build a "universal2" Python C‑extensions will pick the correct arm64 slices `env PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install 3.12.4`
-Create a **uv** virtual env uv is a Rust‑based, pip‑compatible resolver that is ~6‑20× faster than pip \[\[\[\[\[[astral.sh]\]\]\][103]\]\]\[\[\[\[\[[Discussions on Python.org]\]\]\][104]\]\] `pyenv shell 3.12.4 && uv venv venv && source venv/bin/activate`
+Install **pyenv** via Homebrew lets you juggle 3.11/3.12 side-by-side `brew install pyenv`
+Build a "universal2" Python C-extensions will pick the correct arm64 slices `env PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install 3.12.4`
+Create a **uv** virtual env uv is a Rust-based, pip-compatible resolver that is ~6-20√ó faster than pip \[\[\[\[\[[astral.sh]\]\]\][103]\]\]\[\[\[\[\[[Discussions on Python.org]\]\]\][104]\]\] `pyenv shell 3.12.4 && uv venv venv && source venv/bin/activate`
 
-> On Apple silicon, wheels for Numpy, Pandas, PyArrow, openpyxl are already published; you no longer need Rosetta or Conda unless you prefer the conda‑forge stack \[\[\[\[\[[Reddit]\]\]\][105]\]\].
+> On Apple silicon, wheels for Numpy, Pandas, PyArrow, openpyxl are already published; you no longer need Rosetta or Conda unless you prefer the conda-forge stack \[\[\[\[\[[Reddit]\]\]\][105]\]\].
 
-### 1.2 Libraries that need C/Fortran
+### 1.2 Libraries that need C/Fortran
 
 `uv pip install pandas==2.2 pyarrow openpyxl oletools pdfplumber fastapi uvicorn jupyter-client`
 
-- uv compiles anything without wheels (e.g. lxml) using the Xcode tool‑chain automatically. \[\[\[\[\[[astral.sh]\]\]\][103]\]\]
+- uv compiles anything without wheels (e.g. lxml) using the Xcode tool-chain automatically. \[\[\[\[\[[astral.sh]\]\]\][103]\]\]
 
 ______________________________________________________________________
 
-## 2  Single‑process runtime layout
+## 2  Single-process runtime layout
 
 ```
 textCopyuvicorn api:app  ─┐
-├─ asyncio event‑loop
-│    ├─ per‑sheet Kernel (jupyter_client)
+├─ asyncio event-loop
+│    ├─ per-sheet Kernel (jupyter_client)
 │    └─ BackgroundTasks (FastAPI)
 └─ SQLite WAL
 ```
 
-- **FastAPI** gives you an HTTP façade (`/analyze`, `/stream`) and built‑in **BackgroundTasks** for non‑blocking uploads \[\[\[\[\[[FastAPI]\]\]\][99]\]\]\[\[\[\[\[[FastAPI]\]\]\][106]\]\].
+- **FastAPI** gives you an HTTP fa√ßade (`/analyze`, `/stream`) and built-in **BackgroundTasks** for non-blocking uploads \[\[\[\[\[[FastAPI]\]\]\][99]\]\]\[\[\[\[\[[FastAPI]\]\]\][106]\]\].
 
-- All per‑sheet "agents" live in the same address space but delegate execution to **Jupyter kernels** for sandboxing.
+- All per-sheet "agents" live in the same address space but delegate execution to **Jupyter kernels** for sandboxing.
 
 ______________________________________________________________________
 
-## 3  Spawning and controlling kernels
+## 3  Spawning and controlling kernels
 
-### 3.1 Low‑level Jupyter API
+### 3.1 Low-level Jupyter API
 
 `jupyter_client.AsyncKernelManager` starts, restarts and shuts down kernels without a running Jupyter Server \[\[\[\[\[[Jupyter Community Forum]\]\]\][94]\]\]\[\[\[\[\[[Jupyter Client]\]\]\][98]\]\].
 
@@ -1978,7 +1978,7 @@ await kc.execute_async("import pandas as pd")
 
 *Every sheet task calls this helper, so you end up with **one kernel per sheet**.*
 
-### 3.2 Why kernels instead of threads?
+### 3.2 Why kernels instead of threads?
 
 - Complete isolation: if user data triggers an infinite loop or heavy allocation, you terminate the kernel without killing your API.
 
@@ -1986,64 +1986,64 @@ await kc.execute_async("import pandas as pd")
 
 ______________________________________________________________________
 
-## 4  Reading the workbook only once---what's feasible?
+## 4  Reading the workbook only once---what's feasible?
 
-- openpyxl's **read‑only mode** streams XML rows lazily and keeps constant memory, so **each kernel can reopen the same file path without copying** \[\[\[\[\[[OpenPyXL]\]\]\][96]\]\]\[\[\[\[\[[OpenPyXL]\]\]\][88]\]\].
+- openpyxl's **read-only mode** streams XML rows lazily and keeps constant memory, so **each kernel can reopen the same file path without copying** \[\[\[\[\[[OpenPyXL]\]\]\][96]\]\]\[\[\[\[\[[OpenPyXL]\]\]\][88]\]\].
 
-- openpyxl objects are **not thread‑safe**; sharing a `Workbook` instance across kernels or even asyncio tasks will seg‑fault or corrupt state \[\[\[\[\[[OpenPyXL]\]\]\][88]\]\].
+- openpyxl objects are **not thread-safe**; sharing a `Workbook` instance across kernels or even asyncio tasks will seg-fault or corrupt state \[\[\[\[\[[OpenPyXL]\]\]\][88]\]\].
 
-- If you truly need zero‑copy sharing (e.g., a 500 MB data sheet converted to a DataFrame) use **PyArrow memory‑map** to a shared file and let kernels read slices---they still copy into their own process space, but OS‑level page cache prevents duplicate RAM \[\[\[\[\[[Stack Overflow]\]\]\][107]\]\].
+- If you truly need zero-copy sharing (e.g., a 500 MB data sheet converted to a DataFrame) use **PyArrow memory-map** to a shared file and let kernels read slices---they still copy into their own process space, but OS-level page cache prevents duplicate RAM \[\[\[\[\[[Stack Overflow]\]\]\][107]\]\].
 
 Practical rule: open the file in each kernel with `load_workbook(read_only=True, data_only=True)`. It is fast because XML is parsed on demand and the OS cache hits.
 
 ______________________________________________________________________
 
-## 5  Sandboxed tools available to every agent
+## 5  Sandboxed tools available to every agent
 
-Tool function Back‑end Notes
+Tool function Back-end Notes
 
 ______________________________________________________________________
 
 `read_sheet_range(sheet, "A1:F500")` openpyxl returns DataFrame; respects row/col bounds
 `agg_summary(df, ["mean","nulls"])` pandas lightweight stats for validation
-`describe_formula_graph(sheet)` pre‑computed XML graph deterministic---no VBA run
+`describe_formula_graph(sheet)` pre-computed XML graph deterministic---no VBA run
 `write_fact(json)` SQLite insert used by agents to populate FileCard
-`scan_macros(file)` `olevba` \[\[\[\[\[[GitHub]\]\]\][15]\]\] flags Trust‑Tier drop
+`scan_macros(file)` `olevba` \[\[\[\[\[[GitHub]\]\]\][15]\]\] flags Trust-Tier drop
 
-All tool calls are wrapped in a JSON‑schema and metered by the orchestrator.
+All tool calls are wrapped in a JSON-schema and metered by the orchestrator.
 
 ______________________________________________________________________
 
-## 6  Development‑time safety levers
+## 6  Development-time safety levers
 
-- **Kernel resource limits**: launch kernels with `ipython -cprofile` flags and macOS `ulimit -v 700000` (≈ 512 MB).
+- **Kernel resource limits**: launch kernels with `ipython -cprofile` flags and macOS `ulimit -v 700000` (∞ 512 MB).
 
 - **No outbound network** in kernels (`--NetworkPolicy=no_network` if using gVisor, or simply omit sockets module).
 
-- **Direnv** or **dotenv** for secrets so you never hard‑code OpenAI keys.
+- **Direnv** or **dotenv** for secrets so you never hard-code OpenAI keys.
 
-- **pytest‑nbval** runs notebooks headless in CI to ensure agent code keeps producing the same outputs \[\[\[\[\[[nbval.readthedocs.io]\]\]\][108]\]\].
+- **pytest-nbval** runs notebooks headless in CI to ensure agent code keeps producing the same outputs \[\[\[\[\[[nbval.readthedocs.io]\]\]\][108]\]\].
 
 ______________________________________________________________________
 
-## 7  Suggested working directory layout
+## 7  Suggested working directory layout
 
 ```
 cppCopyexcelai/
-├─ notebooks/          ← auto‑saved per‑sheet .ipynb
+├─ notebooks/          → auto-saved per-sheet .ipynb
 ├─ src/
-│   ├─ api.py          ← FastAPI routes
-│   ├─ core/…          ← ingest, explore, sandbox, agent
-└─ pyproject.toml      ← uv manages lockfile here
+│   ├─ api.py          → FastAPI routes
+│   ├─ core/•           → ingest, explore, sandbox, agent
+└─ pyproject.toml      → uv manages lockfile here
 ```
 
 - Run `uv pip install -e .[dev]` so your live code is importable, yet edits are picked up instantly.
 
-- Enable **LiveReload** in Uvicorn for hot‑restarts: `uvicorn api:app --reload`.
+- Enable **LiveReload** in Uvicorn for hot-restarts: `uvicorn api:app --reload`.
 
 ______________________________________________________________________
 
-## 8  Day‑to‑day developer workflow
+## 8  Day-to-day developer workflow
 
 ```
 bashCopy# 1. spin the API
@@ -2061,29 +2061,29 @@ jupyter lab notebooks/Revenue.ipynb
 
 *Use `pytest --nbval` before any commit to ensure notebooks still run headlessly.*
 
-When you are comfortable, you can start a second Uvicorn worker to simulate multi‑process scaling; each worker maintains its own kernel pool but writes to the same SQLite WAL, which supports concurrent writes on macOS.
+When you are comfortable, you can start a second Uvicorn worker to simulate multi-process scaling; each worker maintains its own kernel pool but writes to the same SQLite WAL, which supports concurrent writes on macOS.
 
 ______________________________________________________________________
 
-## 9  Where this differs from cloud production
+## 9  Where this differs from cloud production
 
 Concern Local monolith Future prod
 
 ______________________________________________________________________
 
-Kernel isolation child procs, ulimit gVisor / Firecracker micro‑VM
-Storage SQLite WAL Aurora Postgres / S3
-Concurrency `asyncio` + 32 GB RAM K8s HPA pods
-Secrets `.env` Vault + side‑car
-LLM calls direct HTTPS routed via usage‑metering gateway
+Kernel isolation child procs, ulimit gVisor / Firecracker micro-VM
+Storage SQLite WAL Aurora Postgres / S3
+Concurrency `asyncio` + 32 GB RAM K8s HPA pods
+Secrets `.env` Vault + side-car
+LLM calls direct HTTPS routed via usage-metering gateway
 
-But the **interface contracts (tool schema, FileCard, notebook artefacts) are identical**, so code‑paths you exercise locally port 1‑for‑1 into the cloud build.
+But the **interface contracts (tool schema, FileCard, notebook artefacts) are identical**, so code-paths you exercise locally port 1-for-1 into the cloud build.
 
 ______________________________________________________________________
 
 ### TL;DR
 
-On an M2 Max you can comfortably run **one FastAPI+asyncio monolith, a pool of per‑sheet Jupyter kernels, uv‑managed dependencies, and SQLite WAL**---all with near‑zero overhead. openpyxl's read‑only mode lets every kernel reopen the same workbook cheaply, while the Jupyter‑client API gives you fine‑grained programmatic control over cell execution. Add nbval tests and resource limits, and you have a rapid‑prototyping environment that mirrors production logic yet stays lightweight enough for everyday experimentation.
+On an M2 Max you can comfortably run **one FastAPI+asyncio monolith, a pool of per-sheet Jupyter kernels, uv-managed dependencies, and SQLite WAL**---all with near-zero overhead. openpyxl's read-only mode lets every kernel reopen the same workbook cheaply, while the Jupyter-client API gives you fine-grained programmatic control over cell execution. Add nbval tests and resource limits, and you have a rapid-prototyping environment that mirrors production logic yet stays lightweight enough for everyday experimentation.
 
 ##### You said:
 
@@ -2095,21 +2095,21 @@ Request for o3 pro
 
 Reasoned for 3m 25s
 
-Below is a "how‑to" that turns the design into an **idempotent, notebook‑per‑sheet laboratory** that runs comfortably on your M2 Max while matching the production architecture. It explains how every piece interacts, how to open the workbook only once **per kernel**, and why true cross‑kernel memory‑sharing of an `openpyxl` object is neither safe nor useful.
+Below is a "how-to" that turns the design into an **idempotent, notebook-per-sheet laboratory** that runs comfortably on your M2 Max while matching the production architecture. It explains how every piece interacts, how to open the workbook only once **per kernel**, and why true cross-kernel memory-sharing of an `openpyxl` object is neither safe nor useful.
 
 ______________________________________________________________________
 
-## 1  What "idempotent" means for a notebook
+## 1  What "idempotent" means for a notebook
 
-- **Re‑runnable ⇨ no hidden state**. Every cell must succeed after `Kernel ▶ Restart & Run All`; thus each agent‑notebook must **re‑acquire the workbook and any dataframes inside the notebook itself**.
+- **Re-runnable á® no hidden state**. Every cell must succeed after `Kernel ┼ Restart & Run All`; thus each agent-notebook must **re-acquire the workbook and any dataframes inside the notebook itself**.
 
 - This implies a **"bootstrap cell"** at the very top that does *all* opening/initialisation. Anything created later (aggregations, charts, validation results) must be derived from variables set here.
 
-> Because the file is immutable and read‑only during analysis, re‑opening incurs almost zero I/O thanks to the OS page cache on macOS. \[\[\[\[\[[Python documentation]\]\]\][112]\]\]
+> Because the file is immutable and read-only during analysis, re-opening incurs almost zero I/O thanks to the OS page cache on macOS. \[\[\[\[\[[Python documentation]\]\]\][112]\]\]
 
 ______________________________________________________________________
 
-## 2  Recommended bootstrap cell
+## 2  Recommended bootstrap cell
 
 ```
 pythonCopy# --- Bootstrap: safe to rerun -----------------------------
@@ -2119,17 +2119,17 @@ import pandas as pd
 
 WB_PATH = Path("/tmp/uploads/job_123/original.xlsx")
 
-# openpyxl can take a file path OR any file‑like object with .read()  openpyxl docs 
+# openpyxl can take a file path OR any file-like object with .read()  openpyxl docs Ó§Ä
 wb = load_workbook(WB_PATH, read_only=True, data_only=True)  # fast stream parser :contentReference[oaicite:1]
 
 def sheet_df(name, **kw):
-"""Convenience wrapper: returns a Pandas DF slice without re‑reading disk"""
+"""Convenience wrapper: returns a Pandas DF slice without re-reading disk"""
 return pd.read_excel(WB_PATH, sheet_name=name, engine="openpyxl", **kw)  # pandas accepts paths or BytesIO :contentReference[oaicite:2]
 ```
 
 ### Why this is idempotent
 
-- `WB_PATH` is constant; `load_workbook(read_only=True)` streams XML on demand, so re‑instantiating `wb` is cheap.
+- `WB_PATH` is constant; `load_workbook(read_only=True)` streams XML on demand, so re-instantiating `wb` is cheap.
 
 - Pandas gets the same path; each call is local because pages are cached.
 
@@ -2137,23 +2137,23 @@ return pd.read_excel(WB_PATH, sheet_name=name, engine="openpyxl", **kw)  # panda
 
 ______________________________________________________________________
 
-## 3  Could we open once and share the **same** workbook object?
+## 3  Could we open once and share the **same** workbook object?
 
 Issue Explanation Evidence
 
 ______________________________________________________________________
 
-**Thread / process safety** `Workbook` objects mutate internal caches; openpyxl maintainers state they are **not thread‑safe** \[\[\[\[\[[GitLab]\]\]\][113]\]\]. GitLab issue #228
-**IPC complexity** Sharing Python objects across the per‑sheet kernels (separate OS processes) would need `multiprocessing.shared_memory` or `pyarrow plasma`, then re‑serialising to Python---negates benefit \[\[\[\[\[[Medium]\]\]\][114]\]\].
-**Zip file layout** Excel files are ZIP‑packages; `load_workbook` opens dozens of sub‑streams. Mapping a single memory view gives marginal speed‑up because decompression still happens per sheet.
+**Thread / process safety** `Workbook` objects mutate internal caches; openpyxl maintainers state they are **not thread-safe** \[\[\[\[\[[GitLab]\]\]\][113]\]\]. GitLab issue #228
+**IPC complexity** Sharing Python objects across the per-sheet kernels (separate OS processes) would need `multiprocessing.shared_memory` or `pyarrow plasma`, then re-serialising to Python---negates benefit \[\[\[\[\[[Medium]\]\]\][114]\]\].
+**Zip file layout** Excel files are ZIP-packages; `load_workbook` opens dozens of sub-streams. Mapping a single memory view gives marginal speed-up because decompression still happens per sheet.
 
 **Conclusion:** each kernel should reopen the workbook independently; the macOS page cache deduplicates actual RAM pages, so memory overhead is negligible.
 
 ______________________________________________________________________
 
-## 4  If you *really* want zero extra system calls
+## 4  If you *really* want zero extra system calls
 
-You can memory‑map once and feed a `BytesIO` wrapper to openpyxl in every kernel:
+You can memory-map once and feed a `BytesIO` wrapper to openpyxl in every kernel:
 
 ```
 pythonCopyimport mmap, io, os
@@ -2167,7 +2167,7 @@ But you still lose the object itself when the kernel restarts, so idempotence ga
 
 ______________________________________________________________________
 
-## 5  How the per‑sheet kernels fit into your orchestrator
+## 5  How the per-sheet kernels fit into your orchestrator
 
 Step Interaction
 
@@ -2176,19 +2176,19 @@ ______________________________________________________________________
 Orchestrator spawns a `jupyter_client.AsyncKernelManager` per sheet \[\[\[\[\[[Jupyter Community Forum]\]\]\][94]\]\].
 First cell executed is the **bootstrap** above. If it fails, orchestrator kills kernel and records error in FileCard.
 Subsequent agent cells call `read_sheet_range` (Tool Bus wrapper) which itself uses the same `WB_PATH` inside the kernel---no new disk read.
-At "Run All" re‑play, bootstrap re‑opens workbook and all downstream cells recompute identically.
+At "Run All" re-play, bootstrap re-opens workbook and all downstream cells recompute identically.
 
-Because kernels are child processes, they inherit the parent's open‑file limit; macOS defaults to 256. When analysing very wide workbooks (>200 sheets), set `ulimit -n 2048` before starting Uvicorn.
+Because kernels are child processes, they inherit the parent's open-file limit; macOS defaults to 256. When analysing very wide workbooks (>200 sheets), set `ulimit -n 2048` before starting Uvicorn.
 
 ______________________________________________________________________
 
-## 6  Tips & caveats for local development
+## 6  Tips & caveats for local development
 
-### 6.1 Jupyter‑client quirks
+### 6.1 Jupyter-client quirks
 
 - **Async cell timeouts:** wrap `kc.execute_async(code, timeout=30)` so a hang doesn't block the event loop.
 
-- **Large stdout:** cap at 1 MB; truncate or stream to a log file instead.
+- **Large stdout:** cap at 1 MB; truncate or stream to a log file instead.
 
 ### 6.2 FastAPI BackgroundTasks
 
@@ -2200,7 +2200,7 @@ Add strict pins for `openpyxl` and `pandas` in `pyproject.toml` to avoid engine 
 
 ### 6.4 Testing idempotence
 
-`pytest‑nbval` re‑runs notebooks headless and fails if any cell errors \[\[\[\[\[[FastAPI]\]\]\][99]\]\]. Add a CI job:
+`pytest-nbval` re-runs notebooks headless and fails if any cell errors \[\[\[\[\[[FastAPI]\]\]\][99]\]\]. Add a CI job:
 
 ```
 bashCopypytest --nbval notebooks/
@@ -2208,19 +2208,19 @@ bashCopypytest --nbval notebooks/
 
 ______________________________________________________________________
 
-## 7  Summary of best practice
+## 7  Summary of best practice
 
 - **Keep it simple:** one workbook per kernel, opened in `read_only=True` mode; OS caching handles deduplication.
 
 - **Bootstrap cell:** path constant + helper functions; guarantees idempotence.
 
-- **Per‑sheet kernels:** safe isolation; orchestrator can restart any sheet without affecting others.
+- **Per-sheet kernels:** safe isolation; orchestrator can restart any sheet without affecting others.
 
-- **Memory mapping:** optional micro‑optimisation---rarely worth the complexity given SSD + page cache.
+- **Memory mapping:** optional micro-optimisation---rarely worth the complexity given SSD + page cache.
 
 - **Validation & replay:** nbval tests + FileCard logs close the loop.
 
-Adopting these conventions lets every notebook remain fully rerunnable, reproducible and audit‑ready while keeping your local developer experience fast and RAM‑friendly on the M2 Max.
+Adopting these conventions lets every notebook remain fully rerunnable, reproducible and audit-ready while keeping your local developer experience fast and RAM-friendly on the M2 Max.
 
 ##### You said:
 
@@ -2232,17 +2232,17 @@ Request for o3 pro
 
 Reasoned for 2m 22s
 
-Below is an expanded, "tour‑guide" walk‑through of how the **idempotent, per‑sheet‑notebook architecture** works when each agent has free rein to pull *whatever* slice of the sheet it needs---often with Pandas, sometimes with nothing more than plain Python---while the deterministic layer still gives it a rock‑solid starting point.
+Below is an expanded, "tour-guide" walk-through of how the **idempotent, per-sheet-notebook architecture** works when each agent has free rein to pull *whatever* slice of the sheet it needs---often with Pandas, sometimes with nothing more than plain Python---while the deterministic layer still gives it a rock-solid starting point.
 
 ______________________________________________________________________
 
 ## Key idea in one paragraph
 
-Every sheet lives in its own Jupyter kernel. At the top of that kernel's notebook a **bootstrap cell** opens the Excel file once, in `read_only` streaming mode via **openpyxl**---no Pandas objects are created up front. Because openpyxl streams XML lazily, the agent can later call `pandas.read_excel()` (or any other library) on *exactly* the rows/columns it needs, and the OS page‑cache on macOS ensures repeated reads of the same file cost almost zero RAM or disk I/O. Each kernel is sandboxed, so a runaway loop or memory hog dies alone; every cell's code and stdout is preserved so the notebook can be rerun end‑to‑end without manual tweaks.
+Every sheet lives in its own Jupyter kernel. At the top of that kernel's notebook a **bootstrap cell** opens the Excel file once, in `read_only` streaming mode via **openpyxl**---no Pandas objects are created up front. Because openpyxl streams XML lazily, the agent can later call `pandas.read_excel()` (or any other library) on *exactly* the rows/columns it needs, and the OS page-cache on macOS ensures repeated reads of the same file cost almost zero RAM or disk I/O. Each kernel is sandboxed, so a runaway loop or memory hog dies alone; every cell's code and stdout is preserved so the notebook can be rerun end-to-end without manual tweaks.
 
 ______________________________________________________________________
 
-## 1  Component roles and their handshake
+## 1  Component roles and their handshake
 
 Step What happens Libraries & rationale
 
@@ -2250,29 +2250,29 @@ ______________________________________________________________________
 
 **Deterministic explorer (parent process)** Parses the whole workbook once to build formula graphs, sheet indexes, macro flags, and other context; *does not* materialise dataframes. `openpyxl` in `read_only=True` streams XML quickly \[\[\[\[\[[jupyter-client.readthedocs.io]\]\]\][98]\]\]; safer than executing VBA.
 **Kernel spawn** For every sheet the orchestrator starts a child kernel using `AsyncKernelManager` \[\[\[\[\[[GitHub]\]\]\][118]\]\].
-**Bootstrap cell inside kernel** Re‑opens the same file path (or a memory‑mapped `BytesIO`) and defines helpers like `sheet_df(range)`---but leaves all data on disk until an agent actually asks for it. openpyxl path‑based open is cheap because macOS keeps pages hot in RAM \[\[\[\[\[[Apple Support Communities]\]\]\][119]\]\].
+**Bootstrap cell inside kernel** Re-opens the same file path (or a memory-mapped `BytesIO`) and defines helpers like `sheet_df(range)`---but leaves all data on disk until an agent actually asks for it. openpyxl path-based open is cheap because macOS keeps pages hot in RAM \[\[\[\[\[[Apple Support Communities]\]\]\][119]\]\].
 **Agent code cells** Ask questions, run aggregations, maybe `pandas.read_excel(..., skiprows=10, nrows=500)` to grab a slice \[\[\[\[\[[Pandas]\]\]\][120]\]\] \[\[\[\[\[[Stack Overflow]\]\]\][121]\]\].
-**Critic cell** Re‑runs key calculations or cross‑sheet checks; raises if a claim is unverified.
-**Notebook saved** Whole execution trace stored as `.ipynb` so "Restart & Run All" reproduces results.
+**Critic cell** Re-runs key calculations or cross-sheet checks; raises if a claim is unverified.
+**Notebook saved** Whole execution trace stored as `.ipynb` so "Restart & Run All" reproduces results.
 
 Because no Pandas dataframes exist until the agent requests them, memory stays low and *agents decide cost vs. fidelity*.
 
 ______________________________________________________________________
 
-## 2  Why not share a single `Workbook` object?
+## 2  Why not share a single `Workbook` object?
 
-- **Thread/process safety:** openpyxl objects mutate internal caches and are not thread‑safe \[\[\[\[\[[Apple Support Communities]\]\]\][119]\]\].
+- **Thread/process safety:** openpyxl objects mutate internal caches and are not thread-safe \[\[\[\[\[[Apple Support Communities]\]\]\][119]\]\].
 
-- **Cross‑process sharing costs more:** you would need `multiprocessing.shared_memory` or Plasma IPC to pickle the object, which re‑creates Python objects anyway \[\[\[\[\[[Stack Overflow]\]\]\][122]\]\].
+- **Cross-process sharing costs more:** you would need `multiprocessing.shared_memory` or Plasma IPC to pickle the object, which re-creates Python objects anyway \[\[\[\[\[[Stack Overflow]\]\]\][122]\]\].
 
 - **OS page cache already deduplicates disk pages**, so reopening the same file in another process rarely faults physical RAM \[\[\[\[\[[Reddit]\]\]\][123]\]\].\
   Hence each kernel should open its own handle; the cost is a few microseconds.
 
 ______________________________________________________________________
 
-## 3  Giving agents flexible data‑access tools
+## 3  Giving agents flexible data-access tools
 
-### 3.1 Open‑file helper functions (bootstrap cell)
+### 3.1 Open-file helper functions (bootstrap cell)
 
 ```
 pythonCopyfrom openpyxl import load_workbook
@@ -2282,7 +2282,7 @@ WB_PATH = pathlib.Path("/tmp/uploads/job123/original.xlsx")
 wb = load_workbook(WB_PATH, read_only=True, data_only=True)
 
 def sheet_df(name, **kw):
-"""Return on‑demand DataFrame slice."""
+"""Return on-demand DataFrame slice."""
 return pd.read_excel(WB_PATH, sheet_name=name, engine="openpyxl", **kw)  # skiprows / nrows supported :contentReference[oaicite:8]
 ```
 
@@ -2292,7 +2292,7 @@ Agents call:
 pythonCopydf = sheet_df("Q1_Sales", usecols="A:D", skiprows=4, nrows=500)
 ```
 
-### 3.2 Alternative: memory‑map once
+### 3.2 Alternative: memory-map once
 
 If your profiling shows the first `open` still dominates, wrap the path:
 
@@ -2306,23 +2306,23 @@ Each kernel repeats this; the same `mm` pages are shared by the kernel's process
 
 ______________________________________________________________________
 
-## 4  How idempotence is guaranteed
+## 4  How idempotence is guaranteed
 
 - The bootstrap cell **creates every global** (`wb`, helper fns) from scratch.
 
-- Down‑stream cells compute purely from those globals.
+- Down-stream cells compute purely from those globals.
 
-- If a cell fails (e.g., divide‑by‑zero), the orchestrator rewrites the cell with a fix and re‑executes; Jupyter stores both versions, so "Run All" later plays the fixed code.
+- If a cell fails (e.g., divide-by-zero), the orchestrator rewrites the cell with a fix and re-executes; Jupyter stores both versions, so "Run All" later plays the fixed code.
 
-- `pytest‑nbval` in CI re‑runs every notebook headless to assert no lingering hidden state \[\[\[\[\[[OpenPyXL]\]\]\][56]\]\].
+- `pytest-nbval` in CI re-runs every notebook headless to assert no lingering hidden state \[\[\[\[\[[OpenPyXL]\]\]\][56]\]\].
 
 ______________________________________________________________________
 
-## 5  Interaction between deterministic context and free‑form exploration
+## 5  Interaction between deterministic context and free-form exploration
 
 1. **Explorer output** (formula graph JSON, list of volatile functions, detected macros) is injected into the *system prompt* for the orchestrator agent.
 
-1. The agent decides: "Do I trust the formula totals, or re‑compute via Pandas?"
+1. The agent decides: "Do I trust the formula totals, or re-compute via Pandas?"
 
 1. On need, the agent imports Pandas inside its kernel and pulls just the range required; no upfront data bloat.
 
@@ -2332,11 +2332,11 @@ Because the agent has the **whole kernel**, it can also use Numpy, SciPy, or pur
 
 ______________________________________________________________________
 
-## 6  What Jupyter lets you control programmatically
+## 6  What Jupyter lets you control programmatically
 
 - **Cell insertion / deletion / rewrite** through `nbformat` API.
 
-- **Execution** via `kernel_client.execute_async` with per‑cell timeout to avoid hangs \[\[\[\[\[[GitHub]\]\]\][118]\]\] \[\[\[\[\[[jupyter-client.readthedocs.io]\]\]\][98]\]\].
+- **Execution** via `kernel_client.execute_async` with per-cell timeout to avoid hangs \[\[\[\[\[[GitHub]\]\]\][118]\]\] \[\[\[\[\[[jupyter-client.readthedocs.io]\]\]\][98]\]\].
 
 - **Capture of stdout, stderr, rich display** so the notebook doubles as a replayable log.
 
@@ -2344,23 +2344,23 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 7  Local‑dev checklist on your M2 Max
+## 7  Local-dev checklist on your M2 Max
 
 Thing to set Recommended value Why
 
 ______________________________________________________________________
 
 `ulimit -n` 2048 large workbooks open many XML files
-Python 3.12 universal2 via pyenv matches wheels for Apple silicon
+Python 3.12 universal2 via pyenv matches wheels for Apple silicon
 `uv` lockfile openpyxl 3.1, pandas 2.3 stable APIs prevent drift \[\[\[\[\[[Stack Overflow]\]\]\][124]\]\] \[\[\[\[\[[Reddit]\]\]\][125]\]\]
-Kernel RAM cap 512 MB via `resource.setrlimit` sandbox safety
+Kernel RAM cap 512 MB via `resource.setrlimit` sandbox safety
 CI test `pytest --nbval notebooks/` enforces idempotence
 
 ______________________________________________________________________
 
-### Take‑away
+### Take-away
 
-Your agents stay free to load *any* slice of data with Pandas (or none at all), yet every notebook is re‑runnable because the only persistent assumption is the file path and the openpyxl read‑only stream. Cross‑kernel sharing of the exact `Workbook` object would break thread‑safety for negligible speed‑ups; let each kernel reopen the path and rely on macOS's page cache to keep RAM use low instead.
+Your agents stay free to load *any* slice of data with Pandas (or none at all), yet every notebook is re-runnable because the only persistent assumption is the file path and the openpyxl read-only stream. Cross-kernel sharing of the exact `Workbook` object would break thread-safety for negligible speed-ups; let each kernel reopen the path and rely on macOS's page cache to keep RAM use low instead.
 
 \[1\]: data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdib3g9IjAgMCAyMCAyMCIgZmlsbD0iY3VycmVudENvbG9yIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGNsYXNzPSJpY29uIj48cGF0aCBkPSJNMTIuNjY4IDEwLjY2N0MxMi42NjggOS45NTYxNCAxMi42NjggOS40NjI1OCAxMi42MzY3IDkuMDc5MUMxMi42MTM3IDguNzk3MzIgMTIuNTc1OCA4LjYwNzYxIDEyLjUyNDQgOC40NjM4N0wxMi40Njg4IDguMzMzOTlDMTIuMzE0OCA4LjAzMTkzIDEyLjA4MDMgNy43Nzg4NSAxMS43OTMgNy42MDI1NEwxMS42NjYgNy41MzEyNUMxMS41MDggNy40NTA4NyAxMS4yOTYzIDcuMzkzOTUgMTAuOTIwOSA3LjM2MzI4QzEwLjUzNzQgNy4zMzE5NyAxMC4wNDM5IDcuMzMyMDMgOS4zMzMwMSA3LjMzMjAzSDYuNUM1Ljc4ODk2IDcuMzMyMDMgNS4yOTU2MyA3LjMzMTk1IDQuOTEyMTEgNy4zNjMyOEM0LjYzMDE2IDcuMzg2MzIgNC40NDA2NSA3LjQyNDEzIDQuMjk2ODggNy40NzU1OUw0LjE2Njk5IDcuNTMxMjVDMy44NjQ4OCA3LjY4NTE4IDMuNjExODYgNy45MTk2IDMuNDM1NTUgOC4yMDcwM0wzLjM2NTI0IDguMzMzOTlDMy4yODQ3OCA4LjQ5MTk4IDMuMjI3OTUgOC43MDM1MiAzLjE5NzI3IDkuMDc5MUMzLjE2NTk1IDkuNDYyNTkgMy4xNjUwNCA5Ljk1NjExIDMuMTY1MDQgMTAuNjY3VjEzLjVDMy4xNjUwNCAxNC4yMTEgMy4xNjU5MyAxNC43MDQ0IDMuMTk3MjcgMTUuMDg3OUMzLjIyNzk3IDE1LjQ2MzYgMy4yODQ3MyAxNS42NzUgMy4zNjUyNCAxNS44MzNMMy40MzU1NSAxNS45NTlDMy42MTE4NiAxNi4yNDY2IDMuODY0NzQgMTYuNDgwNyA0LjE2Njk5IDE2LjYzNDhMNC4yOTY4OCAxNi42OTE0QzQuNDQwNjMgMTYuNzQyOCA0LjYzMDI1IDE2Ljc3OTcgNC45MTIxMSAxNi44MDI3QzUuMjk1NjMgMTYuODM0MSA1Ljc4ODk2IDE2LjgzNSA2LjUgMTYuODM1SDkuMzMzMDFDMTAuMDQzOSAxNi44MzUgMTAuNTM3NCAxNi44MzQxIDEwLjkyMDkgMTYuODAyN0MxMS4yOTY1IDE2Ljc3MiAxMS41MDggMTYuNzE1MiAxMS42NjYgMTYuNjM0OEwxMS43OTMgMTYuNTY0NUMxMi4wODA0IDE2LjM4ODEgMTIuMzE0OCAxNi4xMzUxIDEyLjQ2ODggMTUuODMzTDEyLjUyNDQgMTUuNzAzMUMxMi41NzU5IDE1LjU1OTQgMTIuNjEzNyAxNS4zNjk4IDEyLjYzNjcgMTUuMDg3OUMxMi42NjgxIDE0LjcwNDQgMTIuNjY4IDE0LjIxMSAxMi42NjggMTMuNVYxMC42NjdaTTEzLjk5OCAxMi42NjVDMTQuNDUyOCAxMi42NjM0IDE0LjgwMTEgMTIuNjYwMiAxNS4wODc5IDEyLjYzNjdDMTUuNDYzNSAxMi42MDYgMTUuNjc1IDEyLjU0OTIgMTUuODMzIDEyLjQ2ODhMMTUuOTU5IDEyLjM5NzVDMTYuMjQ2NiAxMi4yMjExIDE2LjQ4MDggMTEuOTY4MiAxNi42MzQ4IDExLjY2NkwxNi42OTE0IDExLjUzNjFDMTYuNzQyOCAxMS4zOTI0IDE2Ljc3OTcgMTEuMjAyNiAxNi44MDI3IDEwLjkyMDlDMTYuODM0MSAxMC41Mzc0IDE2LjgzNSAxMC4wNDM5IDE2LjgzNSA5LjMzMzAxVjYuNUMxNi44MzUgNS43ODg5NiAxNi44MzQxIDUuMjk1NjMgMTYuODAyNyA0LjkxMjExQzE2Ljc3OTcgNC42MzAyNSAxNi43NDI4IDQuNDQwNjMgMTYuNjkxNCA0LjI5Njg4TDE2LjYzNDggNC4xNjY5OUMxNi40ODA3IDMuODY0NzQgMTYuMjQ2NiAzLjYxMTg2IDE1Ljk1OSAzLjQzNTU1TDE1LjgzMyAzLjM2NTI0QzE1LjY3NSAzLjI4NDczIDE1LjQ2MzYgMy4yMjc5NyAxNS4wODc5IDMuMTk3MjdDMTQuNzA0NCAzLjE2NTkzIDE0LjIxMSAzLjE2NTA0IDEzLjUgMy4xNjUwNEgxMC42NjdDOS45NTYxIDMuMTY1MDQgOS40NjI1OSAzLjE2NTk1IDkuMDc5MSAzLjE5NzI3QzguNzk3MzkgMy4yMjAyOCA4LjYwNzYgMy4yNTcyIDguNDYzODcgMy4zMDg1OUw4LjMzMzk5IDMuMzY1MjRDOC4wMzE3NiAzLjUxOTIzIDcuNzc4ODYgMy43NTM0MyA3LjYwMjU0IDQuMDQxMDJMNy41MzEyNSA0LjE2Njk5QzcuNDUwOCA0LjMyNDk4IDcuMzkzOTcgNC41MzY1NSA3LjM2MzI4IDQuOTEyMTFDNy4zMzk4NSA1LjE5ODkzIDcuMzM1NjIgNS41NDcxOSA3LjMzMzk5IDYuMDAxOTVIOS4zMzMwMUMxMC4wMjIgNi4wMDE5NSAxMC41NzkxIDYuMDAxMzEgMTEuMDI5MyA2LjAzODA5QzExLjQ4NzMgNi4wNzU1MSAxMS44OTM3IDYuMTU0NzEgMTIuMjcwNSA2LjM0NjY4TDEyLjQ4ODMgNi40Njg3NUMxMi45ODQgNi43NzI4IDEzLjM4NzggNy4yMDg1NCAxMy42NTMzIDcuNzI5NDlMMTMuNzE5NyA3Ljg3MjA3QzEzLjg2NDIgOC4yMDg1OSAxMy45MjkyIDguNTY5NzQgMTMuOTYxOSA4Ljk3MDdDMTMuOTk4NyA5LjQyMDkyIDEzLjk5OCA5Ljk3Nzk5IDEzLjk5OCAxMC42NjdWMTIuNjY1Wk0xOC4xNjUgOS4zMzMwMUMxOC4xNjUgMTAuMDIyIDE4LjE2NTcgMTAuNTc5MSAxOC4xMjg5IDExLjAyOTNDMTguMDk2MSAxMS40MzAyIDE4LjAzMTEgMTEuNzkxNCAxNy44ODY3IDEyLjEyNzlMMTcuODIwMyAxMi4yNzA1QzE3LjU1NDkgMTIuNzkxNCAxNy4xNTA5IDEzLjIyNzIgMTYuNjU1MyAxMy41MzEzTDE2LjQzNjUgMTMuNjUzM0MxNi4wNTk5IDEzLjg0NTIgMTUuNjU0MSAxMy45MjQ1IDE1LjE5NjMgMTMuOTYxOUMxNC44NTkzIDEzLjk4OTUgMTQuNDYyNCAxMy45OTM1IDEzLjk5NTEgMTMuOTk1MUMxMy45OTM1IDE0LjQ2MjQgMTMuOTg5NSAxNC44NTkzIDEzLjk2MTkgMTUuMTk2M0MxMy45MjkyIDE1LjU5NyAxMy44NjQgMTUuOTU3NiAxMy43MTk3IDE2LjI5MzlMMTMuNjUzMyAxNi40MzY1QzEzLjM4NzggMTYuOTU3NiAxMi45ODQxIDE3LjM5NDEgMTIuNDg4MyAxNy42OTgyTDEyLjI3MDUgMTcuODIwM0MxMS44OTM3IDE4LjAxMjMgMTEuNDg3MyAxOC4wOTE1IDExLjAyOTMgMTguMTI4OUMxMC41NzkxIDE4LjE2NTcgMTAuMDIyIDE4LjE2NSA5LjMzMzAxIDE4LjE2NUg2LjVDNS44MTA5MSAxOC4xNjUgNS4yNTM5NSAxOC4xNjU3IDQuODAzNzEgMTguMTI4OUM0LjQwMzA2IDE4LjA5NjIgNC4wNDIzNSAxOC4wMzEgMy43MDYwNiAxNy44ODY3TDMuNTYzNDggMTcuODIwM0MzLjA0MjQ0IDE3LjU1NDggMi42MDU4NSAxNy4xNTEgMi4zMDE3NiAxNi42NTUzTDIuMTc5NjkgMTYuNDM2NUMxLjk4Nzg4IDE2LjA1OTkgMS45MDg1MSAxNS42NTQxIDEuODcxMDkgMTUuMTk2M0MxLjgzNDMxIDE0Ljc0NiAxLjgzNDk2IDE0LjE4OTEgMS44MzQ5NiAxMy41VjEwLjY2N0MxLjgzNDk2IDkuOTc4IDEuODM0MzIgOS40MjA5MSAxLjg3MTA5IDguOTcwN0MxLjkwODUxIDguNTEyNyAxLjk4NzcyIDguMTA2MjUgMi4xNzk2OSA3LjcyOTQ5TDIuMzAxNzYgNy41MTE3MkMyLjYwNTg2IDcuMDE1OSAzLjA0MjM2IDYuNjEyMiAzLjU2MzQ4IDYuMzQ2NjhMMy43MDYwNiA2LjI4MDI3QzQuMDQyMzcgNi4xMzYgNC40MDMwMyA2LjA3MDgzIDQuODAzNzEgNi4wMzgwOUM1LjE0MDUxIDYuMDEwNTcgNS41MzcwOCA2LjAwNTUxIDYuMDAzOTEgNi4wMDM5MUM2LjAwNTUxIDUuNTM3MDggNi4wMTA1NyA1LjE0MDUxIDYuMDM4MDkgNC44MDM3MUM2LjA3NTUgNC4zNDU4OCA2LjE1NDgzIDMuOTQwMTIgNi4zNDY2OCAzLjU2MzQ4TDYuNDY4NzUgMy4zNDQ3M0M2Ljc3MjgyIDIuODQ5MTIgNy4yMDg1NiAyLjQ0NTE0IDcuNzI5NDkgMi4xNzk2OUw3Ljg3MjA3IDIuMTEzMjhDOC4yMDg1NSAxLjk2ODg2IDguNTY5NzkgMS45MDM4NSA4Ljk3MDcgMS44NzEwOUM5LjQyMDkxIDEuODM0MzIgOS45NzggMS44MzQ5NiAxMC42NjcgMS44MzQ5NkgxMy41QzE0LjE4OTEgMS44MzQ5NiAxNC43NDYgMS44MzQzMSAxNS4xOTYzIDEuODcxMDlDMTUuNjU0MSAxLjkwODUxIDE2LjA1OTkgMS45ODc4OCAxNi40MzY1IDIuMTc5NjlMMTYuNjU1MyAyLjMwMTc2QzE3LjE1MSAyLjYwNTg1IDE3LjU1NDggMy4wNDI0NCAxNy44MjAzIDMuNTYzNDhMMTcuODg2NyAzLjcwNjA2QzE4LjAzMSA0LjA0MjM1IDE4LjA5NjIgNC40MDMwNiAxOC4xMjg5IDQuODAzNzFDMTguMTY1NyA1LjI1Mzk1IDE4LjE2NSA1LjgxMDkxIDE4LjE2NSA2LjVWOS4zMzMwMVoiIC8+PC9zdmc+
 \[2\]: data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdib3g9IjAgMCAyMCAyMCIgZmlsbD0iY3VycmVudENvbG9yIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGNsYXNzPSJpY29uIj48cGF0aCBkPSJNMTEuMzMxMiAzLjU2ODM3QzEyLjc0ODggMi4yODc1NiAxNC45Mzc2IDIuMzMwMDkgMTYuMzAzOCAzLjY5NjNMMTYuNDMxOCAzLjgzMTA2QzE3LjY3MTIgNS4yMDI5NCAxNy42NzEyIDcuMjk3MDggMTYuNDMxOCA4LjY2ODk1TDE2LjMwMzggOC44MDM3MkwxMC4wMTE4IDE1LjA5NDdDOS42ODgzMyAxNS40MTgyIDkuNDUzNzggMTUuNjU1MyA5LjIyMTc5IDE1Ljg0NTdMOC45ODc0MiAxNi4wMjI1QzguNzgyMjcgMTYuMTYyNiA4LjU2NDIzIDE2LjI4MzIgOC4zMzcwMyAxNi4zODI4TDguMTA3NTMgMTYuNDc1NkM3LjkyNTc2IDE2LjU0MjIgNy43MzgzNiAxNi41OTAyIDcuNTIxNiAxNi42MzQ4TDYuNzU2OTUgMTYuNzcwNUw0LjM2MzM5IDE3LjE2OUM0LjIyMDUzIDE3LjE5MjggNC4wNjkwOCAxNy4yMTg4IDMuOTQwNTQgMTcuMjI4NUMzLjg0MTc3IDE3LjIzNiAzLjcwODI3IDE3LjIzODYgMy41NjI2MSAxNy4yMDMxTDMuNDE0MTcgMTcuMTU0M0MzLjE5MTE1IDE3LjA1ODYgMy4wMDc0MSAxNi44OTA4IDIuODkxNzEgMTYuNjc5N0wyLjg0NTgxIDE2LjU4NTlDMi43NTk1MSAxNi4zODQ2IDIuNzYxNjggMTYuMTkxMiAyLjc3MTYgMTYuMDU5NkMyLjc4MTMgMTUuOTMxIDIuODA3MzYgMTUuNzc5NiAyLjgzMTE3IDE1LjYzNjdMMy4yMjk2IDEzLjI0MzJMMy4zNjQzNyAxMi40Nzg1QzMuNDA4OTMgMTIuMjYxNiAzLjQ1Nzg5IDEyLjA3NDUgMy41MjQ1MyAxMS44OTI2TDMuNjE3MyAxMS42NjIxQzMuNzE2ODUgMTEuNDM1MiAzLjgzNzY2IDExLjIxNzYgMy45Nzc2NSAxMS4wMTI3TDQuMTUzNDMgMTAuNzc4M0M0LjM0Mzg2IDEwLjU0NjIgNC41ODE2NCAxMC4zMTIgNC45MDUzOCA5Ljk4ODI5TDExLjE5NjQgMy42OTYzTDExLjMzMTIgMy41NjgzN1pNNS44NDU4MSAxMC45Mjg3QzUuNDk2NjQgMTEuMjc3OSA1LjMxMjUyIDExLjQ2MzQgNS4xODY2MyAxMS42MTYyTDUuMDc1MzEgMTEuNzYyN0M0Ljk4MTg4IDExLjg5OTUgNC45MDE1MSAxMi4wNDQ4IDQuODM1MDcgMTIuMTk2M0w0Ljc3MzU1IDEyLjM1MDZDNC43MzMyMSAxMi40NjA3IDQuNzAyNDIgMTIuNTc2MSA0LjY2ODA4IDEyLjc0NTFMNC41NDExMyAxMy40NjE5TDQuMTQyNjkgMTUuODU1NUw0LjE0MTcxIDE1Ljg1NzRINC4xNDQ2NEw2LjUzODIgMTUuNDU4TDcuMjU0OTkgMTUuMzMyQzcuNDI0IDE1LjI5NzcgNy41Mzk0IDE1LjI2NjkgNy42NDk1MyAxNS4yMjY2TDcuODAyODUgMTUuMTY1QzcuOTU0NTUgMTUuMDk4NiA4LjA5OTQ3IDE1LjAxNzQgOC4yMzY0NCAxNC45MjM4TDguMzgzOSAxNC44MTM1QzguNTM2NjggMTQuNjg3NiA4LjcyMjI1IDE0LjUwMzUgOS4wNzE0IDE0LjE1NDNMMTQuMDU4NyA5LjE2NjAyTDEwLjgzMzEgNS45NDA0NEw1Ljg0NTgxIDEwLjkyODdaTTE1LjM2MzQgNC42MzY3M0MxNC41MjgxIDMuODAxNDEgMTMuMjA1NyAzLjc0OTM4IDEyLjMwOTcgNC40ODA0OEwxMi4xMzY4IDQuNjM2NzNMMTEuNzczNSA1LjAwMDAxTDE1LjAwMDEgOC4yMjU1OUwxNS4zNjM0IDcuODYzMjlMMTUuNTE5NiA3LjY4OTQ2QzE2LjIwMTUgNi44NTMyNiAxNi4yMDE1IDUuNjQ2NzYgMTUuNTE5NiA0LjgxMDU2TDE1LjM2MzQgNC42MzY3M1oiIC8+PC9zdmc+

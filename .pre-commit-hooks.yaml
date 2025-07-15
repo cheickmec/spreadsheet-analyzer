@@ -1,0 +1,8 @@
+-   id: check-and-fix-encoding
+    name: Check and fix file encoding
+    description: Check file encoding and convert to UTF-8 if necessary
+    entry: uv run tools/fix_encoding.py
+    language: system
+    files: '\.md$'
+    pass_filenames: true
+    args: []

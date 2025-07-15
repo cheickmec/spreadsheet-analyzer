@@ -8,7 +8,7 @@ of successes, failures, and insights found.
 """
 
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add src to path for development
@@ -16,12 +16,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from spreadsheet_analyzer.test_pipeline import run_pipeline_tests
 
+# Constants
+SUCCESS_RATE_THRESHOLD = 80
+
 
 def main():
     """Run all tests and generate report."""
     project_root = Path(__file__).parent
     test_dir = project_root / "test-files"
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     output_file = project_root / f"test_results_{timestamp}.json"
 
     print("\n" + "=" * 80)
@@ -29,7 +32,7 @@ def main():
     print("=" * 80)
     print(f"\nTest directory: {test_dir}")
     print(f"Output file: {output_file}")
-    print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Started at: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Run tests
     results = run_pipeline_tests(test_dir, output_file)
@@ -48,7 +51,7 @@ def main():
     if results.summary["errors"]:
         print(f"\n⚠️  Found {len(results.summary['errors'])} errors:")
         # Group errors by type
-        error_types = {}
+        error_types: dict[str, int] = {}
         for error_info in results.summary["errors"]:
             error_msg = error_info["error"]
             error_type = error_msg.split(":")[0] if ":" in error_msg else "Unknown"
@@ -61,7 +64,7 @@ def main():
         print(f"\n💡 Generated {len(results.summary['insights'])} insights")
 
         # Count by severity
-        severity_counts = {}
+        severity_counts: dict[str, int] = {}
         for insight in results.summary["insights"]:
             severity = insight["severity"]
             severity_counts[severity] = severity_counts.get(severity, 0) + 1
@@ -71,10 +74,10 @@ def main():
                 print(f"   - {severity}: {severity_counts[severity]} insights")
 
     print(f"\n📊 Report saved to: {output_file}")
-    print(f"\nCompleted at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"\nCompleted at: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Return exit code based on success
-    return 0 if success_rate > 80 else 1
+    return 0 if success_rate > SUCCESS_RATE_THRESHOLD else 1
 
 
 if __name__ == "__main__":

@@ -2,11 +2,11 @@ ______________________________________________________________________
 
 ## name: Security Report about: Report a security vulnerability (use security@example.com for sensitive issues) title: '[SECURITY] ' labels: ['security', 'needs-triage'] assignees: ''
 
-# 🔒 Security Report
+# ğŸ”’ Security Report
 
-> ⚠️ **Important**: If this is a critical security vulnerability that could be exploited, please DO NOT create a public issue. Instead, email security@yiriden.com with details.
+> âš ï¸� **Important**: If this is a critical security vulnerability that could be exploited, please DO NOT create a public issue. Instead, email security@yiriden.com with details.
 
-## 📋 Vulnerability Type
+## ğŸ“‹ Vulnerability Type
 
 - [ ] **Input Validation**: Improper validation of Excel files
 - [ ] **Code Execution**: Unauthorized code execution
@@ -15,11 +15,11 @@ ______________________________________________________________________
 - [ ] **Dependency**: Vulnerable dependency
 - [ ] **Other**: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
 
-## 🔍 Description
+## ğŸ”� Description
 
 <!-- Describe the security issue -->
 
-## 🎯 Impact
+## ğŸ�¯ Impact
 
 ### Severity Assessment
 
@@ -36,7 +36,7 @@ Using [CVSS v3.1](https://www.first.org/cvss/calculator/3.1):
 
 **Estimated CVSS Score**: [0.0-10.0]
 
-## 🔄 Steps to Reproduce
+## ğŸ”„ Steps to Reproduce
 
 <!-- Only if safe to disclose publicly -->
 
@@ -44,7 +44,7 @@ Using [CVSS v3.1](https://www.first.org/cvss/calculator/3.1):
 1.
 1.
 
-## 🛡️ Proof of Concept
+## ğŸ›¡ï¸� Proof of Concept
 
 <!-- Only include if safe and necessary -->
 
@@ -52,22 +52,22 @@ Using [CVSS v3.1](https://www.first.org/cvss/calculator/3.1):
 # Minimal code to demonstrate the issue
 ```
 
-## 🚫 Attack Scenarios
+## ğŸš« Attack Scenarios
 
 <!-- How could this be exploited? -->
 
-## ✅ Suggested Fix
+## âœ… Suggested Fix
 
 <!-- If you have suggestions for fixing -->
 
-## 🔍 Affected Versions
+## ğŸ”� Affected Versions
 
 - [ ] Latest version
 - [ ] Version: \_\_\_\_\_\_\_
 - [ ] All versions
 - [ ] Unknown
 
-## 📊 Affected Components
+## ğŸ“Š Affected Components
 
 - [ ] File Parser
 - [ ] Formula Analyzer
@@ -77,11 +77,11 @@ Using [CVSS v3.1](https://www.first.org/cvss/calculator/3.1):
 - [ ] Dependencies
 - [ ] Other: \_\_\_\_\_\_\_
 
-## 🛡️ Workarounds
+## ğŸ›¡ï¸� Workarounds
 
 <!-- Any temporary mitigations -->
 
-## 📋 Checklist
+## ğŸ“‹ Checklist
 
 - [ ] I've checked this isn't already reported
 - [ ] I've considered if this should be reported privately
