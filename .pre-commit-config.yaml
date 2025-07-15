@@ -62,7 +62,6 @@ repos:
       # Run the linter
       - id: ruff
         args: ['--fix', '--exit-non-zero-on-fix']
-        exclude: 'src/spreadsheet_analyzer/pipeline/pipeline\.py|src/spreadsheet_analyzer/test_pipeline\.py'
       # Run the formatter
       - id: ruff-format
 
@@ -71,7 +70,7 @@ repos:
     rev: v1.16.1
     hooks:
       - id: mypy
-        additional_dependencies: []  # Add your project dependencies here if needed
+        additional_dependencies: ['types-openpyxl>=3.1.0.20240311', 'types-defusedxml>=0.7.0.20240218']
         args: ['--ignore-missing-imports', '--no-strict-optional']
 
   # Security scanning with bandit
