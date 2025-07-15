@@ -13,19 +13,19 @@ from pathlib import Path
 import chardet
 
 
-def detect_encoding(file_path: Path) -> str:
+def detect_encoding(file_path: Path) -> str | None:
     """Detect the encoding of a file."""
     try:
         with open(file_path, "rb") as f:
             raw_data = f.read()
             result = chardet.detect(raw_data)
-            encoding = result["encoding"]
-            confidence = result["confidence"]
+            encoding = result.get("encoding")
+            confidence = result.get("confidence", 0.0)
 
             print(f"File: {file_path}")
             print(f"  Detected encoding: {encoding} (confidence: {confidence:.2f})")
 
-            return encoding
+            return str(encoding) if encoding else None
     except Exception as e:
         print(f"Error detecting encoding for {file_path}: {e}")
         return None
