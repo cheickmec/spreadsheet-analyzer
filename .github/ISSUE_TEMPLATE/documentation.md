@@ -2,9 +2,9 @@ ______________________________________________________________________
 
 ## name: Documentation Issue about: Report missing, incorrect, or unclear documentation title: '[DOCS] ' labels: ['documentation', 'good first issue'] assignees: ''
 
-# ğŸ“š Documentation Issue
+# 📚 Documentation Issue
 
-## ğŸ“‹ Type of Issue
+## 📋 Type of Issue
 
 - [ ] **Missing**: Documentation doesn't exist for this topic
 - [ ] **Incorrect**: Documentation contains errors
@@ -12,7 +12,7 @@ ______________________________________________________________________
 - [ ] **Outdated**: Documentation doesn't match current behavior
 - [ ] **Example**: Need better examples or use cases
 
-## ğŸ“� Location
+## 📍 Location
 
 <!-- Where is the documentation issue? -->
 
@@ -20,7 +20,7 @@ ______________________________________________________________________
 - **Section**: [e.g., Installation, API Reference]
 - **Link**: [if applicable]
 
-## ğŸ”� Description
+## 🔍 Description
 
 <!-- Describe the documentation issue -->
 
@@ -59,7 +59,7 @@ ______________________________________________________________________
 - [ ] **Administrators**: Affects deployment or configuration
 - [ ] **All Users**: General documentation issue
 
-## ğŸ“‹ Related Documentation
+## 📋 Related Documentation
 
 <!-- Other documentation that might need updating -->
 

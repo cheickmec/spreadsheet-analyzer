@@ -1,4 +1,4 @@
-## ğŸ“‹ Description
+## 🔍 Description
 
 **What changed?**
 
@@ -12,20 +12,20 @@
 
 <!-- Provide a high-level overview of your approach -->
 
-## ğŸ“„ Type of Change
+## 📜 Type of Change
 
 - [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
 - [ ] âœ¨ New feature (non-breaking change which adds functionality)
 - [ ] ğŸ’¥ Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] ğŸ“š Documentation update
+- [ ] 📚 Documentation update
 - [ ] â™»️ Refactoring (no functional changes)
 - [ ] ⚡ Performance improvement
 - [ ] ✅ Tests (adding missing tests or correcting existing tests)
-- [ ] ğŸ”§ Build/CI configuration
+- [ ] 🛠️ Build/CI configuration
 - [ ] ğŸ�¨ Style (formatting, missing semi-colons, etc; no code change)
-- [ ] ğŸ”’ Security fix
+- [ ] 🔐 Security fix
 
-## ğŸ§ª Testing
+## 🧪 Testing
 
 ### Test Coverage
 
@@ -44,7 +44,7 @@
 - [ ] Tested with complex Excel features (formulas, charts, etc.)
 - [ ] Tested error scenarios
 
-## ğŸ“Š Performance Impact
+## 📊 Performance Impact
 
 <!-- How does this change affect performance? -->
 
@@ -62,7 +62,7 @@
 | Memory usage              |        |       |        |
 | Token usage (AI)          |        |       |        |
 
-## ğŸ”’ Security Considerations
+## 🔐 Security Considerations
 
 - [ ] Input validation added/updated
 - [ ] No sensitive data logged
@@ -70,7 +70,7 @@
 - [ ] Dependencies scanned for vulnerabilities
 - [ ] Security tests added/updated
 
-## ğŸ“š Documentation
+## 📚 Documentation
 
 - [ ] Code includes appropriate comments
 - [ ] Docstrings added/updated for new functions
@@ -138,7 +138,7 @@ Related to #
 - [ ] Configuration changes needed: \_\_\_\_\_\_\_
 - [ ] Database migrations needed: \_\_\_\_\_\_\_
 
-## ğŸ‘€ Reviewer Guidelines
+## 👀 Reviewer Guidelines
 
 ### Focus Areas
 

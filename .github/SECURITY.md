@@ -1,6 +1,6 @@
 # Security Policy
 
-## ğŸ”’ Overview
+## 🔐 Overview
 
 The Spreadsheet Analyzer is a proprietary product of Yiriden LLC that processes potentially sensitive Excel files and must maintain strict security standards. This document outlines our security policies, procedures, and best practices.
 
@@ -153,7 +153,7 @@ security:
   quarantine_suspicious: true
 ```
 
-## ğŸ“Š Security Audit Schedule
+## 📊 Security Audit Schedule
 
 - **Weekly**: Dependency vulnerability scans
 - **Monthly**: Code security review

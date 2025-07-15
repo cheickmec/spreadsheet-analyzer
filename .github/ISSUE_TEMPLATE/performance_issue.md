@@ -4,11 +4,11 @@ ______________________________________________________________________
 
 # ⚡ Performance Issue
 
-## ğŸ“‹ Description
+## 📋 Description
 
 <!-- Describe the performance issue you're experiencing -->
 
-## ğŸ“Š File Characteristics
+## 📊 File Characteristics
 
 - **File Size**: [e.g., 50MB]
 - **Number of Sheets**: [e.g., 100]
@@ -23,7 +23,7 @@ ______________________________________________________________________
   - [ ] Data Validation Rules
   - [ ] Conditional Formatting
 
-## â�±️ Performance Metrics
+## ⏱️ Performance Metrics
 
 ### Observed Performance
 
@@ -39,7 +39,7 @@ Based on the [performance targets](../../docs/design/comprehensive-system-design
 - Basic Analysis (< 10 sheets, < 10K cells): < 5 seconds
 - Deep AI Analysis (< 50 sheets, < 100K cells): < 30 seconds
 
-## ğŸ”� Analysis Details
+## 🔍 Analysis Details
 
 ### Command Used
 
@@ -60,7 +60,7 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - [ ] Report generation
 - [ ] Unknown
 
-## ğŸ–¥️ System Information
+## 🖥️ System Information
 
 - **OS**: [e.g., macOS 14.0 on M2 Max]
 - **CPU**: [e.g., Apple M2 Max, Intel i9-12900K]
@@ -70,7 +70,7 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - **Running in Docker**: Yes/No
 - **Other Running Applications**: [anything consuming significant resources]
 
-## ğŸ“Š Profiling Data
+## 📊 Profiling Data
 
 <!-- If possible, run with profiling enabled -->
 
@@ -94,14 +94,14 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 
 </details>
 
-## ğŸ”„ Reproducibility
+## 🔄 Reproducibility
 
 - [ ] Issue occurs consistently
 - [ ] Issue occurs intermittently
 - [ ] Issue occurs only with specific files
 - [ ] Issue occurs after extended usage
 
-## ğŸ“� Sample File
+## 📎 Sample File
 
 <!-- Can you provide a file that demonstrates the issue? -->
 
@@ -120,11 +120,11 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - [ ] Increasing system resources
 - [ ] Other: \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
 
-## ğŸ’¡ Suggestions
+## 💡 Suggestions
 
 <!-- Any ideas for performance improvements? -->
 
-## ğŸ“‹ Checklist
+## 📋 Checklist
 
 - [ ] I've checked that I'm using the latest version
 - [ ] I've reviewed the performance documentation
