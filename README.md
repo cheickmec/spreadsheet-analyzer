@@ -15,13 +15,13 @@ Spreadsheet Analyzer is an intelligent system that automatically analyzes Excel 
 ### Key Features
 
 - 📌 **Deep Structural Analysis**: Maps every element from cells to pivot tables
-- ÄŸÅ¸Â§Â  **AI-Powered Intelligence**: Multi-agent system for semantic understanding
-- âœ… **Validation-First**: Verifies all findings through actual calculations
-- ğŸš€ **High Performance**: Analyzes files in seconds, not minutes
-- ÄŸÅ¸â€�â€™ **Enterprise Security**: Sandboxed execution with comprehensive audit trails
+- 🏗️Â§Â  **AI-Powered Intelligence**: Multi-agent system for semantic understanding
+- ✅ **Validation-First**: Verifies all findings through actual calculations
+- 🚀 **High Performance**: Analyzes files in seconds, not minutes
+- 🔐 **Enterprise Security**: Sandboxed execution with comprehensive audit trails
 - ğŸ“Š **Comprehensive Reporting**: Detailed insights in multiple formats
 
-## ğŸš€ Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
@@ -89,7 +89,7 @@ uv run python scripts/run_test_suite.py
 - Security vulnerability scanning
 - Performance bottleneck identification
 
-## ğŸ�—ï¸� Architecture
+## 🏗️ Architecture
 
 The system implements a 5-stage deterministic analysis pipeline with hybrid FP/OOP design:
 
@@ -136,20 +136,20 @@ uv run pre-commit run --all-files
 
 ```
 spreadsheet-analyzer/
-Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ src/spreadsheet_analyzer/     # Main application code
-Ã¢â€�   Ã¢â€�â€�Ã¢â€�â‚¬Ã¢â€�â‚¬ pipeline/                 # 5-stage analysis pipeline
-Ã¢â€�       Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ stages/               # Individual stage implementations
-Ã¢â€�       Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ types.py              # Immutable data structures
-Ã¢â€�       Ã¢â€�â€�Ã¢â€�â‚¬Ã¢â€�â‚¬ pipeline.py           # Main orchestrator
-Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ scripts/                      # Analysis utilities
-Ã¢â€�   Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ analyze_excel.py          # Single file analyzer
-Ã¢â€�   Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ batch_analyze.py          # Batch processing
-Ã¢â€�   Ã¢â€�â€�Ã¢â€�â‚¬Ã¢â€�â‚¬ run_test_suite.py         # Comprehensive testing
-Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ test-files/                   # Example Excel files
-Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ tests/                        # Test suite
-Ã¢â€�â€�Ã¢â€�â‚¬Ã¢â€�â‚¬ docs/                         # Documentation
-    Ã¢â€�Å“Ã¢â€�â‚¬Ã¢â€�â‚¬ design/                   # System design documents
-    Ã¢â€�â€�Ã¢â€�â‚¬Ã¢â€�â‚¬ research/                 # AI/LLM research
+│Å“── src/spreadsheet_analyzer/     # Main application code
+│   │└── pipeline/                 # 5-stage analysis pipeline
+│       │Å“── stages/               # Individual stage implementations
+│       │Å“── types.py              # Immutable data structures
+│       │└── pipeline.py           # Main orchestrator
+│Å“── scripts/                      # Analysis utilities
+│   │Å“── analyze_excel.py          # Single file analyzer
+│   │Å“── batch_analyze.py          # Batch processing
+│   │└── run_test_suite.py         # Comprehensive testing
+│Å“── test-files/                   # Example Excel files
+│Å“── tests/                        # Test suite
+│└── docs/                         # Documentation
+    │Å“── design/                   # System design documents
+    │└── research/                 # AI/LLM research
 ```
 
 ## ğŸ“š Documentation
@@ -159,7 +159,7 @@ spreadsheet-analyzer/
 - **[Script Usage](scripts/README.md)**: Guide to analysis utilities
 - **[Contributing](CONTRIBUTING.md)**: Development practices and testing philosophy
 
-## âš¡ Performance
+## ⚡ Performance
 
 Designed for enterprise-scale analysis:
 
@@ -178,7 +178,7 @@ Designed for enterprise-scale analysis:
 - **Audit Logging**: Complete trail of all operations
 - **Data Privacy**: No data persistence without explicit consent
 
-## ğŸ¤� Contributing
+## 🤝 Contributing
 
 This is proprietary software owned by Yiriden LLC. External contributions require:
 

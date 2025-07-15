@@ -4,7 +4,7 @@
 
 The Spreadsheet Analyzer is a proprietary product of Yiriden LLC that processes potentially sensitive Excel files and must maintain strict security standards. This document outlines our security policies, procedures, and best practices.
 
-## ğŸ›¡ï¸� Supported Versions
+## ğŸ›¡️ Supported Versions
 
 We provide security updates for the following versions:
 
@@ -91,7 +91,7 @@ All code execution occurs within sandboxed Jupyter kernels with:
 - Dependabot monitors for security updates
 - Security updates are prioritized and fast-tracked
 
-## ğŸ› ï¸� Security Best Practices
+## ğŸ› ️ Security Best Practices
 
 ### For Contributors
 
@@ -160,7 +160,7 @@ security:
 - **Quarterly**: Full security audit
 - **Annually**: Third-party security assessment
 
-## ğŸš€ Security Roadmap
+## 🚀 Security Roadmap
 
 ### Planned Enhancements
 

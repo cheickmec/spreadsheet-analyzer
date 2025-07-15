@@ -4,7 +4,7 @@ ______________________________________________________________________
 
 # âœ¨ Feature Request
 
-## ğŸ�¯ Problem Statement
+## 🎯 Problem Statement
 
 <!-- Describe the problem or limitation you're facing -->
 
@@ -28,7 +28,7 @@ ______________________________________________________________________
 1.
 1.
 
-## ğŸš€ Benefits
+## 🚀 Benefits
 
 <!-- How would this feature benefit users? -->
 
@@ -81,7 +81,7 @@ ______________________________________________________________________
 - [ ] **Medium**: Nice to have, would use if available
 - [ ] **Low**: Interesting but not urgent
 
-## ğŸ¤� Contribution
+## 🤝 Contribution
 
 <!-- Are you willing to help implement this feature? -->
 

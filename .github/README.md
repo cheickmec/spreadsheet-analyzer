@@ -32,7 +32,7 @@ This directory contains GitHub-specific configuration files for the Spreadsheet 
 â””â”€â”€ README.md               # This file
 ```
 
-## ğŸš€ Workflows
+## 🚀 Workflows
 
 ### CI/CD Pipeline (`ci.yml`)
 
@@ -85,7 +85,7 @@ Templates provided for:
 - Security vulnerabilities
 - General questions
 
-## ğŸ¤� Contributing
+## 🤝 Contributing
 
 The PR template ensures:
 

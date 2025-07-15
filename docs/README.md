@@ -10,11 +10,11 @@ This directory contains comprehensive documentation for building intelligent spr
 
 A comprehensive, unified guide (318KB, 3,725 lines) that provides both theoretical foundations and practical implementation strategies for building sophisticated AI-powered spreadsheet analysis systems. This guide features:
 
-- ğŸ�—ï¸� **5 Enhanced Mermaid Diagrams**: Visual architecture representations
+- 🏗️ **5 Enhanced Mermaid Diagrams**: Visual architecture representations
 - ğŸ“Š **Complete Chapter Coverage**: From fundamentals to production deployment
 - ğŸ”§ **Practical Examples**: Real Python implementations and code samples
-- ğŸ�¯ **Domain-Specific Focus**: Specialized guidance for spreadsheet/Excel analysis
-- ğŸš€ **Production-Ready Strategies**: Security, optimization, and scaling considerations
+- 🎯 **Domain-Specific Focus**: Specialized guidance for spreadsheet/Excel analysis
+- 🚀 **Production-Ready Strategies**: Security, optimization, and scaling considerations
 
 **[The Complete Guide to Excel File Anatomy, Security, and Ecosystem](./complete-guide/excel-file-anatomy-security-ecosystem.md)**
 
@@ -22,9 +22,9 @@ An exhaustive technical reference (50+ pages, 17 chapters) covering every aspect
 
 - ğŸ“Œ **File Format Mastery**: XLSX, XLS, XLSM deep dive with technical specifications
 - ğŸ”’ **Security Framework**: Comprehensive threat analysis and mitigation strategies
-- ğŸ�—ï¸� **Internal Architecture**: ZIP containers, XML schemas, binary structures
-- âš¡ **Performance Optimization**: Memory management, streaming parsers, edge cases
-- ğŸŒ� **Ecosystem Analysis**: Competitors, alternatives, compatibility challenges
+- 🏗️ **Internal Architecture**: ZIP containers, XML schemas, binary structures
+- ⚡ **Performance Optimization**: Memory management, streaming parsers, edge cases
+- 🌐 **Ecosystem Analysis**: Competitors, alternatives, compatibility challenges
 
 ### ğŸ”¬ [Research Documentation](./research/)
 
@@ -36,30 +36,30 @@ Detailed research covering the latest developments in LLM agentic systems with s
 1. **[Implementation & Optimization](./research/4-implementation-optimization/)**
 1. **[Broader Considerations](./research/5-broader-considerations/)**
 
-## ğŸ�¯ Quick Navigation
+## 🎯 Quick Navigation
 
 ### For Different Audiences:
 
-**ğŸ�—ï¸� Architects & System Designers**
+**🏗️ Architects & System Designers**
 â†’ Start with [Complete Implementation Guide](./complete-guide/building-intelligent-spreadsheet-analyzers.md) Chapter 3: Workflow and Orchestration
 
-**ğŸ‘¨â€�ğŸ’» Developers & Engineers**
-Ã¢â€ â€™ Begin with [Complete Implementation Guide](./complete-guide/building-intelligent-spreadsheet-analyzers.md) Chapter 1: LLM and Agentic Fundamentals
+**👨‍💻 Developers & Engineers**
+Ã¢â€ ' Begin with [Complete Implementation Guide](./complete-guide/building-intelligent-spreadsheet-analyzers.md) Chapter 1: LLM and Agentic Fundamentals
 
 **ğŸ“Š Product Managers & Business**
-Ã¢â€ â€™ Review [Complete Implementation Guide](./complete-guide/building-intelligent-spreadsheet-analyzers.md) Chapter 5: Broader Considerations
+Ã¢â€ ' Review [Complete Implementation Guide](./complete-guide/building-intelligent-spreadsheet-analyzers.md) Chapter 5: Broader Considerations
 
 **ğŸ“Œ Researchers & Deep-Dive Analysis**
-Ã¢â€ â€™ Explore [Research Documentation](./research/) for latest papers and detailed technical analysis
+Ã¢â€ ' Explore [Research Documentation](./research/) for latest papers and detailed technical analysis
 
 ## ğŸ“ˆ Implementation Roadmap
 
 Based on this documentation, the recommended development path:
 
 1. **ğŸ“– Study**: Read the Complete Implementation Guide (Chapters 1-2)
-1. **ğŸ�—ï¸� Architecture**: Design system using Chapter 3 orchestration patterns
+1. **🏗️ Architecture**: Design system using Chapter 3 orchestration patterns
 1. **ğŸ”§ Build**: Implement using Chapter 4 optimization strategies
-1. **ğŸš€ Deploy**: Apply Chapter 5 production considerations
+1. **🚀 Deploy**: Apply Chapter 5 production considerations
 1. **ğŸ”¬ Enhance**: Leverage research docs for advanced capabilities
 
 ## ğŸ“„ Content Relationship

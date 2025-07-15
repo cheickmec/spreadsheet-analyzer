@@ -161,7 +161,7 @@ Explorers should stay deterministic---hashing, format sniffing, security checks-
 | \------------------------- | ------------------------------------------------ | -------------- | ----- | ---------------------------------------------------------------------------------- |
 | **Stage-0 â†’ 2 Explorers** | hash, MIME, provider hints, macro flags | ✅ | ❌ | Already implemented in prototype; filename/MIME heuristics feed confidence scores |
 | **Structural Parsers** | enumerate sheets, tables, ranges, pages | ✅ | ❌ | Use openpyxl, pdfplumber, Tika etc. |
-| **LLM Agents (Stage-4+)** | classification, code generation, fact extraction | âš ï¸� | ✅ | Run via Tool Bus with guard-rails & policy layer |
+| **LLM Agents (Stage-4+)** | classification, code generation, fact extraction | âš ️ | ✅ | Run via Tool Bus with guard-rails & policy layer |
 | **FileCard Builder** | merge raw text, AI summaries, key facts | Mixed | Mixed | See FileCard entity spec |
 
 ### Why keep explorers deterministic?
@@ -709,13 +709,13 @@ ______________________________________________________________________
 ### ## What Makes This Design Superior
 
 ðŸ§  **The "Digital Workbench" (Jupyter Notebook Sandbox)** This is a brilliant and practical evolution of the generic "sandbox" concept. Using a notebook as the agent's workspace provides a **stateful, auditable, and iterative environment**. The agent isn't just processing data; it's performing an investigation, and the notebook serves as its lab notes. Capturing the output of each step creates a perfect "chain of thought" that can be reviewed for accuracy and debugging.
-ðŸ› ï¸� **Robust & Realistic Failure Handling** The proposal to have the LLM *edit* a failing code cell and document the error is a massive step forward. This mimics how a human developer works. It's a **self-correcting mechanism** that builds resilience and provides invaluable context on the data's quirks (e.g., "column 'X' contained zeros, which I handled by..."). This is far better than a simple pass/fail.
+ðŸ› ️ **Robust & Realistic Failure Handling** The proposal to have the LLM *edit* a failing code cell and document the error is a massive step forward. This mimics how a human developer works. It's a **self-correcting mechanism** that builds resilience and provides invaluable context on the data's quirks (e.g., "column 'X' contained zeros, which I handled by..."). This is far better than a simple pass/fail.
 ðŸ¤� **Hybrid Agent Workflow (Concurrent + Sequential)** The "one agent per sheet" model is a natural and highly effective way to parallelize the workload. It maps the agent architecture directly to the problem's structure (a workbook with multiple sheets).
 
 - **Parallel Processing:** Agents analyze their respective sheets concurrently, drastically speeding up the analysis of large workbooks.
 - **Targeted Communication:** Allowing agents to query each other about cross-sheet references is essential. An agent analyzing a `SUMIF` formula that points to another sheet *must* be able to get information from the agent responsible for that sheet.
 - **Centralized Synthesis:** The final Orchestrator elegantly consolidates the parallel work into a single, coherent report.
-  ðŸ•µï¸� **Emphasis on "Skeptical Verification"** The principle that the agent must *verify* any initial context rather than trust it is critical for building a reliable tool. This prevents the system from being misled by outdated or intentionally false information, forcing it to base its conclusions on the actual data at hand.
+  🕵️ **Emphasis on "Skeptical Verification"** The principle that the agent must *verify* any initial context rather than trust it is critical for building a reliable tool. This prevents the system from being misled by outdated or intentionally false information, forcing it to base its conclusions on the actual data at hand.
 
 ______________________________________________________________________
 
