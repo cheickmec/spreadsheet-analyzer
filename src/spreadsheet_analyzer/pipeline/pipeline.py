@@ -6,7 +6,10 @@ including progress tracking, error handling, and result aggregation.
 """
 
 import logging
+import platform
+import signal
 from collections.abc import Callable
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -19,6 +22,52 @@ from spreadsheet_analyzer.pipeline.stages.stage_4_content import stage_4_content
 from spreadsheet_analyzer.pipeline.types import Err, PipelineContext, PipelineResult, ProgressUpdate, Result
 
 logger = logging.getLogger(__name__)
+
+
+# ==================== Timeout Handling ====================
+
+
+class StageTimeoutError(Exception):
+    """Raised when a stage execution times out."""
+
+
+def _timeout_handler(signum, frame):  # noqa: ARG001
+    """Signal handler for timeout."""
+    raise StageTimeoutError
+
+
+@contextmanager
+def timeout(seconds: int):
+    """
+    Context manager for setting execution timeout.
+
+    CLAUDE-KNOWLEDGE: Uses signal-based timeout on Unix, falls back
+    to no timeout on Windows (threading approach would be complex).
+    """
+    if seconds <= 0:
+        # No timeout
+        yield
+        return
+
+    # Check if we're on a Unix-like system
+    if platform.system() == "Windows":
+        # On Windows, we don't implement timeout for now
+        # A proper implementation would require threading
+        logger.warning("Stage timeouts not supported on Windows platform")
+        yield
+        return
+
+    # Set up signal handler for Unix-like systems
+    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(seconds)
+
+    try:
+        yield
+    finally:
+        # Restore previous handler and cancel alarm
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
 
 # ==================== Progress Tracking ====================
 
@@ -275,43 +324,63 @@ class DeterministicPipeline:
         return True
 
     def _run_stage_0(self, file_path: Path) -> Result:
-        """Run Stage 0 with error handling."""
+        """Run Stage 0 with error handling and timeout."""
         try:
-            return stage_0_integrity_probe(file_path)
+            with timeout(self.stage_timeout):
+                return stage_0_integrity_probe(file_path)
+        except StageTimeoutError:
+            logger.exception("Stage 0 timed out after %d seconds", self.stage_timeout)
+            return Err(f"Stage 0 timed out after {self.stage_timeout} seconds")
         except Exception as e:
             logger.exception("Stage 0 failed")
             return Err(f"Stage 0 exception: {e!s}")
 
     def _run_stage_1(self, file_path: Path) -> Result:
-        """Run Stage 1 with error handling."""
+        """Run Stage 1 with error handling and timeout."""
         try:
-            scan_options = self.options.get("security_scan_options")
-            return stage_1_security_scan(file_path, scan_options)
+            with timeout(self.stage_timeout):
+                scan_options = self.options.get("security_scan_options")
+                return stage_1_security_scan(file_path, scan_options)
+        except StageTimeoutError:
+            logger.exception("Stage 1 timed out after %d seconds", self.stage_timeout)
+            return Err(f"Stage 1 timed out after {self.stage_timeout} seconds")
         except Exception as e:
             logger.exception("Stage 1 failed")
             return Err(f"Stage 1 exception: {e!s}")
 
     def _run_stage_2(self, file_path: Path, *, has_vba: bool, has_external: bool) -> Result:
-        """Run Stage 2 with error handling."""
+        """Run Stage 2 with error handling and timeout."""
         try:
-            return stage_2_structural_mapping(file_path, has_vba=has_vba, has_external_links=has_external)
+            with timeout(self.stage_timeout):
+                return stage_2_structural_mapping(file_path, has_vba=has_vba, has_external_links=has_external)
+        except StageTimeoutError:
+            logger.exception("Stage 2 timed out after %d seconds", self.stage_timeout)
+            return Err(f"Stage 2 timed out after {self.stage_timeout} seconds")
         except Exception as e:
             logger.exception("Stage 2 failed")
             return Err(f"Stage 2 exception: {e!s}")
 
     def _run_stage_3(self, file_path: Path) -> Result:
-        """Run Stage 3 with error handling."""
+        """Run Stage 3 with error handling and timeout."""
         try:
-            return stage_3_formula_analysis(file_path)
+            with timeout(self.stage_timeout):
+                return stage_3_formula_analysis(file_path)
+        except StageTimeoutError:
+            logger.exception("Stage 3 timed out after %d seconds", self.stage_timeout)
+            return Err(f"Stage 3 timed out after {self.stage_timeout} seconds")
         except Exception as e:
             logger.exception("Stage 3 failed")
             return Err(f"Stage 3 exception: {e!s}")
 
     def _run_stage_4(self, file_path: Path) -> Result:
-        """Run Stage 4 with error handling."""
+        """Run Stage 4 with error handling and timeout."""
         try:
-            sample_size = self.options.get("content_sample_size", 1000)
-            return stage_4_content_intelligence(file_path, sample_size)
+            with timeout(self.stage_timeout):
+                sample_size = self.options.get("content_sample_size", 1000)
+                return stage_4_content_intelligence(file_path, sample_size)
+        except StageTimeoutError:
+            logger.exception("Stage 4 timed out after %d seconds", self.stage_timeout)
+            return Err(f"Stage 4 timed out after {self.stage_timeout} seconds")
         except Exception as e:
             logger.exception("Stage 4 failed")
             return Err(f"Stage 4 exception: {e!s}")
