@@ -1293,7 +1293,7 @@ The final architecture keeps *exploration deterministic* and *interpretation age
 
 ______________________________________________________________________
 
-## 1  High-level layers
+## 1 High-level layers
 
 Stage Responsibility Key tech / library
 
@@ -1309,7 +1309,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 2  Deterministic explorers (Stage 2)
+## 2 Deterministic explorers (Stage 2)
 
 ### Spreadsheet explorer
 
@@ -1329,7 +1329,7 @@ Explorers write **ExtractionUnit** JSON blobs (id, parent-file, coordinates, sha
 
 ______________________________________________________________________
 
-## 3  Tool Bus & sandbox
+## 3 Tool Bus & sandbox
 
 - Each callable---`read_sheet_range`, `read_pdf_page`, `write_fact`, `run_test`---is described in JSON Schema and surfaced to the LLM via function-calling.
 
@@ -1341,7 +1341,7 @@ The pattern aligns with LangGraph's *guarded edge* design: the Orchestrator can 
 
 ______________________________________________________________________
 
-## 4  Orchestrator agent logic
+## 4 Orchestrator agent logic
 
 ```
 mermaidCopygraph TD
@@ -1365,7 +1365,7 @@ B--No-->G
 
 ______________________________________________________________________
 
-## 5  Safety, governance & cost
+## 5 Safety, governance & cost
 
 Control Mechanism Source
 
@@ -1379,7 +1379,7 @@ Fallback mode If LLM fails, explorer output alone forms a "raw" FileCard version
 
 ______________________________________________________________________
 
-## 6  Integration with MCP servers (optional)
+## 6 Integration with MCP servers (optional)
 
 Claude-style incremental reading is already available through the **excel-mcp-server**:\
 `excel_describe_sheets` ↑ `excel_read_sheet(range="A1:F500")` with paging limits. \[\[\[\[\[[GitHub]\]\]\][47]\]\]\
@@ -1387,7 +1387,7 @@ Mounting the server behind the same Tool Bus lets you swap parser back-ends with
 
 ______________________________________________________________________
 
-## 7  Implementation roadmap
+## 7 Implementation roadmap
 
 Week Milestone
 
@@ -1402,7 +1402,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 8  Why this meets the brief
+## 8 Why this meets the brief
 
 - **Deterministic first** -- duplicates, malware and giant binaries are rejected or triaged before the LLM ever sees them.
 
@@ -1430,7 +1430,7 @@ In a **single-process, single-language Python service** you can still preserve c
 
 ______________________________________________________________________
 
-## 1  High-level runtime layout
+## 1 High-level runtime layout
 
 ```
 pgsqlCopyexcelai/
@@ -1456,7 +1456,7 @@ pgsqlCopyexcelai/
 
 ______________________________________________________________________
 
-## 2  Internal modules
+## 2 Internal modules
 
 ### 2.1 `ingest.py`
 
@@ -1502,7 +1502,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 3  Concurrency & scalability inside one process
+## 3 Concurrency & scalability inside one process
 
 - **FastAPI** runs async request handlers; long-running workbooks are off-loaded to background `asyncio.create_task()` jobs that process in chunks.
 
@@ -1512,7 +1512,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 4  Extensibility without micro-services
+## 4 Extensibility without micro-services
 
 Need Monolith technique
 
@@ -1526,7 +1526,7 @@ Thus the deployment artefact remains *one wheel, one Docker image*.
 
 ______________________________________________________________________
 
-## 5  Security & cost controls
+## 5 Security & cost controls
 
 - Macro-bearing files are parsed but **never executed**; VBA source stored for offline review.
 
@@ -1536,7 +1536,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 6  Deployment & ops
+## 6 Deployment & ops
 
 1. **Package**: `poetry build && docker build -t excelai:latest .`
 
@@ -1548,7 +1548,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 7  Roadmap snapshot
+## 7 Roadmap snapshot
 
 Week Deliverable
 
@@ -1922,7 +1922,7 @@ Below is a developer-focused guide for setting up a **single-process "over-kill"
 
 ______________________________________________________________________
 
-## 1  Base tool-chain on macOS Sequoia 15.5
+## 1 Base tool-chain on macOS Sequoia 15.5
 
 ### 1.1 Python build & virtual envs
 
@@ -1946,7 +1946,7 @@ Create a **uv** virtual env uv is a Rust-based, pip-compatible resolver that is 
 
 ______________________________________________________________________
 
-## 2  Single-process runtime layout
+## 2 Single-process runtime layout
 
 ```
 textCopyuvicorn api:app  ─┐
@@ -1962,7 +1962,7 @@ textCopyuvicorn api:app  ─┐
 
 ______________________________________________________________________
 
-## 3  Spawning and controlling kernels
+## 3 Spawning and controlling kernels
 
 ### 3.1 Low-level Jupyter API
 
@@ -1986,7 +1986,7 @@ await kc.execute_async("import pandas as pd")
 
 ______________________________________________________________________
 
-## 4  Reading the workbook only once---what's feasible?
+## 4 Reading the workbook only once---what's feasible?
 
 - openpyxl's **read-only mode** streams XML rows lazily and keeps constant memory, so **each kernel can reopen the same file path without copying** \[\[\[\[\[[OpenPyXL]\]\]\][96]\]\]\[\[\[\[\[[OpenPyXL]\]\]\][88]\]\].
 
@@ -1998,7 +1998,7 @@ Practical rule: open the file in each kernel with `load_workbook(read_only=True,
 
 ______________________________________________________________________
 
-## 5  Sandboxed tools available to every agent
+## 5 Sandboxed tools available to every agent
 
 Tool function Back-end Notes
 
@@ -2014,7 +2014,7 @@ All tool calls are wrapped in a JSON-schema and metered by the orchestrator.
 
 ______________________________________________________________________
 
-## 6  Development-time safety levers
+## 6 Development-time safety levers
 
 - **Kernel resource limits**: launch kernels with `ipython -cprofile` flags and macOS `ulimit -v 700000` (∞ 512 MB).
 
@@ -2026,7 +2026,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 7  Suggested working directory layout
+## 7 Suggested working directory layout
 
 ```
 cppCopyexcelai/
@@ -2043,7 +2043,7 @@ cppCopyexcelai/
 
 ______________________________________________________________________
 
-## 8  Day-to-day developer workflow
+## 8 Day-to-day developer workflow
 
 ```
 bashCopy# 1. spin the API
@@ -2065,7 +2065,7 @@ When you are comfortable, you can start a second Uvicorn worker to simulate mult
 
 ______________________________________________________________________
 
-## 9  Where this differs from cloud production
+## 9 Where this differs from cloud production
 
 Concern Local monolith Future prod
 
@@ -2099,7 +2099,7 @@ Below is a "how-to" that turns the design into an **idempotent, notebook-per-she
 
 ______________________________________________________________________
 
-## 1  What "idempotent" means for a notebook
+## 1 What "idempotent" means for a notebook
 
 - **Re-runnable á® no hidden state**. Every cell must succeed after `Kernel ┼ Restart & Run All`; thus each agent-notebook must **re-acquire the workbook and any dataframes inside the notebook itself**.
 
@@ -2109,7 +2109,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 2  Recommended bootstrap cell
+## 2 Recommended bootstrap cell
 
 ```
 pythonCopy# --- Bootstrap: safe to rerun -----------------------------
@@ -2137,7 +2137,7 @@ return pd.read_excel(WB_PATH, sheet_name=name, engine="openpyxl", **kw)  # panda
 
 ______________________________________________________________________
 
-## 3  Could we open once and share the **same** workbook object?
+## 3 Could we open once and share the **same** workbook object?
 
 Issue Explanation Evidence
 
@@ -2151,7 +2151,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 4  If you *really* want zero extra system calls
+## 4 If you *really* want zero extra system calls
 
 You can memory-map once and feed a `BytesIO` wrapper to openpyxl in every kernel:
 
@@ -2167,7 +2167,7 @@ But you still lose the object itself when the kernel restarts, so idempotence ga
 
 ______________________________________________________________________
 
-## 5  How the per-sheet kernels fit into your orchestrator
+## 5 How the per-sheet kernels fit into your orchestrator
 
 Step Interaction
 
@@ -2182,7 +2182,7 @@ Because kernels are child processes, they inherit the parent's open-file limit; 
 
 ______________________________________________________________________
 
-## 6  Tips & caveats for local development
+## 6 Tips & caveats for local development
 
 ### 6.1 Jupyter-client quirks
 
@@ -2208,7 +2208,7 @@ bashCopypytest --nbval notebooks/
 
 ______________________________________________________________________
 
-## 7  Summary of best practice
+## 7 Summary of best practice
 
 - **Keep it simple:** one workbook per kernel, opened in `read_only=True` mode; OS caching handles deduplication.
 
@@ -2242,7 +2242,7 @@ Every sheet lives in its own Jupyter kernel. At the top of that kernel's noteboo
 
 ______________________________________________________________________
 
-## 1  Component roles and their handshake
+## 1 Component roles and their handshake
 
 Step What happens Libraries & rationale
 
@@ -2259,7 +2259,7 @@ Because no Pandas dataframes exist until the agent requests them, memory stays l
 
 ______________________________________________________________________
 
-## 2  Why not share a single `Workbook` object?
+## 2 Why not share a single `Workbook` object?
 
 - **Thread/process safety:** openpyxl objects mutate internal caches and are not thread-safe \[\[\[\[\[[Apple Support Communities]\]\]\][119]\]\].
 
@@ -2270,7 +2270,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 3  Giving agents flexible data-access tools
+## 3 Giving agents flexible data-access tools
 
 ### 3.1 Open-file helper functions (bootstrap cell)
 
@@ -2306,7 +2306,7 @@ Each kernel repeats this; the same `mm` pages are shared by the kernel's process
 
 ______________________________________________________________________
 
-## 4  How idempotence is guaranteed
+## 4 How idempotence is guaranteed
 
 - The bootstrap cell **creates every global** (`wb`, helper fns) from scratch.
 
@@ -2318,7 +2318,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 5  Interaction between deterministic context and free-form exploration
+## 5 Interaction between deterministic context and free-form exploration
 
 1. **Explorer output** (formula graph JSON, list of volatile functions, detected macros) is injected into the *system prompt* for the orchestrator agent.
 
@@ -2332,7 +2332,7 @@ Because the agent has the **whole kernel**, it can also use Numpy, SciPy, or pur
 
 ______________________________________________________________________
 
-## 6  What Jupyter lets you control programmatically
+## 6 What Jupyter lets you control programmatically
 
 - **Cell insertion / deletion / rewrite** through `nbformat` API.
 
@@ -2344,7 +2344,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 7  Local-dev checklist on your M2 Max
+## 7 Local-dev checklist on your M2 Max
 
 Thing to set Recommended value Why
 
