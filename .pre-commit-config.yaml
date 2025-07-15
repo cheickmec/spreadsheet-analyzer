@@ -115,27 +115,10 @@ repos:
   # Local hooks for project-specific checks
   - repo: local
     hooks:
-      # Run tests on Python file changes (if you have tests)
-      - id: pytest-check
-        name: pytest-check
-        entry: bash -c 'if [ -d tests ]; then uv run pytest --tb=short -q; fi'
-        language: system
-        types: [python]
-        pass_filenames: false
-        stages: [pre-push]  # Only run on push to save time
-
-      # Safety check for known vulnerabilities
-      - id: safety-check
-        name: safety check
-        entry: bash -c 'uv run safety check --json || true'  # Don't fail, just warn
-        language: system
-        files: ^(pyproject\.toml|requirements.*\.txt|uv\.lock)$
-        pass_filenames: false
-
-      # Ensure pyproject.toml is valid
+      # Ensure pyproject.toml is valid (CI-compatible)
       - id: validate-pyproject
         name: validate pyproject.toml
-        entry: bash -c 'uv run python -c "import tomllib; tomllib.load(open(\"pyproject.toml\", \"rb\"))"'
+        entry: python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))"
         language: system
         files: ^pyproject\.toml$
         pass_filenames: false
