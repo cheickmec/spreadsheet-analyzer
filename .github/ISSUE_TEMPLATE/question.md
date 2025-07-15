@@ -29,7 +29,7 @@ ______________________________________________________________________
 - [ ] Looked at code examples
 - [ ] Tried the `--help` command
 
-## ğŸ–¥ï¸� Context
+## ğŸ–¥️ Context
 
 <!-- Provide any relevant context -->
 

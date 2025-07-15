@@ -4,7 +4,7 @@ ______________________________________________________________________
 
 # ğŸ”’ Security Report
 
-> âš ï¸� **Important**: If this is a critical security vulnerability that could be exploited, please DO NOT create a public issue. Instead, email security@yiriden.com with details.
+> âš ️ **Important**: If this is a critical security vulnerability that could be exploited, please DO NOT create a public issue. Instead, email security@yiriden.com with details.
 
 ## ğŸ“‹ Vulnerability Type
 
@@ -19,7 +19,7 @@ ______________________________________________________________________
 
 <!-- Describe the security issue -->
 
-## ğŸ�¯ Impact
+## 🎯 Impact
 
 ### Severity Assessment
 
@@ -44,7 +44,7 @@ Using [CVSS v3.1](https://www.first.org/cvss/calculator/3.1):
 1.
 1.
 
-## ğŸ›¡ï¸� Proof of Concept
+## ğŸ›¡️ Proof of Concept
 
 <!-- Only include if safe and necessary -->
 
@@ -56,7 +56,7 @@ Using [CVSS v3.1](https://www.first.org/cvss/calculator/3.1):
 
 <!-- How could this be exploited? -->
 
-## âœ… Suggested Fix
+## ✅ Suggested Fix
 
 <!-- If you have suggestions for fixing -->
 
@@ -77,7 +77,7 @@ Using [CVSS v3.1](https://www.first.org/cvss/calculator/3.1):
 - [ ] Dependencies
 - [ ] Other: \_\_\_\_\_\_\_
 
-## ğŸ›¡ï¸� Workarounds
+## ğŸ›¡️ Workarounds
 
 <!-- Any temporary mitigations -->
 

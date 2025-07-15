@@ -36,7 +36,7 @@ ______________________________________________________________________
 
 <!-- What's wrong with it? -->
 
-## âœ… Suggested Improvement
+## ✅ Suggested Improvement
 
 <!-- How should it be improved? -->
 
@@ -50,7 +50,7 @@ ______________________________________________________________________
 
 <!-- What examples would help? -->
 
-## ğŸ�¯ Impact
+## 🎯 Impact
 
 <!-- Who is affected by this documentation issue? -->
 
@@ -68,7 +68,7 @@ ______________________________________________________________________
 - [ ] Code comments need updating
 - [ ] README.md needs updating
 
-## ğŸ¤� Contribution
+## 🤝 Contribution
 
 - [ ] I'm willing to submit a PR to fix this
 - [ ] I need guidance on the correct information

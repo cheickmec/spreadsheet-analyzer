@@ -2,7 +2,7 @@ ______________________________________________________________________
 
 ## name: Performance Issue about: Report slow analysis or high resource usage title: '[PERF] ' labels: ['performance', 'needs-triage'] assignees: ''
 
-# âš¡ Performance Issue
+# ⚡ Performance Issue
 
 ## ğŸ“‹ Description
 
@@ -23,7 +23,7 @@ ______________________________________________________________________
   - [ ] Data Validation Rules
   - [ ] Conditional Formatting
 
-## â�±ï¸� Performance Metrics
+## â�±️ Performance Metrics
 
 ### Observed Performance
 
@@ -60,7 +60,7 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - [ ] Report generation
 - [ ] Unknown
 
-## ğŸ–¥ï¸� System Information
+## ğŸ–¥️ System Information
 
 - **OS**: [e.g., macOS 14.0 on M2 Max]
 - **CPU**: [e.g., Apple M2 Max, Intel i9-12900K]
@@ -110,7 +110,7 @@ spreadsheet-analyzer analyze file.xlsx --deep --verbose
 - [ ] I cannot share the file but can describe its structure
 - [ ] I can create a synthetic file that reproduces the issue
 
-## ğŸš€ Workarounds Tried
+## 🚀 Workarounds Tried
 
 <!-- What have you tried to improve performance? -->
 

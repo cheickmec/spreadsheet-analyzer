@@ -2,20 +2,20 @@ ______________________________________________________________________
 
 ## name: Bug Report about: Report a bug in the Excel Analyzer title: '[BUG] ' labels: ['bug', 'needs-triage'] assignees: ''
 
-# ğŸ�› Bug Report
+# 🐛 Bug Report
 
-## ğŸ“‹ Description
+## 📋 Description
 
 <!-- A clear and concise description of what the bug is -->
 
-## ğŸ“„ Steps to Reproduce
+## 🔄 Steps to Reproduce
 
 1.
 1.
 1.
 1.
 
-## âœ… Expected Behavior
+## ✅ Expected Behavior
 
 <!-- What you expected to happen -->
 
@@ -23,7 +23,7 @@ ______________________________________________________________________
 
 <!-- What actually happened -->
 
-## ğŸ“Š Excel File Details
+## 📊 Excel File Details
 
 - **File Size**: [e.g., 5MB]
 - **Number of Sheets**: [e.g., 10]
@@ -32,7 +32,7 @@ ______________________________________________________________________
 - **Contains External Links**: Yes/No
 - **Complex Features**: [e.g., Pivot Tables, Charts, Array Formulas]
 
-## ğŸ“¸ï¿½ Environment
+## 🖥️ Environment
 
 - **OS**: [e.g., macOS 14.0, Ubuntu 22.04, Windows 11]
 - **Python Version**: [e.g., 3.12.0]
@@ -40,7 +40,7 @@ ______________________________________________________________________
 - **Spreadsheet Analyzer Version**: [e.g., 0.1.0]
 - **Installation Method**: [pip/uv/docker/from source]
 
-## ğŸ“¸ Screenshots/Logs
+## 📸 Screenshots/Logs
 
 <!-- If applicable, add screenshots or error logs -->
 
@@ -62,7 +62,7 @@ ______________________________________________________________________
 
 </details>
 
-## ğŸ“Œ Additional Context
+## 🔍 Additional Context
 
 <!-- Add any other context about the problem here -->
 
@@ -78,7 +78,7 @@ ______________________________________________________________________
 
 <!-- Any temporary workarounds you've found -->
 
-## ğŸ�¯ Impact
+## 🎯 Impact
 
 <!-- Mark the severity of this bug -->
 
@@ -87,7 +87,7 @@ ______________________________________________________________________
 - [ ] **Medium**: Significant issue but workaround exists
 - [ ] **Low**: Minor issue with easy workaround
 
-## ğŸ“‹ Checklist
+## 📋 Checklist
 
 <!-- Please check all that apply -->
 

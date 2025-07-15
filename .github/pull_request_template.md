@@ -14,13 +14,13 @@
 
 ## ğŸ“„ Type of Change
 
-- [ ] ğŸ�› Bug fix (non-breaking change which fixes an issue)
+- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
 - [ ] âœ¨ New feature (non-breaking change which adds functionality)
 - [ ] ğŸ’¥ Breaking change (fix or feature that would cause existing functionality to not work as expected)
 - [ ] ğŸ“š Documentation update
-- [ ] â™»ï¸� Refactoring (no functional changes)
-- [ ] âš¡ Performance improvement
-- [ ] âœ… Tests (adding missing tests or correcting existing tests)
+- [ ] â™»️ Refactoring (no functional changes)
+- [ ] ⚡ Performance improvement
+- [ ] ✅ Tests (adding missing tests or correcting existing tests)
 - [ ] ğŸ”§ Build/CI configuration
 - [ ] ğŸ�¨ Style (formatting, missing semi-colons, etc; no code change)
 - [ ] ğŸ”’ Security fix
@@ -79,7 +79,7 @@
 - [ ] README updated if needed
 - [ ] Architecture diagrams updated if needed
 
-## âœ… Checklist
+## ✅ Checklist
 
 ### Code Quality
 
@@ -129,7 +129,7 @@ Related to #
 
 </details>
 
-## ğŸš€ Deployment Notes
+## 🚀 Deployment Notes
 
 <!-- Any special deployment considerations -->
 
