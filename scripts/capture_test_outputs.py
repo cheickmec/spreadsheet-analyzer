@@ -23,6 +23,19 @@ from spreadsheet_analyzer.pipeline.pipeline import DeterministicPipeline, create
 from spreadsheet_analyzer.pipeline.types import PipelineResult
 from spreadsheet_analyzer.testing.fixtures import FixtureEncoder, FixtureManager
 
+
+class FixtureError(Exception):
+    """Base exception for fixture-related errors."""
+
+
+class InvalidSummaryStructureError(FixtureError):
+    """Raised when summary dictionary has invalid structure."""
+
+    def __init__(self, field_name: str) -> None:
+        """Initialize with the field that has invalid type."""
+        super().__init__(f"{field_name} must be a list")
+
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -69,7 +82,8 @@ class TestOutputCapturer:
         # Create a hierarchical structure matching the test file structure
         relative_path = test_file.relative_to(self.test_files_dir)
         fixture_name = relative_path.with_suffix(".json")
-        return self.captured_outputs_dir / fixture_name
+        fixture_path: Path = self.captured_outputs_dir / fixture_name
+        return fixture_path
 
     def should_process_file(self, test_file: Path) -> bool:
         """Check if a file should be processed."""
@@ -201,7 +215,7 @@ class TestOutputCapturer:
         results_list = summary["results"]
         # Type narrowing for mypy
         if not isinstance(results_list, list):
-            raise TypeError("results_list must be a list")
+            raise InvalidSummaryStructureError("results_list")
         for result in self.results:
             results_list.append(
                 {
@@ -216,7 +230,7 @@ class TestOutputCapturer:
         errors_list = summary["errors"]
         # Type narrowing for mypy
         if not isinstance(errors_list, list):
-            raise TypeError("errors_list must be a list")
+            raise InvalidSummaryStructureError("errors_list")
         for error in self.errors:
             errors_list.append(
                 {
@@ -291,7 +305,7 @@ def create_fixture_manifest(captured_outputs_dir: Path) -> None:
         fixtures_list = manifest["fixtures"]
         # Type narrowing for mypy
         if not isinstance(fixtures_list, list):
-            raise TypeError("fixtures_list must be a list")
+            raise InvalidSummaryStructureError("fixtures_list")
         fixtures_list.append(
             {
                 "fixture_path": str(fixture_file.relative_to(captured_outputs_dir)),

@@ -19,6 +19,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from spreadsheet_analyzer.testing.fixtures import FixtureManager
 
+# Constants
+MAX_ERROR_MESSAGE_LENGTH = 60
+ERROR_MESSAGE_TRUNCATE_LENGTH = 57
+BYTES_PER_KB = 1024.0
+
 
 class FixtureVisualizer:
     """Visualize captured fixtures from test files."""
@@ -36,7 +41,7 @@ class FixtureVisualizer:
         else:
             self.manifest = {"fixtures": []}
 
-    def list_all_fixtures(self, show_details: bool = False) -> None:
+    def list_all_fixtures(self, *, show_details: bool = False) -> None:
         """List all available fixtures with optional details."""
         fixtures = self.manifest.get("fixtures", [])
 
@@ -61,9 +66,9 @@ class FixtureVisualizer:
             print("-" * len(f"{category.upper()} ({len(category_fixtures)} files)"))
 
             for fixture in sorted(category_fixtures, key=lambda x: x.get("test_file", "")):
-                self._display_fixture_summary(fixture, show_details)
+                self._display_fixture_summary(fixture, show_details=show_details)
 
-    def _display_fixture_summary(self, fixture_info: dict[str, Any], show_details: bool) -> None:
+    def _display_fixture_summary(self, fixture_info: dict[str, Any], *, show_details: bool) -> None:
         """Display summary for a single fixture."""
         test_file = fixture_info.get("test_file", "unknown")
         file_name = test_file.split("/")[-1] if "/" in test_file else test_file
@@ -133,8 +138,8 @@ class FixtureVisualizer:
         error_msg = error_info.get("message", "No message")
 
         # Truncate long error messages
-        if len(error_msg) > 60:
-            error_msg = error_msg[:57] + "..."
+        if len(error_msg) > MAX_ERROR_MESSAGE_LENGTH:
+            error_msg = error_msg[:ERROR_MESSAGE_TRUNCATE_LENGTH] + "..."
 
         print(f"     Error: {error_type}")
         print(f"     Message: {error_msg}")
@@ -176,7 +181,7 @@ class FixtureVisualizer:
         else:
             self._show_error_result_details(fixture_data)
 
-    def _show_successful_result_details(self, fixture_data: dict[str, Any]) -> None:
+    def _show_successful_result_details(self, fixture_data: dict[str, Any]) -> None:  # noqa: PLR0912, PLR0915
         """Show details for a successful pipeline run."""
         pipeline_result = fixture_data.get("pipeline_result", {})
 
@@ -355,7 +360,8 @@ class FixtureVisualizer:
                         data = json.load(f)
                     error_type = data.get("error", {}).get("type", "Unknown")
                     error_types[error_type] += 1
-                except Exception:
+                except (FileNotFoundError, json.JSONDecodeError, KeyError):
+                    # Skip files that can't be read or parsed
                     pass
 
         if error_types:
@@ -368,9 +374,9 @@ class FixtureVisualizer:
         """Format file size in human-readable format."""
         size_float = float(size_bytes)
         for unit in ["B", "KB", "MB", "GB"]:
-            if size_float < 1024.0:
+            if size_float < BYTES_PER_KB:
                 return f"{size_float:.1f} {unit}"
-            size_float /= 1024.0
+            size_float /= BYTES_PER_KB
         return f"{size_float:.1f} TB"
 
 
