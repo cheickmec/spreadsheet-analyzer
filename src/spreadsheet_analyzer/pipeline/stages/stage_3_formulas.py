@@ -30,6 +30,41 @@ HIGH_DEPTH_THRESHOLD: Final[int] = 10
 MEDIUM_DEPTH_THRESHOLD: Final[int] = 5
 LOW_DEPTH_THRESHOLD: Final[int] = 2
 
+# Performance settings
+FORMULA_ANALYSIS_CHUNK_SIZE: Final[int] = 1000  # Process 1000 rows at a time
+
+# Complexity score weights
+SCORE_HIGH_FORMULA_COUNT: Final[int] = 20
+SCORE_MEDIUM_FORMULA_COUNT: Final[int] = 10
+SCORE_LOW_FORMULA_COUNT: Final[int] = 5
+
+SCORE_HIGH_DEPTH: Final[int] = 30
+SCORE_MEDIUM_DEPTH: Final[int] = 20
+SCORE_LOW_DEPTH: Final[int] = 10
+
+SCORE_CIRCULAR_REFERENCE_PENALTY: Final[int] = 20
+SCORE_VOLATILE_FUNCTION_WEIGHT: Final[int] = 20
+SCORE_EXTERNAL_REFERENCE_PENALTY: Final[int] = 10
+
+MAX_COMPLEXITY_SCORE: Final[int] = 100
+
+# ==================== Helper Functions ====================
+
+
+def format_cell_key(sheet_name: str, cell_ref: str) -> str:
+    """
+    Format a standardized cell key from sheet and cell reference.
+
+    Args:
+        sheet_name: Name of the sheet
+        cell_ref: Cell reference (e.g., "A1", "B2:C3")
+
+    Returns:
+        Formatted cell key (e.g., "Sheet1!A1")
+    """
+    return f"{sheet_name}!{cell_ref}"
+
+
 # ==================== Formula Parsing Utilities ====================
 
 
@@ -350,22 +385,34 @@ class FormulaAnalyzer:
         )
 
     def _analyze_sheet(self, sheet, sheet_name: str):
-        """Analyze all formulas in a sheet."""
+        """
+        Analyze all formulas in a sheet.
+
+        CLAUDE-PERFORMANCE: Process formulas in chunks to avoid memory issues
+        with large spreadsheets.
+        """
         parser = self._get_parser(sheet_name)
 
-        # Iterate through cells
-        for row in sheet.iter_rows():
-            for cell in row:
-                # Check if cell contains a formula
-                if hasattr(cell, "data_type") and cell.data_type == "f" and cell.value:
-                    self._analyze_formula(cell, sheet_name, parser)
+        # Process in chunks to avoid memory issues
+        min_row = sheet.min_row
+        max_row = sheet.max_row
+
+        for start_row in range(min_row, max_row + 1, FORMULA_ANALYSIS_CHUNK_SIZE):
+            end_row = min(start_row + FORMULA_ANALYSIS_CHUNK_SIZE - 1, max_row)
+
+            # Iterate through cells in this chunk
+            for row in sheet.iter_rows(min_row=start_row, max_row=end_row):
+                for cell in row:
+                    # Check if cell contains a formula
+                    if hasattr(cell, "data_type") and cell.data_type == "f" and cell.value:
+                        self._analyze_formula(cell, sheet_name, parser)
 
     def _analyze_formula(self, cell, sheet_name: str, parser: FormulaParser):
         """Analyze a single formula."""
         # When data_only=False, formula is stored in cell.value
         formula = str(cell.value) if cell.value else ""
         cell_ref = cell.coordinate
-        cell_key = f"{sheet_name}!{cell_ref}"
+        cell_key = format_cell_key(sheet_name, cell_ref)
 
         # Add node to graph
         self.graph.add_node(cell_key, sheet_name, cell_ref, formula)
@@ -383,7 +430,7 @@ class FormulaAnalyzer:
 
         # Add edges to graph
         for dep in dependencies:
-            dep_key = f"{dep.sheet}!{dep.cell}"
+            dep_key = format_cell_key(dep.sheet, dep.cell)
             # Only add edge if it's a single cell reference
             if not dep.is_range:
                 self.graph.add_edge(cell_key, dep_key)
@@ -410,34 +457,34 @@ class FormulaAnalyzer:
         # Base score from formula count
         formula_count = len(self.graph.nodes)
         if formula_count > HIGH_FORMULA_COUNT:
-            score += 20
+            score += SCORE_HIGH_FORMULA_COUNT
         elif formula_count > MEDIUM_FORMULA_COUNT:
-            score += 10
+            score += SCORE_MEDIUM_FORMULA_COUNT
         elif formula_count > LOW_FORMULA_COUNT:
-            score += 5
+            score += SCORE_LOW_FORMULA_COUNT
 
         # Dependency depth score
         max_depth = self.graph.get_max_depth()
         if max_depth > HIGH_DEPTH_THRESHOLD:
-            score += 30
+            score += SCORE_HIGH_DEPTH
         elif max_depth > MEDIUM_DEPTH_THRESHOLD:
-            score += 20
+            score += SCORE_MEDIUM_DEPTH
         elif max_depth > LOW_DEPTH_THRESHOLD:
-            score += 10
+            score += SCORE_LOW_DEPTH
 
         # Circular reference penalty
         if self.graph._circular_refs:  # noqa: SLF001
-            score += 20
+            score += SCORE_CIRCULAR_REFERENCE_PENALTY
 
         # Volatile function penalty
         volatile_ratio = len(self.volatile_formulas) / max(formula_count, 1)
-        score += int(volatile_ratio * 20)
+        score += int(volatile_ratio * SCORE_VOLATILE_FUNCTION_WEIGHT)
 
         # External reference penalty
         if self.external_references:
-            score += 10
+            score += SCORE_EXTERNAL_REFERENCE_PENALTY
 
-        return min(100, score)
+        return min(MAX_COMPLEXITY_SCORE, score)
 
 
 # ==================== Main Stage Function ====================

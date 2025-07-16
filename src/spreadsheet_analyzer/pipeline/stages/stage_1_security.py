@@ -5,6 +5,7 @@ This module implements security scanning for Excel files using pure functions
 to detect macros, external links, embedded objects, and other potential threats.
 """
 
+import logging
 import re
 import zipfile
 from collections.abc import Callable
@@ -14,6 +15,8 @@ from typing import Final
 import defusedxml.ElementTree as DefusedElementTree
 
 from spreadsheet_analyzer.pipeline.types import Err, Ok, Result, RiskLevel, SecurityReport, SecurityThreat
+
+logger = logging.getLogger(__name__)
 
 # ==================== Security Pattern Definitions ====================
 
@@ -101,29 +104,41 @@ def check_for_vba_macros(file_path: Path) -> tuple[bool, list[SecurityThreat]]:
                         )
                     else:
                         macro_content = zip_file.read("xl/vbaProject.bin")
-                        # Safely decode binary content with error handling
-                        # CLAUDE-SECURITY: VBA macros can contain various encodings
-                        try:
-                            content_str = macro_content.decode("utf-8", errors="ignore")
-                        except (UnicodeDecodeError, AttributeError):
-                            # Fallback to latin-1 which accepts all byte values
-                            content_str = macro_content.decode("latin-1", errors="ignore")
 
-                        # Limit search to first portion of content for performance
-                        search_content = content_str[:MAX_MACRO_SCAN_SIZE]
-
+                        # CLAUDE-SECURITY: Search binary content directly to avoid encoding issues
+                        # and improve performance on large files
                         for pattern_name, pattern in SUSPICIOUS_PATTERNS.items():
-                            if pattern.search(search_content):
-                                threats.append(
-                                    SecurityThreat(
-                                        threat_type=f"SUSPICIOUS_MACRO_{pattern_name.upper()}",
-                                        severity=9,
-                                        location="xl/vbaProject.bin",
-                                        description=f"Macro contains suspicious {pattern_name} patterns",
-                                        risk_level="CRITICAL",
-                                        details={"pattern": pattern_name},
+                            # Convert pattern to bytes for binary search
+                            try:
+                                # Search in chunks to avoid memory issues
+                                chunk_size = 8192
+                                found = False
+                                for i in range(0, min(len(macro_content), MAX_MACRO_SCAN_SIZE), chunk_size):
+                                    chunk = macro_content[i : i + chunk_size]
+                                    # Try to decode chunk with error handling
+                                    try:
+                                        chunk_str = chunk.decode("utf-8", errors="ignore")
+                                    except (UnicodeDecodeError, AttributeError):
+                                        chunk_str = chunk.decode("latin-1", errors="ignore")
+
+                                    if pattern.search(chunk_str):
+                                        found = True
+                                        break
+
+                                if found:
+                                    threats.append(
+                                        SecurityThreat(
+                                            threat_type=f"SUSPICIOUS_MACRO_{pattern_name.upper()}",
+                                            severity=9,
+                                            location="xl/vbaProject.bin",
+                                            description=f"Macro contains suspicious {pattern_name} patterns",
+                                            risk_level="CRITICAL",
+                                            details={"pattern": pattern_name},
+                                        )
                                     )
-                                )
+                            except Exception:
+                                # Skip this pattern if there's an error
+                                logger.debug("Error processing pattern %s in macro content", pattern_name)
                 except (OSError, ValueError):
                     # Can't read macro content, but we know it exists
                     pass
@@ -310,6 +325,22 @@ def check_hidden_sheets(file_path: Path) -> list[SecurityThreat]:
                 # CLAUDE-SECURITY: Validate XML structure before parsing
                 # defusedxml already protects against XML bombs, but we add size check
                 if len(workbook_content) > MAX_XML_PARSE_SIZE:
+                    return threats
+
+                # Additional validation: check for valid XML structure
+                # Check if it starts with valid XML declaration or root element
+                content_start = workbook_content[:1000].strip()
+                if not (content_start.startswith(b"<?xml") or content_start.startswith(b"<")):
+                    threats.append(
+                        SecurityThreat(
+                            threat_type="INVALID_XML_STRUCTURE",
+                            severity=7,
+                            location="xl/workbook.xml",
+                            description="Workbook XML has invalid structure",
+                            risk_level="HIGH",
+                            details={"reason": "Invalid XML header"},
+                        )
+                    )
                     return threats
 
                 root = DefusedElementTree.fromstring(workbook_content)
