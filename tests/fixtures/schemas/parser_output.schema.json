@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Parser Output Schema",
+  "description": "Schema for Excel parser output",
+  "type": "object",
+  "required": ["file_info", "sheets", "analysis_metadata"],
+  "properties": {
+    "file_info": {
+      "type": "object",
+      "required": ["filename", "size_bytes", "created_date", "modified_date"],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "pattern": ".*\\.xlsx?$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "created_date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "modified_date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "excel_version": {
+          "type": "string"
+        }
+      }
+    },
+    "sheets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "index", "dimensions", "data_range"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dimensions": {
+            "type": "object",
+            "required": ["rows", "columns"],
+            "properties": {
+              "rows": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "columns": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "data_range": {
+            "type": "object",
+            "required": ["start", "end"],
+            "properties": {
+              "start": {
+                "type": "string",
+                "pattern": "^[A-Z]+[0-9]+$"
+              },
+              "end": {
+                "type": "string",
+                "pattern": "^[A-Z]+[0-9]+$"
+              }
+            }
+          },
+          "formulas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["cell", "formula"],
+              "properties": {
+                "cell": {
+                  "type": "string",
+                  "pattern": "^[A-Z]+[0-9]+$"
+                },
+                "formula": {
+                  "type": "string"
+                },
+                "references": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "named_ranges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "range"],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "range": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "analysis_metadata": {
+      "type": "object",
+      "required": ["version", "timestamp", "duration_ms"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
