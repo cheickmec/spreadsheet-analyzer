@@ -54,7 +54,7 @@ def explore_test_output(test_file: str) -> None:
         loader = FixtureLoader()
         result = loader.load_as_dataclass(test_file)
         explore_pipeline_result(result)
-    except Exception as e:
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError) as e:
         print(f"\nError loading result: {e}")
         print("\nRaw pipeline result:")
         print(json.dumps(data.get("pipeline_result", {}), indent=2)[:500] + "...")
