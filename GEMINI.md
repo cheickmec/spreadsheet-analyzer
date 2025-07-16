@@ -81,21 +81,6 @@ uv run tools/html_to_markdown_converter.py input.html -v
 
 **Note**: Requires pandoc to be installed (`brew install pandoc` on macOS)
 
-#### Encoding Fixer
-
-Fix encoding issues in markdown files to ensure UTF-8 compatibility:
-
-```bash
-# Check encoding of files without making changes
-uv run tools/fix_encoding.py docs/research/*.md --dry-run
-
-# Fix encoding issues in markdown files
-uv run tools/fix_encoding.py docs/research/*.md
-
-# Fix all markdown files in a directory
-find docs/research -name "*.md" | xargs uv run tools/fix_encoding.py
-```
-
 This tool automatically detects file encodings using `chardet` and converts non-UTF-8 files to UTF-8 to ensure compatibility with mdformat and other tools.
 
 ## Project Architecture
