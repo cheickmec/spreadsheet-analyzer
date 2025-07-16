@@ -360,8 +360,8 @@ def check_formula_injection(file_path: Path) -> list[SecurityThreat]:
     external_formula_patterns = {
         "external_workbook": re.compile(r"\[.*?\]", re.IGNORECASE),  # [workbook.xlsx]Sheet1!A1
         "http_in_formula": re.compile(r"https?://[^\s\"\'<>]+", re.IGNORECASE),
-        "file_path": re.compile(r"[A-Za-z]:\\\\.*?\.xls[xm]?", re.IGNORECASE),  # C:\\path\\file.xlsx
-        "unc_path": re.compile(r"\\\\\\\\[^\\\\]+\\\\.*?\.xls[xm]?", re.IGNORECASE),  # \\\\server\\share\\file.xlsx
+        "file_path": re.compile(r"[A-Za-z]:\\.*?\.xls[xm]?", re.IGNORECASE),  # C:\path\file.xlsx
+        "unc_path": re.compile(r"\\\\[^\\]+\\.*?\.xls[xm]?", re.IGNORECASE),  # \\server\share\file.xlsx
     }
 
     try:
