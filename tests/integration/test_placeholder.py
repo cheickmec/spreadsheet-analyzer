@@ -1,10 +1,6 @@
-"""
-Placeholder integration test.
-
-This file ensures pytest doesn't fail when trying to run integration tests.
-"""
+"""Placeholder integration test to ensure CI doesn't fail on empty directory."""
 
 
-def test_placeholder():
-    """Placeholder test to ensure the integration test suite passes."""
-    assert True, "Placeholder test should always pass"
+def test_integration_placeholder():
+    """Placeholder test - replace with actual integration tests."""
+    assert True
