@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "capture_timestamp": "2025-07-15T20:39:47.498974",
+    "error_count": 1,
+    "file_hash": "a1ab780cfd1690f4769e09e59883a5cf1873532a65ee54fad6c39b8ac704f684",
+    "file_size": 141040,
+    "pipeline_success": false,
+    "processing_time": 0.00113,
+    "test_file": "edge-cases/sheetjs_test_file.xlsx"
+  },
+  "pipeline_result": {
+    "content": "None",
+    "context": {
+      "file_path": "/Users/cheickberthe/PycharmProjects/spreadsheet-analyzer/test-files/edge-cases/sheetjs_test_file.xlsx",
+      "options": {
+        "content_sample_size": 1000,
+        "security_scan_options": {
+          "check_data_connections": false,
+          "check_embedded_objects": false,
+          "check_external_links": false,
+          "check_formula_injection": false,
+          "check_hidden_sheets": false,
+          "check_macros": true
+        },
+        "skip_on_error": true,
+        "stage_timeout": 300
+      },
+      "stage_results": {},
+      "start_time": "2025-07-16T00:39:47.497844+00:00"
+    },
+    "errors": [
+      "File blocked due to integrity check"
+    ],
+    "execution_time": 0.001041,
+    "formulas": "None",
+    "integrity": "None",
+    "security": "None",
+    "structure": "None",
+    "success": false
+  },
+  "raw_report": {
+    "content": null,
+    "errors": [
+      "File blocked due to integrity check"
+    ],
+    "execution_time": 0.001041,
+    "file": "/Users/cheickberthe/PycharmProjects/spreadsheet-analyzer/test-files/edge-cases/sheetjs_test_file.xlsx",
+    "formulas": null,
+    "integrity": null,
+    "security": null,
+    "structure": null,
+    "success": false
+  }
+}

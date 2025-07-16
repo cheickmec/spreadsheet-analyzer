@@ -1,67 +1,112 @@
-# Test Fixtures System
+# Test Fixtures
 
-This directory contains expected outputs for test cases in JSON format. Each test file has its own subdirectory with JSON files for each test function's expected output.
+This directory contains test fixtures for the Spreadsheet Analyzer project in a language-agnostic JSON format.
+
+## Overview
+
+The fixtures capture outputs from processing Excel test files, enabling:
+
+1. **Regression Testing**: Ensure analyzer behavior remains consistent
+1. **Cross-Language Support**: Clean JSON consumable by any language
+1. **Visibility**: See what each test file produces
+1. **Type Safety**: Python code can reconstruct typed dataclasses
 
 ## Structure
 
 ```
 fixtures/
-├── outputs/                      # Expected output fixtures
-│   ├── test_parser/             # Outputs for test_parser.py
-│   │   ├── test_basic_parse.json
-│   │   ├── test_formula_extraction.json
-│   │   └── test_large_file_handling.json
-│   ├── test_analyzer/           # Outputs for test_analyzer.py
-│   │   ├── test_pattern_detection.json
-│   │   └── test_validation_chains.json
-│   └── test_integration/        # Integration test outputs
-│       └── test_full_pipeline.json
-├── inputs/                      # Input test files
-│   ├── simple.xlsx
-│   ├── complex_formulas.xlsx
-│   └── large_dataset.xlsx
-└── schemas/                     # JSON schemas for validation
-    ├── parser_output.schema.json
-    └── analysis_result.schema.json
+├── captured_outputs/       # Outputs from test Excel files
+│   ├── business-accounting/
+│   ├── data-analysis/
+│   └── ...
+├── schemas/               # JSON schemas for validation
+│   └── pipeline_result.schema.json
+└── README.md             # This file
 ```
 
-## Usage
+## Quick Start
 
-### In Tests
-
-```python
-from tests.fixtures import load_expected_output, update_expected_output
-
-def test_basic_parse():
-    # Run the function
-    result = parse_excel("simple.xlsx")
-    
-    # Load expected output
-    expected = load_expected_output("test_parser", "test_basic_parse")
-    
-    # Compare
-    assert result == expected
-```
-
-### Updating Fixtures
-
-When output changes are intentional:
+### Capture Outputs
 
 ```bash
-# Update all fixtures
-pytest tests/ --update-fixtures
+# Capture all test files
+uv run scripts/capture_test_outputs.py
 
-# Update specific test fixtures
-pytest tests/test_parser.py::test_basic_parse --update-fixtures
-
-# Review changes
-git diff tests/fixtures/outputs/
+# Force update all fixtures
+uv run scripts/capture_test_outputs.py --force
 ```
+
+### Explore Outputs
+
+```bash
+# List available fixtures
+uv run scripts/explore_test_output.py --list
+
+# Explore specific file output
+uv run scripts/explore_test_output.py "business-accounting/Business Accounting.xlsx"
+
+# Visualize all fixtures
+uv run scripts/visualize_fixtures.py list --details
+```
+
+## Language-Agnostic Design
+
+Fixtures are stored as clean JSON without Python-specific type markers:
+
+```json
+{
+  "metadata": {
+    "test_file": "category/file.xlsx",
+    "file_size": 167763,
+    "processing_time": 0.448,
+    "pipeline_success": true
+  },
+  "pipeline_result": {
+    "success": true,
+    "execution_time": 0.445,
+    "errors": [],
+    "structure": {
+      "sheet_count": 10,
+      "total_cells": 6959,
+      "complexity_score": 32
+    }
+    // ... other stages
+  }
+}
+```
+
+## Usage in Tests
+
+### Any Language
+
+```javascript
+// JavaScript
+const fixture = JSON.parse(fs.readFileSync('fixture.json'));
+console.log(fixture.pipeline_result.structure.sheet_count);
+```
+
+### Python with Type Safety
+
+```python
+from spreadsheet_analyzer.testing.loader import FixtureLoader
+
+loader = FixtureLoader()
+
+# Load as raw dict (like any language)
+raw = loader.load_raw("business-accounting/Business Accounting.xlsx")
+
+# Or as typed dataclasses
+result = loader.load_as_dataclass("business-accounting/Business Accounting.xlsx")
+print(result.structure.sheet_count)  # IDE knows this is int
+```
+
+## Test Example
+
+See `tests/test_against_captured_fixtures.py` for a complete example of using fixtures in tests.
 
 ## Benefits
 
-1. **Reviewable Changes**: Output changes appear in PRs as JSON diffs
-1. **Regression Detection**: Unintended changes are caught immediately
-1. **Documentation**: Expected outputs serve as documentation
-1. **Debugging**: Easy to see what the expected output should be
-1. **Performance**: No need to recompute expected values in tests
+- **No Lock-in**: Not tied to Python serialization
+- **Portable**: Same fixtures work across languages
+- **Debuggable**: Human-readable JSON
+- **Future-Proof**: Ready for serverless/Lambda deployments

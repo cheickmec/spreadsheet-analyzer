@@ -1,0 +1,40 @@
+{
+  "capture_timestamp": "2025-07-15T20:39:47.501714",
+  "total_files": 5,
+  "successful": 5,
+  "failed": 0,
+  "fixtures_directory": "/Users/cheickberthe/PycharmProjects/spreadsheet-analyzer/tests/fixtures/captured_outputs",
+  "results": [
+    {
+      "file": "business-accounting/Business Accounting.xlsx",
+      "size": 167763,
+      "processing_time": 0.44852,
+      "stages_completed": 5
+    },
+    {
+      "file": "data-analysis/advanced_excel_formulas.xlsx",
+      "size": 257275,
+      "processing_time": 0.705349,
+      "stages_completed": 5
+    },
+    {
+      "file": "edge-cases/sheetjs_test_file.xlsx",
+      "size": 141040,
+      "processing_time": 0.00113,
+      "stages_completed": 5
+    },
+    {
+      "file": "financial-models/tesla_valuation_model.xlsx",
+      "size": 182821,
+      "processing_time": 0.000905,
+      "stages_completed": 5
+    },
+    {
+      "file": "hr-timesheet/timesheet_generator.xlsm",
+      "size": 284001,
+      "processing_time": 0.000732,
+      "stages_completed": 5
+    }
+  ],
+  "errors": []
+}

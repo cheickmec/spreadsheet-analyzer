@@ -1,0 +1,45 @@
+{
+  "created": "2025-07-15T20:39:47.501871",
+  "fixtures": [
+    {
+      "fixture_path": "edge-cases/sheetjs_test_file.json",
+      "test_file": "edge-cases/sheetjs_test_file.xlsx",
+      "file_size": 141040,
+      "pipeline_success": false,
+      "error_count": 1,
+      "capture_timestamp": "2025-07-15T20:39:47.498974"
+    },
+    {
+      "fixture_path": "financial-models/tesla_valuation_model.json",
+      "test_file": "financial-models/tesla_valuation_model.xlsx",
+      "file_size": 182821,
+      "pipeline_success": false,
+      "error_count": 1,
+      "capture_timestamp": "2025-07-15T20:39:47.500264"
+    },
+    {
+      "fixture_path": "hr-timesheet/timesheet_generator.json",
+      "test_file": "hr-timesheet/timesheet_generator.xlsm",
+      "file_size": 284001,
+      "pipeline_success": false,
+      "error_count": 1,
+      "capture_timestamp": "2025-07-15T20:39:47.501370"
+    },
+    {
+      "fixture_path": "business-accounting/Business Accounting.json",
+      "test_file": "business-accounting/Business Accounting.xlsx",
+      "file_size": 167763,
+      "pipeline_success": true,
+      "error_count": 0,
+      "capture_timestamp": "2025-07-15T20:39:46.749666"
+    },
+    {
+      "fixture_path": "data-analysis/advanced_excel_formulas.json",
+      "test_file": "data-analysis/advanced_excel_formulas.xlsx",
+      "file_size": 257275,
+      "pipeline_success": true,
+      "error_count": 0,
+      "capture_timestamp": "2025-07-15T20:39:47.460496"
+    }
+  ]
+}
