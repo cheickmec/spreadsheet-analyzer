@@ -136,7 +136,9 @@ Based on the comprehensive system design document:
 - Type hints encouraged but not required
 - Comprehensive pre-commit hooks for quality assurance
 
-**For detailed development practices and pre-commit best practices, see [CONTRIBUTING.md](CONTRIBUTING.md).**
+## Development Practices
+
+@CONTRIBUTING.md
 
 ### Important Linting Rules to Follow
 

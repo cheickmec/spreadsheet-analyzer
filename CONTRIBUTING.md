@@ -66,6 +66,117 @@ uv run pytest
 1. **Arrange-Act-Assert pattern** - Consistent test structure
 1. **Test edge cases** - Empty files, huge files, corrupted files
 
+### Test-Driven Development (TDD) Methodology
+
+We follow Kent Beck's Test-Driven Development principles and Tidy First approach:
+
+#### Core TDD Cycle
+
+Always follow the TDD cycle: **Red → Green → Refactor**
+
+1. **Red**: Write the simplest failing test first
+1. **Green**: Implement the minimum code needed to make tests pass
+1. **Refactor**: Refactor only after tests are passing
+
+#### TDD Implementation Guidelines
+
+- Start by writing a failing test that defines a small increment of functionality
+- Use meaningful test names that describe behavior (e.g., `test_should_sum_two_positive_numbers`)
+- Make test failures clear and informative
+- Write just enough code to make the test pass - no more
+- Once tests pass, consider if refactoring is needed
+- Repeat the cycle for new functionality
+
+#### Tidy First Approach
+
+Separate all changes into two distinct types:
+
+1. **STRUCTURAL CHANGES**: Rearranging code without changing behavior (renaming, extracting methods, moving code)
+1. **BEHAVIORAL CHANGES**: Adding or modifying actual functionality
+
+Key principles:
+
+- Never mix structural and behavioral changes in the same commit
+- Always make structural changes first when both are needed
+- Validate structural changes do not alter behavior by running tests before and after
+
+#### Example TDD Workflow
+
+```python
+# Step 1: Write a failing test (Red)
+def test_excel_cell_parser_extracts_simple_reference():
+    """Test that parser can extract a simple cell reference."""
+    parser = ExcelFormulaParser()
+    result = parser.extract_references("=A1")
+    assert result == [CellReference(sheet=None, cell="A1")]
+
+# Step 2: Implement minimum code to pass (Green)
+class ExcelFormulaParser:
+    def extract_references(self, formula: str) -> List[CellReference]:
+        if formula == "=A1":
+            return [CellReference(sheet=None, cell="A1")]
+        return []
+
+# Step 3: Refactor if needed (still Green)
+class ExcelFormulaParser:
+    def extract_references(self, formula: str) -> List[CellReference]:
+        # Extract pattern for simple references
+        if formula.startswith("=") and len(formula) > 1:
+            cell_ref = formula[1:]
+            if self._is_valid_cell_reference(cell_ref):
+                return [CellReference(sheet=None, cell=cell_ref)]
+        return []
+```
+
+#### Commit Discipline for TDD
+
+Only commit when:
+
+1. ALL tests are passing
+1. ALL compiler/linter warnings have been resolved
+1. The change represents a single logical unit of work
+1. Commit messages clearly state whether the commit contains structural or behavioral changes
+
+Example commit messages:
+
+```
+refactor: extract cell reference validation to separate method (structural)
+feat: add support for simple cell reference parsing (behavioral)
+refactor: rename ExcelParser to ExcelFormulaParser for clarity (structural)
+test: add test for range reference extraction (behavioral)
+```
+
+#### Refactoring Guidelines
+
+- Refactor only when tests are passing (in the "Green" phase)
+- Use established refactoring patterns with their proper names
+- Make one refactoring change at a time
+- Run tests after each refactoring step
+- Prioritize refactorings that remove duplication or improve clarity
+
+#### Python-Specific TDD Patterns
+
+Prefer functional programming style over imperative style:
+
+```python
+# ✅ DO: Use functional style with Result types
+def parse_formula(formula: str) -> Result[ParsedFormula, str]:
+    return (
+        validate_formula(formula)
+        .and_then(tokenize_formula)
+        .and_then(build_ast)
+        .map(optimize_ast)
+    )
+
+# ❌ DON'T: Use imperative style with exceptions
+def parse_formula(formula: str) -> ParsedFormula:
+    if not validate_formula(formula):
+        raise ValueError("Invalid formula")
+    tokens = tokenize_formula(formula)
+    ast = build_ast(tokens)
+    return optimize_ast(ast)
+```
+
 ### Excel-Specific Test Fixtures
 
 ```python
