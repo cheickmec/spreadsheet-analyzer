@@ -154,8 +154,6 @@ def process_spreadsheet(file_path: Path) -> dict[str, Any]:
             f"depth={stats['max_depth']}, "
             f"complexity={stats['complexity_score']}"
         )
-        
-        return {"analysis": analysis, **stats}
     except Exception as e:
         logger.exception(f"Unexpected error processing {file_path.name}")
         return {
@@ -163,6 +161,8 @@ def process_spreadsheet(file_path: Path) -> dict[str, Any]:
             "file": str(file_path),
             "error": str(e),
         }
+    else:
+        return {"analysis": analysis, **stats}
 
 
 def load_to_neo4j(results: list[dict[str, Any]]) -> dict[str, Any]:

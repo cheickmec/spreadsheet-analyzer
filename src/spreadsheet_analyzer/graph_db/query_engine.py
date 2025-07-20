@@ -125,7 +125,7 @@ class SpreadsheetQueryEngine:
         }
 
         handler = handlers.get(query_type)
-        if not handler:
+        if handler is None:
             return QueryResult(
                 query_type=query_type,
                 success=False,
@@ -134,8 +134,8 @@ class SpreadsheetQueryEngine:
                 relationships=[],
                 explanation=f"Handler not implemented for {query_type}",
             )
-
-        return handler(**params)
+        else:
+            return handler(**params)
 
     def _get_cell_info(self, sheet: str, cell_ref: str) -> CellInfo:
         """Get complete information about a cell."""
@@ -190,7 +190,7 @@ class SpreadsheetQueryEngine:
 
         return start_col_num <= cell_col_num <= end_col_num and start_row_num <= cell_row_num <= end_row_num
 
-    def _query_dependencies(self, sheet: str, cell: str, **kwargs) -> QueryResult:
+    def _query_dependencies(self, sheet: str, cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """What does this cell depend on?"""
         cell_info = self._get_cell_info(sheet, cell)
         relationships = []
@@ -204,7 +204,7 @@ class SpreadsheetQueryEngine:
                 dep_info = self._get_cell_info(dep.sheet, dep.cell)
                 cells.append(dep_info)
 
-                rel_type = "uses"
+                rel_type: Literal["uses", "used_by", "in_range", "range_contains"] = "uses"
                 via_range = dep.cell if dep.is_range else None
 
                 relationships.append(DependencyInfo(cell=dep_info, relationship=rel_type, via_range=via_range))
@@ -226,7 +226,7 @@ class SpreadsheetQueryEngine:
             explanation=explanation,
         )
 
-    def _query_dependents(self, sheet: str, cell: str, **kwargs) -> QueryResult:
+    def _query_dependents(self, sheet: str, cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """What depends on this cell?"""
         cell_info = self._get_cell_info(sheet, cell)
         relationships = []
@@ -271,11 +271,11 @@ class SpreadsheetQueryEngine:
             explanation=explanation,
         )
 
-    def _query_impact(self, sheet: str, cell: str, depth: int = 2, **kwargs) -> QueryResult:
+    def _query_impact(self, sheet: str, cell: str, depth: int = 2, **kwargs) -> QueryResult:  # noqa: ARG002
         """What cells would be affected by changes to this cell?"""
         # This is similar to dependents but follows the chain
         impacted = set()
-        relationships = []
+        relationships: list[DependencyInfo] = []
         cells = []
 
         # BFS to find all impacted cells
@@ -325,7 +325,7 @@ class SpreadsheetQueryEngine:
             explanation=explanation,
         )
 
-    def _query_sources(self, sheet: str, cell: str, **kwargs) -> QueryResult:
+    def _query_sources(self, sheet: str, cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """Find ultimate data sources (cells with no dependencies)."""
         sources = set()
         cells = []
@@ -374,7 +374,7 @@ class SpreadsheetQueryEngine:
             explanation=explanation,
         )
 
-    def _query_path(self, from_sheet: str, from_cell: str, to_sheet: str, to_cell: str, **kwargs) -> QueryResult:
+    def _query_path(self, from_sheet: str, from_cell: str, to_sheet: str, to_cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """Find calculation path between two cells."""
         from_key = f"{from_sheet}!{from_cell}"
         to_key = f"{to_sheet}!{to_cell}"
@@ -414,7 +414,7 @@ class SpreadsheetQueryEngine:
                 for dep in node.dependencies:
                     dep_key = f"{dep.sheet}!{dep.cell}"
                     if dep_key not in visited:
-                        queue.append((dep_key, path + [dep_key]))
+                        queue.append((dep_key, [*path, dep_key]))
 
         # No path found
         return QueryResult(
@@ -426,7 +426,7 @@ class SpreadsheetQueryEngine:
             explanation=f"No calculation path from {from_cell} to {to_cell}",
         )
 
-    def _query_circular(self, sheet: str, cell: str, **kwargs) -> QueryResult:
+    def _query_circular(self, sheet: str, cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """Check if cell is part of circular reference."""
         cell_key = f"{sheet}!{cell}"
 
@@ -456,7 +456,7 @@ class SpreadsheetQueryEngine:
             explanation=f"{cell} is not part of any circular reference",
         )
 
-    def _query_neighbors(self, sheet: str, cell: str, **kwargs) -> QueryResult:
+    def _query_neighbors(self, sheet: str, cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """Get all direct connections (dependencies and dependents)."""
         deps_result = self._query_dependencies(sheet, cell)
         dependents_result = self._query_dependents(sheet, cell)
@@ -478,7 +478,7 @@ class SpreadsheetQueryEngine:
             explanation=f"{cell} has {len(all_relationships)} direct connections",
         )
 
-    def _query_formula(self, sheet: str, cell: str, **kwargs) -> QueryResult:
+    def _query_formula(self, sheet: str, cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """Get formula for a specific cell."""
         cell_info = self._get_cell_info(sheet, cell)
 
@@ -501,7 +501,7 @@ class SpreadsheetQueryEngine:
                 explanation=f"{cell} has no formula",
             )
 
-    def _query_exists(self, sheet: str, cell: str, **kwargs) -> QueryResult:
+    def _query_exists(self, sheet: str, cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """Check if cell exists in the dependency graph."""
         cell_key = f"{sheet}!{cell}"
         exists_as_formula = cell_key in self.graph
@@ -538,7 +538,7 @@ class SpreadsheetQueryEngine:
             explanation=f"{cell} {'exists' if exists else 'does not exist'} in the dependency graph",
         )
 
-    def _query_stats(self, sheet: str, cell: str, **kwargs) -> QueryResult:
+    def _query_stats(self, sheet: str, cell: str, **kwargs) -> QueryResult:  # noqa: ARG002
         """Get statistics about a cell's position in the graph."""
         cell_info = self._get_cell_info(sheet, cell)
         cell_key = f"{sheet}!{cell}"

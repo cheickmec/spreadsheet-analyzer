@@ -109,7 +109,7 @@ The system employs a hybrid monolithic architecture with multi-agent intelligenc
 
 Within this monolithic architecture, multiple intelligent agents operate concurrently, recognizing that modern Excel files often contain dozens or even hundreds of sheets requiring parallel analysis. This design achieves the operational simplicity of a single deployable unit while providing the analytical power of distributed intelligence.
 
-Jupyter notebook-based execution provides a revolutionary approach to maintaining audit trails and state persistence. Unlike traditional execution environments that lose context between operations, notebooks naturally preserve the complete history of analysis steps, enabling review, debugging, and replay of analyses. This approach directly supports the validation-first philosophy by allowing inspection of how the system arrives at its conclusions.
+Jupyter notebook-based execution provides a revolutionary approach to maintaining audit trails and state persistence. Unlike traditional execution environments that lose context between operations, notebooks naturally preserve the complete history of analysis steps, enabling review, debugging, and replay of analyses. This approach directly supports the validation-first philosophy by allowing inspection of how the system arrives at its conclusions. The notebook format also provides an ideal interface for LLM interaction, as detailed in the [Jupyter Notebook-LLM Interface Framework](./notebook-llm-interface.md).
 
 Tool Bus governance ensures control and safety in AI-powered operations. By mediating all tool access through a governed registry, the system enforces security policies, tracks resource usage, and prevents runaway operations that might otherwise consume excessive resources or violate security boundaries.
 
@@ -356,7 +356,7 @@ The architectural decision to create one agent per sheet stems from the natural 
 
 Each agent incorporates three critical subsystems:
 
-1. **Jupyter Notebook Integration**: Provides each agent with a persistent workspace for experimentation and validation. Unlike traditional execution environments that lose context between operations, the notebook maintains a complete history of all analytical steps, enabling debugging, auditing, and even replay of analyses.
+1. **Jupyter Notebook Integration**: Provides each agent with a persistent workspace for experimentation and validation. Unlike traditional execution environments that lose context between operations, the notebook maintains a complete history of all analytical steps, enabling debugging, auditing, and even replay of analyses. The notebook interface serves as the primary mechanism for LLM interaction, leveraging the natural alignment between notebook structure and LLM text processing capabilities. For detailed specifications of how notebooks are presented to LLMs and how LLMs generate notebook cells, see [Jupyter Notebook-LLM Interface Framework](./notebook-llm-interface.md).
 
 1. **Tool Bus**: Mediates all agent interactions with external resources through a governance layer that ensures agents operate within defined boundaries, preventing runaway operations while maintaining detailed logs of all tool usage. The Tool Bus also enables dynamic capability discovery, allowing agents to adapt their strategies based on available tools.
 
@@ -653,6 +653,8 @@ The trade-offs are real and acknowledged. Agent isolation is less complete than 
 Jupyter notebooks provide a transformative execution environment for the system. Unlike traditional execution environments that lose context between operations and provide limited visibility into execution history, Jupyter notebooks maintain complete state and history by default.
 
 The audit trail capability emerged as perhaps the most compelling benefit. Every operation performed by an agent is recorded in the notebook, creating a self-documenting analysis that can be reviewed, debugged, or even modified by human analysts. This transparency is invaluable for building trust in AI-driven analysis, allowing users to understand not just what the system concluded but how it reached those conclusions.
+
+The notebook structure also provides an optimal interface for LLM interaction. The cell-by-cell format naturally aligns with how LLMs process information, enabling sophisticated presentation strategies that maximize analytical effectiveness while managing token constraints. For a comprehensive exploration of how the system leverages notebooks for LLM communication, including cell presentation patterns, context management strategies, and security considerations, refer to the [Jupyter Notebook-LLM Interface Framework](./notebook-llm-interface.md). For an in-depth analysis of notebook manipulation tools and approaches, including comparisons of nbformat, MCP servers, and emerging frameworks, see the [Notebook Manipulation Analysis](./notebook-manipulation-analysis.md).
 
 State persistence between operations enables sophisticated analytical workflows. Agents can build upon previous calculations, refer back to earlier results, and maintain complex data structures throughout their analysis. This persistence also enables checkpointing—if an analysis is interrupted, it can resume from the last saved notebook state rather than starting over.
 
