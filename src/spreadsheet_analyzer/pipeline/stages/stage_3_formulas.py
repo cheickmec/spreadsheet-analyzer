@@ -35,31 +35,31 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 # Core analysis constants
-MAX_CELLS_FOR_ANALYSIS: Final[int] = 10_000
-MAX_CELLS_PER_CHUNK: Final[int] = 1000
-VOLATILITY_MULTIPLIER: Final[float] = 2.0
-EXTERNAL_REF_MULTIPLIER: Final[float] = 1.5
-BASE_COMPLEXITY_SCORE: Final[float] = 1.0
+MAX_CELLS_FOR_ANALYSIS: Final[int] = 10_000  # Maximum cells to analyze to prevent memory issues
+MAX_CELLS_PER_CHUNK: Final[int] = 1000  # Process formulas in chunks for memory efficiency
+VOLATILITY_MULTIPLIER: Final[float] = 2.0  # Complexity multiplier for volatile formulas (e.g., NOW(), RAND())
+EXTERNAL_REF_MULTIPLIER: Final[float] = 1.5  # Complexity multiplier for external references ([workbook.xlsx])
+BASE_COMPLEXITY_SCORE: Final[float] = 1.0  # Starting complexity score for all formulas
 
 # Range handling strategies
-RANGE_STRATEGY_SKIP: Final[str] = "skip"
-RANGE_STRATEGY_EXPAND: Final[str] = "expand"
-RANGE_STRATEGY_SUMMARIZE: Final[str] = "summarize"
-RANGE_STRATEGY_SMART: Final[str] = "smart"
+RANGE_STRATEGY_SKIP: Final[str] = "skip"  # Skip all range references (fastest)
+RANGE_STRATEGY_EXPAND: Final[str] = "expand"  # Expand ranges to individual cells (most detail)
+RANGE_STRATEGY_SUMMARIZE: Final[str] = "summarize"  # Keep ranges as single entities
+RANGE_STRATEGY_SMART: Final[str] = "smart"  # Expand small ranges, summarize large ones
 DEFAULT_RANGE_STRATEGY: Final[str] = RANGE_STRATEGY_SMART
-SMART_RANGE_THRESHOLD: Final[int] = 10
+SMART_RANGE_THRESHOLD: Final[int] = 10  # Ranges larger than this are kept as ranges, not expanded
 
 # Feature flags for optional functionality
-ENABLE_SEMANTIC_ANALYSIS: Final[bool] = True
-ENABLE_CELL_METADATA: Final[bool] = True
-ENABLE_EDGE_WEIGHTS: Final[bool] = True
+ENABLE_SEMANTIC_ANALYSIS: Final[bool] = True  # Detect relationship types (SUMS_OVER, LOOKS_UP_IN, etc.)
+ENABLE_CELL_METADATA: Final[bool] = True  # Collect cell formatting and type information
+ENABLE_EDGE_WEIGHTS: Final[bool] = True  # Calculate importance weights based on range sizes
 
-# Pattern constants
-EXCEL_OPERATORS: Final[str] = r"[\+\-\*/\^<>=&:\(\),]"
+# Pattern constants for formula parsing
+EXCEL_OPERATORS: Final[str] = r"[\+\-\*/\^<>=&:\(\),]"  # Excel formula operators
 CELL_PATTERN: Final[re.Pattern] = re.compile(
-    r"(?:([A-Za-z_][\w.]*|'[^']+')!)?"  # Optional sheet name
-    r"(\$?[A-Z]+\$?\d+"  # Cell reference
-    r"(?::\$?[A-Z]+\$?\d+)?)",  # Optional range end
+    r"(?:([A-Za-z_][\w.]*|'[^']+')!)?"  # Optional sheet name (e.g., 'Sheet1!' or Sheet1!)
+    r"(\$?[A-Z]+\$?\d+"  # Cell reference (e.g., A1, $A$1)
+    r"(?::\$?[A-Z]+\$?\d+)?)",  # Optional range end (e.g., :B10 for A1:B10)
     re.IGNORECASE,
 )
 
@@ -212,6 +212,7 @@ class SemanticEdgeDetector:
     """
 
     # Mapping of Excel functions to semantic edge types
+    # These mappings help understand the nature of relationships between cells
     FUNCTION_SEMANTICS: Final[dict[str, str]] = {
         # Aggregation functions
         "SUM": "SUMS_OVER",
@@ -265,6 +266,7 @@ class SemanticEdgeDetector:
             edge_type = self.FUNCTION_SEMANTICS[func_name.upper()]
 
         # Calculate edge weight based on range size
+        # Larger ranges get higher weights (up to 10.0) to indicate their importance
         weight = 1.0
         if ENABLE_EDGE_WEIGHTS:
             weight = min(10.0, 1.0 + (dependency.cell_count - 1) * 0.1)
@@ -514,7 +516,15 @@ class DependencyGraph:
             self.reverse_adjacency[dep_key].add(node_key)
 
     def _calculate_complexity(self, formula: str, dep_count: int, volatile: bool, external: bool) -> float:
-        """Calculate complexity score for a formula."""
+        """Calculate complexity score for a formula.
+
+        Complexity factors:
+        - Base score: 1.0
+        - Formula length: +0.01 per character (incentivizes simpler formulas)
+        - Dependencies: +0.5 per dependency (more dependencies = more complex)
+        - Volatile functions: 2x multiplier (recalculate frequently)
+        - External references: 1.5x multiplier (cross-workbook dependencies)
+        """
         score = BASE_COMPLEXITY_SCORE
 
         # Factor in formula length
@@ -815,18 +825,46 @@ class FormulaAnalyzer:
         self.total_formulas += 1
 
     def _check_volatile(self, formula: str) -> bool:
-        """Check if formula contains volatile functions."""
+        """Check if formula contains volatile functions.
+
+        Volatile functions recalculate every time Excel recalculates,
+        potentially impacting performance. Common volatile functions:
+        - NOW(): Current date and time
+        - TODAY(): Current date
+        - RAND()/RANDBETWEEN(): Random numbers
+        - OFFSET(): Dynamic range references
+        - INDIRECT(): Dynamic cell references
+        """
         volatile_functions = {"NOW", "TODAY", "RAND", "RANDBETWEEN", "OFFSET", "INDIRECT"}
         formula_upper = formula.upper()
         return any(f"{func}(" in formula_upper for func in volatile_functions)
 
     def _check_external(self, formula: str) -> bool:
-        """Check if formula contains external references."""
+        """Check if formula contains external references.
+
+        External references link to other workbooks using the pattern:
+        [workbook.xlsx]Sheet1!A1
+
+        These create dependencies on external files and can break if
+        the referenced workbook is moved or renamed.
+        """
         # Look for external workbook references [workbook.xlsx]
         return "[" in formula and "]" in formula
 
     def _apply_range_strategy(self, dependencies: list[CellReference]) -> list[CellReference]:
-        """Apply the configured range handling strategy."""
+        """Apply the configured range handling strategy.
+
+        Strategies:
+        - SKIP: Ignore all range references (fastest, but loses information)
+        - EXPAND: Convert ranges to individual cells (detailed, but memory intensive)
+        - SUMMARIZE: Keep ranges as single entities (balanced approach)
+        - SMART: Expand small ranges (≤10 cells), keep large ranges as-is (recommended)
+
+        The strategy choice impacts:
+        - Memory usage (EXPAND uses most)
+        - Analysis detail (SKIP loses range information)
+        - Performance (SKIP is fastest, EXPAND is slowest)
+        """
         if self.range_strategy == RANGE_STRATEGY_SKIP:
             # Skip all ranges
             return [d for d in dependencies if not d.is_range]
@@ -863,7 +901,6 @@ class FormulaAnalyzer:
         sheet_ranges = defaultdict(list)
 
         for _node_key, node in self.graph.nodes.items():
-
             for dep_key in node.dependencies:
                 # Parse the dependency key
                 if ":" in dep_key:
@@ -874,9 +911,9 @@ class FormulaAnalyzer:
                         try:
                             min_col, min_row, max_col, max_row = range_boundaries(range_ref)
                             sheet_ranges[range_sheet].append((min_row, max_row, min_col, max_col, dep_key))
-                        except Exception:
-                            # Ignore parsing errors for range boundaries
-                            pass
+                        except Exception as e:
+                            # Log parsing errors for range boundaries
+                            logger.debug("Failed to parse range boundaries for %s: %s", range_ref, e)
 
         return RangeMembershipIndex(dict(sheet_ranges))
 

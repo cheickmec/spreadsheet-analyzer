@@ -20,35 +20,43 @@ logger = logging.getLogger(__name__)
 
 # ==================== Security Pattern Definitions ====================
 
-# Risk severity thresholds
-HIGH_RISK_SEVERITY_THRESHOLD: Final[int] = 7
-CRITICAL_SEVERITY_THRESHOLD: Final[int] = 9
-MEDIUM_SEVERITY_THRESHOLD: Final[int] = 5
-CRITICAL_RISK_SCORE_THRESHOLD: Final[int] = 80
-HIGH_RISK_SCORE_THRESHOLD: Final[int] = 60
-MEDIUM_RISK_SCORE_THRESHOLD: Final[int] = 40
+# Risk severity thresholds (scale: 0-10)
+# Individual threat severity determines how dangerous a single finding is
+HIGH_RISK_SEVERITY_THRESHOLD: Final[int] = 7  # Threats rated 7+ are high risk (e.g., shell execution)
+CRITICAL_SEVERITY_THRESHOLD: Final[int] = 9  # Threats rated 9+ are critical (e.g., auto-executing macros)
+MEDIUM_SEVERITY_THRESHOLD: Final[int] = 5  # Threats rated 5-6 are medium risk (e.g., external links)
+
+# Overall risk score thresholds (scale: 0-100)
+# Combined score from all threats determines file's overall risk level
+CRITICAL_RISK_SCORE_THRESHOLD: Final[int] = 80  # Files scoring 80+ are critical risk
+HIGH_RISK_SCORE_THRESHOLD: Final[int] = 60  # Files scoring 60-79 are high risk
+MEDIUM_RISK_SCORE_THRESHOLD: Final[int] = 40  # Files scoring 40-59 are medium risk
 
 # Size limits for security scanning
+# These prevent memory exhaustion from maliciously large files
 MAX_MACRO_SCAN_SIZE: Final[int] = 1024 * 1024  # 1MB limit for macro content scanning
 MAX_XML_PARSE_SIZE: Final[int] = 10 * 1024 * 1024  # 10MB limit for XML parsing
 
-# Patterns for detecting potentially dangerous content
+# Patterns for detecting potentially dangerous content in VBA macros
+# Each pattern identifies a category of risky behavior
 SUSPICIOUS_PATTERNS = {
-    "auto_open": re.compile(r"auto_open|workbook_open", re.IGNORECASE),
-    "shell_exec": re.compile(r"shell|cmd|powershell|wscript", re.IGNORECASE),
-    "file_io": re.compile(r"createobject|filesystemobject|scripting", re.IGNORECASE),
-    "network": re.compile(r"http|ftp|download|urlmon", re.IGNORECASE),
-    "registry": re.compile(r"registry|regwrite|regread", re.IGNORECASE),
+    "auto_open": re.compile(r"auto_open|workbook_open", re.IGNORECASE),  # Auto-executing macros
+    "shell_exec": re.compile(r"shell|cmd|powershell|wscript", re.IGNORECASE),  # System command execution
+    "file_io": re.compile(r"createobject|filesystemobject|scripting", re.IGNORECASE),  # File system access
+    "network": re.compile(r"http|ftp|download|urlmon", re.IGNORECASE),  # Network operations
+    "registry": re.compile(r"registry|regwrite|regread", re.IGNORECASE),  # Windows registry access
 }
 
-# External link patterns
+# External link patterns for detecting connections to external resources
+# These could be data exfiltration or malware download vectors
 EXTERNAL_LINK_PATTERNS = {
-    "http": re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+'),
-    "file": re.compile(r'file://[^\s<>"{}|\\^`\[\]]+'),
-    "unc": re.compile(r'\\\\[^\s<>"{}|\\^`\[\]]+'),
+    "http": re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+'),  # Web URLs
+    "file": re.compile(r'file://[^\s<>"{}|\\^`\[\]]+'),  # Local file references
+    "unc": re.compile(r'\\\\[^\s<>"{}|\\^`\[\]]+'),  # Network shares (UNC paths)
 }
 
-# OOXML namespaces
+# OOXML namespaces used for parsing Excel XML files
+# These are standard Microsoft Office Open XML schemas
 NAMESPACES = {
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
     "mc": "http://schemas.openxmlformats.org/markup-compatibility/2006",

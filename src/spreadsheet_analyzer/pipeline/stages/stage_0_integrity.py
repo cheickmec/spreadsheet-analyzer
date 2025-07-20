@@ -17,13 +17,16 @@ from spreadsheet_analyzer.pipeline.types import Err, FileMetadata, IntegrityResu
 # ==================== Constants ====================
 
 # File size constants
-MIN_FILE_SIZE_BYTES: Final[int] = 1024  # 1KB minimum
-NORMAL_SIZE_MIN_MB: Final[float] = 0.01
-NORMAL_SIZE_MAX_MB: Final[int] = 50
-LARGE_FILE_THRESHOLD_MB: Final[int] = 100
+# Minimum viable Excel file is ~4KB (empty workbook)
+MIN_FILE_SIZE_BYTES: Final[int] = 1024  # 1KB minimum - files smaller are likely corrupt
+
+# Normal file size ranges for trust scoring
+NORMAL_SIZE_MIN_MB: Final[float] = 0.01  # 10KB - typical minimum for real data
+NORMAL_SIZE_MAX_MB: Final[int] = 50  # 50MB - upper bound for normal files
+LARGE_FILE_THRESHOLD_MB: Final[int] = 100  # 100MB+ requires special handling
 
 # Trust scoring thresholds
-TINY_FILE_THRESHOLD_MB: Final[float] = 0.001
+TINY_FILE_THRESHOLD_MB: Final[float] = 0.001  # < 1KB files are suspicious
 
 # ==================== Pure Helper Functions ====================
 

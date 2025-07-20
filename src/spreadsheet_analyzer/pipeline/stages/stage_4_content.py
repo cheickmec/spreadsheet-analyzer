@@ -18,30 +18,38 @@ from spreadsheet_analyzer.pipeline.types import ContentAnalysis, ContentInsight,
 
 # ==================== Constants ====================
 
-# Pattern detection thresholds
-DATE_PATTERN_THRESHOLD: Final[float] = 0.5
-EMAIL_PATTERN_THRESHOLD: Final[float] = 0.7
-PHONE_PATTERN_THRESHOLD: Final[float] = 0.7
-PHONE_MIN_LENGTH: Final[int] = 7
-ID_CODE_CONSISTENCY_THRESHOLD: Final[float] = 0.8
-ALPHANUMERIC_THRESHOLD: Final[float] = 0.7
-CURRENCY_THRESHOLD: Final[float] = 0.3
-NUMERIC_THRESHOLD: Final[float] = 0.8
+# Pattern detection thresholds (0.0-1.0 = 0%-100%)
+# Minimum percentage of non-empty cells that must match a pattern
+# for the column to be classified as that data type
+DATE_PATTERN_THRESHOLD: Final[float] = 0.5  # 50% of cells must be valid dates
+EMAIL_PATTERN_THRESHOLD: Final[float] = 0.7  # 70% of cells must be valid emails
+PHONE_PATTERN_THRESHOLD: Final[float] = 0.7  # 70% of cells must be valid phone numbers
+PHONE_MIN_LENGTH: Final[int] = 7  # Minimum digits for phone number detection
+ID_CODE_CONSISTENCY_THRESHOLD: Final[float] = 0.8  # 80% must follow same pattern for ID columns
+ALPHANUMERIC_THRESHOLD: Final[float] = 0.7  # 70% must be alphanumeric for code detection
+CURRENCY_THRESHOLD: Final[float] = 0.3  # 30% currency symbols (lower due to mixed formats)
+NUMERIC_THRESHOLD: Final[float] = 0.8  # 80% must be numeric for number column
 
 # Quality scoring thresholds
-LOW_COMPLETENESS_THRESHOLD: Final[float] = 0.5
-CRITICAL_COMPLETENESS_THRESHOLD: Final[float] = 0.2
-AVERAGE_QUALITY_THRESHOLD: Final[int] = 60
-PROBLEM_SHEET_THRESHOLD: Final[int] = 50
-PATTERN_DETECTION_THRESHOLD: Final[float] = 0.5
-SHEET_ISSUES_THRESHOLD: Final[int] = 70
+# Data completeness thresholds (0.0-1.0)
+LOW_COMPLETENESS_THRESHOLD: Final[float] = 0.5  # Below 50% filled = low quality
+CRITICAL_COMPLETENESS_THRESHOLD: Final[float] = 0.2  # Below 20% filled = critical issue
 
-# Quality description thresholds
-EXCELLENT_QUALITY_THRESHOLD: Final[int] = 90
-GOOD_QUALITY_THRESHOLD: Final[int] = 70
-FAIR_QUALITY_THRESHOLD: Final[int] = 50
+# Quality scores (0-100 scale)
+AVERAGE_QUALITY_THRESHOLD: Final[int] = 60  # Sheets below 60 need attention
+PROBLEM_SHEET_THRESHOLD: Final[int] = 50  # Sheets below 50 have serious issues
+PATTERN_DETECTION_THRESHOLD: Final[float] = 0.5  # Need 50% pattern match for insights
+SHEET_ISSUES_THRESHOLD: Final[int] = 70  # Sheets above 70 are considered good
+
+# Quality description thresholds (0-100 scale)
+# Used to categorize overall data quality into human-readable levels
+EXCELLENT_QUALITY_THRESHOLD: Final[int] = 90  # 90-100: Excellent quality
+GOOD_QUALITY_THRESHOLD: Final[int] = 70  # 70-89: Good quality
+FAIR_QUALITY_THRESHOLD: Final[int] = 50  # 50-69: Fair quality, below 50: Poor
 
 # Excel date range
+# Excel stores dates as numbers since 1900-01-01 (day 1)
+# This is the maximum reasonable date value (roughly year 2173)
 EXCEL_DATE_MAX: Final[int] = 100000
 
 # ==================== Pattern Detection Functions ====================

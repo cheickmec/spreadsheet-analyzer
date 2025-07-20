@@ -24,20 +24,23 @@ logger = logging.getLogger(__name__)
 # ==================== Constants ====================
 
 # Complexity scoring thresholds
-
-SMALL_SHEET_COUNT: Final[int] = 3
-MEDIUM_SHEET_COUNT: Final[int] = 10
-LARGE_SHEET_COUNT: Final[int] = 50
+# Sheet count categories determine processing strategies and memory allocation
+SMALL_SHEET_COUNT: Final[int] = 3  # 1-3 sheets: Simple workbook, full analysis
+MEDIUM_SHEET_COUNT: Final[int] = 10  # 4-10 sheets: Standard workbook
+LARGE_SHEET_COUNT: Final[int] = 50  # 11-50 sheets: Complex workbook, may sample
 
 # Feature detection sampling limits
-FEATURE_SAMPLE_ROWS: Final[int] = 100
-FEATURE_SAMPLE_COLS: Final[int] = 100
+# For performance, we only scan a subset of cells for features
+FEATURE_SAMPLE_ROWS: Final[int] = 100  # Check first 100 rows for features
+FEATURE_SAMPLE_COLS: Final[int] = 100  # Check first 100 columns for features
 
-SMALL_CELL_COUNT: Final[int] = 1000
-MEDIUM_CELL_COUNT: Final[int] = 10000
-LARGE_CELL_COUNT: Final[int] = 100000
+# Cell count categories for performance optimization
+SMALL_CELL_COUNT: Final[int] = 1000  # < 1K cells: Full analysis
+MEDIUM_CELL_COUNT: Final[int] = 10000  # 1K-10K cells: Standard analysis
+LARGE_CELL_COUNT: Final[int] = 100000  # 10K-100K cells: Optimized analysis
 
-NAMED_RANGE_THRESHOLD: Final[int] = 10
+# Named range complexity indicator
+NAMED_RANGE_THRESHOLD: Final[int] = 10  # > 10 named ranges suggests advanced usage
 
 # ==================== Data Classes ====================
 
