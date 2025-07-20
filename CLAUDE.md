@@ -154,7 +154,7 @@ Based on the comprehensive system design document:
 
 ## Development Practices
 
-@CONTRIBUTING.md
+For detailed development practices, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Important Linting Rules to Follow
 
