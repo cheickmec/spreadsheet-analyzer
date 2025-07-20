@@ -56,10 +56,14 @@ ENABLE_EDGE_WEIGHTS: Final[bool] = True  # Calculate importance weights based on
 
 # Pattern constants for formula parsing
 EXCEL_OPERATORS: Final[str] = r"[\+\-\*/\^<>=&:\(\),]"  # Excel formula operators
-CELL_PATTERN: Final[re.Pattern] = re.compile(
+CELL_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?:([A-Za-z_][\w.]*|'[^']+')!)?"  # Optional sheet name (e.g., 'Sheet1!' or Sheet1!)
-    r"(\$?[A-Z]+\$?\d+"  # Cell reference (e.g., A1, $A$1)
-    r"(?::\$?[A-Z]+\$?\d+)?)",  # Optional range end (e.g., :B10 for A1:B10)
+    r"("  # Start cell/range group
+    r"\$?[A-Z]+\$?\d+"  # Cell reference (e.g., A1, $A$1)
+    r"(?::\$?[A-Z]+\$?\d+)?"  # Optional range end (e.g., :B10 for A1:B10)
+    r"|"  # OR
+    r"\$?[A-Z]+:\$?[A-Z]+"  # Column range (e.g., A:D, $A:$D)
+    r")",  # End cell/range group
     re.IGNORECASE,
 )
 
@@ -79,14 +83,14 @@ class CellReference(NamedTuple):
 
     sheet: str
     start_col: int
-    start_row: int
+    start_row: int | None  # Can be None for column ranges like A:D
     end_col: int | None = None
     end_row: int | None = None
 
     @property
     def is_range(self) -> bool:
         """Check if this reference is a range (not a single cell)."""
-        return self.end_col is not None and self.end_row is not None
+        return self.end_col is not None
 
     @property
     def cell_count(self) -> int:
@@ -95,18 +99,39 @@ class CellReference(NamedTuple):
             return 1
 
         col_count = (self.end_col - self.start_col + 1) if self.end_col else 1
-        row_count = (self.end_row - self.start_row + 1) if self.end_row else 1
+
+        # For column ranges (A:D), we don't have specific row counts
+        # Return a large number to indicate it's a full column range
+        if self.start_row is None or self.end_row is None:
+            # Excel has 1,048,576 rows, but we'll use a more reasonable estimate
+            return col_count * 1000  # Assume 1000 rows for column ranges
+
+        row_count = self.end_row - self.start_row + 1
         return col_count * row_count
 
     def to_key(self) -> str:
         """Convert to a string key for use in dictionaries."""
+        # Check if sheet name needs quotes (contains spaces or special characters)
+        sheet_name = self.sheet
+        if " " in sheet_name or "!" in sheet_name or "'" in sheet_name:
+            # Escape single quotes by doubling them
+            escaped_sheet = sheet_name.replace("'", "''")
+            sheet_name = f"'{escaped_sheet}'"
+
         if self.is_range:
-            start = f"{get_column_letter(self.start_col)}{self.start_row}"
-            end = f"{get_column_letter(self.end_col)}{self.end_row}"
-            return f"{self.sheet}!{start}:{end}"
+            # Handle column ranges (where row might be None)
+            if self.start_row is None and self.end_row is None:
+                # Column range like A:D
+                start = get_column_letter(self.start_col)
+                end = get_column_letter(self.end_col)
+            else:
+                # Regular range like A1:B10
+                start = f"{get_column_letter(self.start_col)}{self.start_row}"
+                end = f"{get_column_letter(self.end_col)}{self.end_row}"
+            return f"{sheet_name}!{start}:{end}"
         else:
             cell = f"{get_column_letter(self.start_col)}{self.start_row}"
-            return f"{self.sheet}!{cell}"
+            return f"{sheet_name}!{cell}"
 
 
 @dataclass(frozen=True)
@@ -331,7 +356,7 @@ class FormulaParser:
     including escaped quotes, array formulas, and international formats.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize parser with compiled patterns."""
         self._cache: dict[str, list[CellReference]] = {}
         self._cache_hits = 0
