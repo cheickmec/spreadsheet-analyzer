@@ -49,33 +49,39 @@ The decision to use Jupyter notebooks as the primary interface between the analy
 
 ## Architecture Overview
 
-The notebook-LLM interface consists of several cooperating components:
+The notebook-LLM interface builds upon the NAP foundation with domain-specific layers:
 
 ```mermaid
 graph TB
-    subgraph "Notebook-LLM Interface Architecture"
-        subgraph "Presentation Layer"
-            CP[Cell Presenter<br/>Formats cells for LLM]
-            SG[Semantic Grouper<br/>Identifies related cells]
-            CS[Context Streamer<br/>Manages token budget]
+    subgraph "Enhanced Notebook-LLM Architecture"
+        subgraph "NAP Foundation Layer"
+            UD[Unified Dispatcher<br/>NAP protocol handler]
+            RO[Range Operations<br/>Efficient cell access]
+            TE[Token Estimator<br/>Context management]
         end
         
-        subgraph "Enhancement Layer"
-            GE[Graph Enricher<br/>Adds dependency context]
-            ME[Metadata Extractor<br/>Cell execution stats]
-            PE[Pattern Extractor<br/>Common sequences]
+        subgraph "Domain Enhancement Layer"
+            EC[Excel Context<br/>Spreadsheet awareness]
+            SG[Semantic Grouper<br/>Formula chains]
+            VF[Validation Framework<br/>Claim verification]
+        end
+        
+        subgraph "Presentation Layer"
+            CP[Cell Presenter<br/>LLM formatting]
+            CS[Context Streamer<br/>Progressive disclosure]
+            GE[Graph Enricher<br/>Dependency context]
         end
         
         subgraph "Execution Layer"
-            NE[Notebook Executor<br/>Runs generated cells]
-            VL[Validation Layer<br/>Checks outputs]
+            SE[Secure Executor<br/>Sandboxed kernels]
+            VL[Validation Layer<br/>Automatic checks]
             RH[Recovery Handler<br/>Error mitigation]
         end
         
         subgraph "Storage Layer"
-            NS[Notebook Storage<br/>Persistent notebooks]
+            NS[Notebook Storage<br/>Persistent state]
             CH[Cache Handler<br/>Result caching]
-            HI[History Index<br/>Execution tracking]
+            HI[History Index<br/>Audit trail]
         end
     end
     
@@ -104,6 +110,51 @@ graph TB
     class GE,ME,PE enhance
     class NE,VL,RH execute
     class NS,CH,HI storage
+```
+
+## NAP Integration Strategy
+
+### Adopting the Notebook Agent Protocol
+
+The Notebook Agent Protocol (NAP) provides a clean, provider-agnostic foundation for notebook manipulation. We adopt its core principles while layering our spreadsheet-specific intelligence on top:
+
+#### Core NAP Principles We Adopt:
+
+1. **Unified Dispatcher**: Single entry point for all operations
+1. **Execution-by-Default**: Code cells execute immediately after creation/edit
+1. **Provider Agnostic**: JSON schema works across OpenAI, Anthropic, etc.
+1. **Range-Based Operations**: Efficient handling of large notebooks
+1. **Token Awareness**: Every response includes token estimates
+
+#### Our Domain Enhancements:
+
+1. **Excel Context Injection**: Every cell enriched with spreadsheet metadata
+1. **Semantic Grouping**: Beyond positional slicing to meaningful cell clusters
+1. **Validation Framework**: Automatic claim verification on execution
+1. **Graph Integration**: Dependency insights from Neo4j
+1. **Security Sandboxing**: Comprehensive execution constraints
+
+### Protocol Schema (Enhanced)
+
+```json
+{
+  "op": "add_cell" | "edit_cell" | "get_cells" | "run_cells",
+  "path": "analysis.ipynb",
+  "position": 3,
+  "source": "df['Total'].sum()",
+  "execute": true,
+  "kernel": "shared",
+  // Our additions:
+  "excel_context": {
+    "sheet": "Sales",
+    "references": ["E:E"],
+    "formula_equivalent": "=SUM(E:E)"
+  },
+  "validation": {
+    "enabled": true,
+    "claims": ["sum_matches_excel"]
+  }
+}
 ```
 
 ## Cell Presentation Framework
@@ -552,6 +603,33 @@ def analyze_dependencies(cell_ref: str):
 
 ## Implementation Patterns
 
+### NAP-Inspired Unified Dispatcher Pattern
+
+Based on insights from the Notebook Agent Protocol (NAP), we adopt a unified dispatcher approach while maintaining our domain-specific enhancements:
+
+```python
+class SpreadsheetNotebookDispatcher:
+    """Unified dispatcher with spreadsheet awareness."""
+    
+    def dispatch(self, cmd: dict) -> dict:
+        """Process notebook operations with domain enrichment."""
+        op = cmd["op"]
+        
+        # Pre-process: Enrich with spreadsheet context
+        if op in ["add_cell", "edit_cell"]:
+            cmd = self._enrich_with_excel_context(cmd)
+            
+        # Execute with security sandbox
+        with self.security_sandbox:
+            result = self._execute_operation(op, cmd)
+            
+        # Post-process: Add token-aware presentation
+        result["token_estimate"] = len(json.dumps(result))
+        result["excel_insights"] = self._extract_excel_insights(result)
+        
+        return result
+```
+
 ### Pattern 1: Exploratory Analysis Loop
 
 ```python
@@ -605,7 +683,26 @@ for pattern_type, instances in patterns.items():
         return cells
 ```
 
-### Pattern 2: Error Recovery Flow
+### Pattern 2: Range-Based Operations for Large Notebooks
+
+Adopting NAP's approach for handling large spreadsheets:
+
+```python
+def get_cells_semantic(self, path: str, focus: str, max_tokens: int):
+    """Semantic cell selection within token budget."""
+    # Not just positional slicing - semantic grouping
+    groups = self.identify_formula_chains(path, focus)
+    selected = self.token_manager.select_groups(groups, max_tokens)
+    
+    return {
+        "cells": selected,
+        "excel_context": self.graph_enricher.enrich(selected),
+        "token_estimate": self._calculate_tokens(selected),
+        "next_groups": self._suggest_expansions(groups, selected)
+    }
+```
+
+### Pattern 3: Error Recovery Flow
 
 ```python
 class ErrorRecoveryPattern:
@@ -649,7 +746,28 @@ except Exception as e:
         return cells
 ```
 
-### Pattern 3: Validation Sequences
+### Pattern 4: Execution-by-Default with Validation
+
+Combining NAP's execution philosophy with our validation requirements:
+
+```python
+def add_analysis_cell(self, source: str, metadata: dict, 
+                     execute: bool = True,  # NAP default
+                     validate: bool = True):  # Our addition
+    """Add cell with automatic execution and validation."""
+    cell = self._create_cell(source, metadata)
+    
+    if execute and cell.type == "code":
+        result = self.secure_executor.execute(cell)
+        
+        if validate:
+            validation = self.validator.check_claims(result)
+            cell.metadata["validation_status"] = validation
+            
+    return cell
+```
+
+### Pattern 5: Validation Sequences
 
 ```python
 class ValidationPattern:
@@ -716,9 +834,17 @@ if valid_count < total_count:
 
 ## Security Considerations
 
-### Sandboxed Execution
+### Execution-by-Default Security Implications
 
-All notebook cells execute within a secure sandbox:
+With NAP's execution-by-default philosophy, security becomes even more critical:
+
+1. **Every cell creation/edit triggers execution** - Higher attack surface
+1. **Shared kernels maintain state** - Potential for persistent compromise
+1. **Token-driven operations** - Need rate limiting and resource controls
+
+### Enhanced Sandboxed Execution
+
+Our security model extends NAP's basic execution with comprehensive controls:
 
 ```python
 class SecureNotebookExecutor:

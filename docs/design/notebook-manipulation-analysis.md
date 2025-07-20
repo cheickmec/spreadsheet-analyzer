@@ -164,39 +164,51 @@ No existing solution fully addresses:
 
 ## 5. Recommended Architecture
 
-### 5.1 Hybrid Approach
+### 5.1 Enhanced Hybrid Approach with NAP Foundation
+
+After analyzing the Notebook Agent Protocol (NAP), we've refined our architecture to incorporate its best practices:
 
 ```python
 class SpreadsheetNotebookInterface:
-    """Hybrid architecture leveraging best of each approach."""
+    """Hybrid architecture with NAP foundation and domain enhancements."""
     
     def __init__(self):
-        # Core manipulation (nbformat)
-        self.nb_manipulator = NotebookManipulator()
+        # NAP Foundation Layer
+        self.dispatcher = UnifiedDispatcher()  # NAP-style single entry point
+        self.range_ops = RangeOperations()    # Efficient cell access
+        self.token_manager = TokenBudgetManager()  # Context awareness
         
-        # Execution engine (nbclient + custom)
-        self.executor = SecureNotebookExecutor()
+        # Core Infrastructure (unchanged)
+        self.nb_manipulator = NotebookManipulator()  # nbformat wrapper
+        self.executor = SecureNotebookExecutor()     # Sandboxed execution
+        self.version_controller = JupytextSync()     # Git-friendly
         
-        # Version control (Jupytext)
-        self.version_controller = JupytextSync()
-        
-        # LLM presentation (custom)
+        # Domain-Specific Enhancements
+        self.excel_enricher = ExcelContextEnricher()
         self.cell_presenter = SpreadsheetCellPresenter()
-        
-        # Validation engine (custom)
         self.validator = ClaimValidationEngine()
+        self.graph_integrator = GraphDatabaseConnector()
         
-        # Optional: MCP for remote operations
-        self.mcp_server = None  # JupyterMCPServer()
+        # Optional Extensions
+        self.mcp_server = None  # For distributed scenarios
 ```
 
-### 5.2 Implementation Strategy
+Key improvements from NAP analysis:
 
-#### Phase 1: Foundation (Weeks 1-2)
+- **Unified dispatcher pattern** for cleaner API
+- **Execution-by-default** for natural workflow
+- **Token estimation** in all responses
+- **Range-based operations** for large notebooks
+- **Provider-agnostic JSON schema**
 
-- Implement nbformat-based manipulation
-- Add nbclient execution wrapper
-- Create basic cell presentation logic
+### 5.2 Implementation Strategy (Revised with NAP)
+
+#### Phase 1: NAP Foundation + Core (Weeks 1-2)
+
+- Implement unified dispatcher pattern
+- Add nbformat-based manipulation with NAP schema
+- Create secure execution wrapper with execution-by-default
+- Build token estimation for all operations
 
 #### Phase 2: Domain Integration (Weeks 3-4)
 

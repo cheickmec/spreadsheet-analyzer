@@ -2,26 +2,28 @@
 
 ## Key Findings
 
-After comprehensive analysis of notebook manipulation approaches and LLM integration patterns, here's the recommended architecture for your spreadsheet analyzer:
+After comprehensive analysis of notebook manipulation approaches, including the Notebook Agent Protocol (NAP), here's the recommended architecture for your spreadsheet analyzer:
 
 ### 1. Core Technology Stack
 
 ```yaml
-Foundation (Use Existing):
+NAP Foundation (New Layer):
+  - UnifiedDispatcher: Single entry point for all operations
+  - RangeOperations: Efficient handling of large notebooks
+  - TokenEstimator: Automatic token counting in responses
+  - ExecutionByDefault: Natural edit-then-run workflow
+  
+Infrastructure (Use Existing):
   - nbformat: Low-level notebook manipulation
   - nbclient: Secure execution with timeout support
   - jupyter-client: Kernel management
   
-Optional Enhancements:
-  - jupytext: Version control integration (if needed)
-  - papermill: Batch processing (for CI/CD)
-  - MCP server: Future distributed scenarios
-  
-Build Custom:
-  - SpreadsheetCellPresenter: Domain-specific presentation
-  - TokenBudgetManager: Excel-aware context management
+Build Custom (Domain-Specific):
+  - SpreadsheetCellPresenter: Excel-aware presentation
+  - ExcelContextEnricher: Formula dependency injection
   - ValidationPatternEngine: Claim verification
-  - GraphContextEnricher: Neo4j integration
+  - GraphDatabaseConnector: Neo4j integration
+  - SemanticGrouper: Beyond positional to meaningful clusters
 ```
 
 ### 2. Why This Hybrid Approach?
@@ -39,39 +41,40 @@ Build Custom:
 - ✓ Progressive context expansion
 - ✓ Validation-first workflows
 
-### 3. Implementation Architecture
+### 3. NAP-Enhanced Implementation Architecture
 
 ```python
 class SpreadsheetNotebookInterface:
-    """Your custom interface leveraging best practices."""
+    """Enhanced with NAP patterns while maintaining domain focus."""
     
     def __init__(self, excel_path: Path):
-        # Leverage existing tools
-        self.notebook = nbformat.v4.new_notebook()
-        self.executor = NotebookClient(self.notebook)
+        # NAP Foundation
+        self.dispatcher = UnifiedDispatcher()
+        self.token_estimator = TokenEstimator()
         
-        # Your innovations
-        self.cell_presenter = SpreadsheetCellPresenter()
-        self.graph_enricher = GraphDatabaseEnricher()
-        self.token_manager = TokenBudgetManager()
+        # Infrastructure
+        self.notebook = nbformat.v4.new_notebook()
+        self.executor = SecureNotebookExecutor()
+        
+        # Domain Enhancements
+        self.excel_enricher = ExcelContextEnricher()
+        self.graph_connector = GraphDatabaseConnector()
         self.validator = ValidationEngine()
     
-    def create_analysis_notebook(self):
-        """Generate spreadsheet-aware notebook."""
-        # Bootstrap with deterministic analysis
-        self.add_bootstrap_cell()
-        # Add helper functions
-        self.add_helpers_cell()
-        # Return ready notebook
-        return self.notebook
-    
-    def present_to_llm(self, focus_area: str):
-        """Create optimized LLM context."""
-        # Your unique value-add
-        cells = self.select_relevant_cells(focus_area)
-        enriched = self.enrich_with_graph_data(cells)
-        optimized = self.manage_token_budget(enriched)
-        return optimized
+    def dispatch(self, cmd: dict) -> dict:
+        """NAP-style unified entry point."""
+        # Pre-process: Excel context
+        if cmd["op"] in ["add_cell", "edit_cell"]:
+            cmd = self.excel_enricher.enrich(cmd)
+        
+        # Execute with defaults
+        result = self.dispatcher.execute(cmd)
+        
+        # Post-process: Token estimation
+        result["token_estimate"] = self.token_estimator.calculate(result)
+        result["excel_insights"] = self.extract_insights(result)
+        
+        return result
 ```
 
 ### 4. What Makes Your Approach Unique?
@@ -88,12 +91,14 @@ class SpreadsheetNotebookInterface:
 - **Marimo**: Requires platform migration
 - **Pure MCP Servers**: Add complexity without domain value
 
-### 6. Next Steps
+### 6. Next Steps (NAP-Aligned)
 
-1. **Week 1-2**: Implement core manipulation with nbformat
-1. **Week 3-4**: Build SpreadsheetCellPresenter
-1. **Week 5-6**: Integrate graph database enrichment
-1. **Week 7-8**: Add validation patterns and optimize
+1. **Week 1**: Implement UnifiedDispatcher with NAP schema
+1. **Week 1-2**: Add secure execution with execution-by-default
+1. **Week 2**: Build token estimation and range operations
+1. **Week 3**: Create SpreadsheetCellPresenter with Excel awareness
+1. **Week 3-4**: Integrate graph database enrichment
+1. **Week 4**: Add validation patterns with claim verification
 
 ### 7. Quick Start Example
 
