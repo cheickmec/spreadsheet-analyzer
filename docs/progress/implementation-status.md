@@ -55,16 +55,19 @@ For high-level vision and quarterly milestones, see [ROADMAP.md](../../ROADMAP.m
 | --------------------- | ----------- | --------------- | --------------------------------------------------------------- | ----------------------------- |
 | Excel-Aware DataFrame | ✅ Complete | Jul 2025        | [Code](../../src/spreadsheet_analyzer/excel_aware/dataframe.py) | Pandas with Excel coordinates |
 
-### 🚧 Phase 4: API Server Layer [NEXT PRIORITY]
+### 🚧 Phase 4: Rich CLI Interface [IN PROGRESS]
 
-| Component            | Status     | Target Date | Documentation                                                 | Notes                    |
-| -------------------- | ---------- | ----------- | ------------------------------------------------------------- | ------------------------ |
-| FastAPI Setup        | ⬜ Pending | Aug 2025    | [Design](../design/comprehensive-system-design.md#api-design) | Basic server structure   |
-| File Upload Endpoint | ⬜ Pending | Aug 2025    | -                                                             | Multi-part form handling |
-| Analysis Endpoints   | ⬜ Pending | Aug 2025    | -                                                             | Sync and async options   |
-| Progress Tracking    | ⬜ Pending | Aug 2025    | [Design](../design/progress-tracking-system.md)               | WebSocket updates        |
+| Component            | Status      | Target Date | Documentation                                                       | Notes                         |
+| -------------------- | ----------- | ----------- | ------------------------------------------------------------------- | ----------------------------- |
+| CLI Architecture     | ✅ Complete | Jul 2025    | [Design](../design/cli-architecture-design.md)                      | Click-based with Rich UI      |
+| Service Layer        | ✅ Complete | Jul 2025    | [Code](../../src/spreadsheet_analyzer/services/analysis_service.py) | Business logic separation     |
+| Analyze Command      | ✅ Complete | Jul 2025    | [Code](../../src/spreadsheet_analyzer/cli/commands/analyze.py)      | Single file analysis          |
+| Structured Logging   | ✅ Complete | Jul 2025    | [Code](../../src/spreadsheet_analyzer/logging_config.py)            | Human and machine readable    |
+| Rich Terminal Output | ⬜ Pending  | Aug 2025    | -                                                                   | Progress bars, tables, colors |
+| Batch Command        | ⬜ Pending  | Aug 2025    | -                                                                   | Multiple file processing      |
+| Watch Command        | ⬜ Pending  | Aug 2025    | -                                                                   | Directory monitoring          |
 
-**Why Next**: Foundation for all other services, exposes existing functionality
+**Why Next**: Immediate usability, lays foundation for future API, better development experience
 
 ### 🔮 Phase 5: Agent System [FUTURE]
 
@@ -94,10 +97,13 @@ For high-level vision and quarterly milestones, see [ROADMAP.md](../../ROADMAP.m
 
 ### Goals
 
-1. [ ] Implement basic FastAPI server structure
-1. [ ] Create file upload endpoint with validation
-1. [ ] Add synchronous analysis endpoint
-1. [ ] Basic progress tracking via polling
+1. [x] Design CLI architecture with service layer
+1. [x] Implement AnalysisService for business logic
+1. [x] Create basic analyze command with Click
+1. [x] Setup structured logging with structlog
+1. [ ] Add Rich terminal output with progress bars
+1. [ ] Create batch analysis command
+1. [ ] Add comprehensive tests for CLI
 
 ### Blockers
 
@@ -110,14 +116,18 @@ For high-level vision and quarterly milestones, see [ROADMAP.md](../../ROADMAP.m
 1. **Documentation**: Added comprehensive documentation for all pipeline constants
 1. **Graph Database**: Implemented full Neo4j integration with query interface
 1. **Excel-Aware**: Created DataFrame that preserves Excel coordinates
+1. **CLI Framework**: Implemented Click-based CLI with service layer architecture
+1. **Structured Logging**: Added structlog for rich terminal and JSON logging
 
 ## Technical Decisions Log
 
 | Date     | Decision                    | Rationale                               | Alternative Considered    |
 | -------- | --------------------------- | --------------------------------------- | ------------------------- |
 | Jul 2025 | Use Neo4j for graph DB      | Mature, performant for graph queries    | NetworkX (in-memory only) |
-| Jul 2025 | FastAPI for server          | Modern, async, good docs                | Flask, Django             |
+| Jul 2025 | CLI first, API later        | Immediate usability, easier testing     | FastAPI first             |
+| Jul 2025 | Click for CLI framework     | Mature, well-documented, extensible     | argparse, Typer           |
 | Jul 2025 | Consolidate formula modules | Maintainability, single source of truth | Keep multiple versions    |
+| Jul 2025 | Structlog for logging       | Structured data, multiple outputs       | stdlib logging only       |
 
 ## Performance Benchmarks Achieved
 
@@ -130,24 +140,32 @@ For high-level vision and quarterly milestones, see [ROADMAP.md](../../ROADMAP.m
 
 ## Next Steps Priority Queue
 
-1. **API Server Implementation** (1-2 weeks)
+1. **Complete CLI Implementation** (1 week)
 
-   - Basic FastAPI structure
-   - File upload and validation
-   - Analysis endpoints
-   - Progress tracking
+   - Rich terminal output with progress bars
+   - Batch analysis command
+   - Watch mode for directory monitoring
+   - Shell completion scripts
 
 1. **Enhanced Testing** (1 week)
 
-   - Integration tests for graph DB
-   - Performance test suite
-   - Load testing framework
+   - CLI command tests
+   - Service layer unit tests
+   - Integration tests for full pipeline
+   - Performance benchmarks
 
 1. **Documentation Update** (Ongoing)
 
-   - API documentation (OpenAPI)
-   - User guide for API usage
-   - Developer setup guide
+   - CLI user guide
+   - Installation instructions
+   - Example workflows
+
+1. **API Server Implementation** (2 weeks)
+
+   - FastAPI structure on top of service layer
+   - File upload and validation
+   - WebSocket progress tracking
+   - OpenAPI documentation
 
 1. **Agent System Foundation** (3-4 weeks)
 

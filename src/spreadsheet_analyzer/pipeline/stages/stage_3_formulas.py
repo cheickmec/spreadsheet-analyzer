@@ -16,7 +16,7 @@ semantic analysis as an optional feature.
 import logging
 import re
 from collections import defaultdict, deque
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Final, NamedTuple
 
@@ -26,7 +26,7 @@ from openpyxl.utils import coordinate_to_tuple, get_column_letter
 from openpyxl.utils.cell import range_boundaries
 from openpyxl.worksheet.worksheet import Worksheet
 
-from spreadsheet_analyzer.pipeline.types import Err, Ok
+from spreadsheet_analyzer.pipeline.types import EdgeMetadata, Err, Ok, RangeMembershipIndex
 
 logger = logging.getLogger(__name__)
 
@@ -110,22 +110,6 @@ class CellReference(NamedTuple):
 
 
 @dataclass(frozen=True)
-class EdgeMetadata:
-    """
-    Metadata for dependency graph edges with semantic information.
-
-    This structure captures the relationship type and context between
-    cells in the dependency graph.
-    """
-
-    edge_type: str  # e.g., "SUMS_OVER", "LOOKS_UP_IN"
-    function_name: str | None  # The function creating this dependency
-    argument_position: int | None  # Which argument position
-    weight: float = 1.0  # Edge weight based on range size or importance
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class FormulaNode:
     """
     Represents a cell with a formula in the dependency graph.
@@ -152,28 +136,19 @@ class FormulaNode:
         """Create a new node with semantic data added."""
         return replace(self, edge_labels=edge_labels, cell_metadata=cell_metadata)
 
-
-@dataclass(frozen=True)
-class RangeMembershipIndex:
-    """
-    Index for efficient range membership queries.
-
-    CLAUDE-PERFORMANCE: This index dramatically improves performance when
-    handling large ranges by avoiding repeated range expansion.
-    """
-
-    sheet_ranges: dict[str, list[tuple[int, int, int, int, str]]]
-
-    def is_cell_in_any_range(self, sheet: str, row: int, col: int) -> bool:
-        """Check if a cell is part of any indexed range."""
-        if sheet not in self.sheet_ranges:
-            return False
-
-        for min_row, max_row, min_col, max_col, _ in self.sheet_ranges[sheet]:
-            if min_row <= row <= max_row and min_col <= col <= max_col:
-                return True
-
-        return False
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "sheet": self.sheet,
+            "cell": self.cell,
+            "formula": self.formula,
+            "dependencies": list(self.dependencies),
+            "volatile": self.volatile,
+            "external": self.external,
+            "complexity_score": self.complexity_score,
+            "edge_labels": {k: v.__dict__ for k, v in self.edge_labels.items()} if self.edge_labels else None,
+            "cell_metadata": self.cell_metadata,
+        }
 
 
 @dataclass(frozen=True)
@@ -193,6 +168,24 @@ class FormulaAnalysis:
     formula_complexity_score: float
     statistics: dict[str, int]
     range_index: RangeMembershipIndex
+
+    @property
+    def has_circular_references(self) -> bool:
+        """Check if workbook has circular references."""
+        return len(self.circular_references) > 0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "dependency_graph": {k: v.to_dict() for k, v in self.dependency_graph.items()},
+            "circular_references": [list(cycle) for cycle in self.circular_references],
+            "volatile_formulas": list(self.volatile_formulas),
+            "external_references": list(self.external_references),
+            "max_dependency_depth": self.max_dependency_depth,
+            "formula_complexity_score": self.formula_complexity_score,
+            "has_circular_references": self.has_circular_references,
+            "statistics": self.statistics,
+        }
 
 
 # ============================================================================
@@ -401,7 +394,7 @@ class FormulaParser:
         """Parse a single cell reference."""
         try:
             cell_ref = cell_ref.replace("$", "")
-            col, row = coordinate_to_tuple(cell_ref)
+            row, col = coordinate_to_tuple(cell_ref)
             return CellReference(sheet, col, row)
         except Exception as e:
             logger.debug("Failed to parse cell reference '%s': %s", cell_ref, e)

@@ -114,7 +114,7 @@ class TestFormulaParser(BaseSpreadsheetTest):
         assert ref.start_row == 1
         assert ref.end_col == 2  # B
         assert ref.end_row == 10
-        assert ref.cell_count == 20  # 2 columns × 10 rows
+        assert ref.cell_count == 20  # 2 columns x 10 rows
 
     def test_parse_cross_sheet_reference(self, parser: FormulaParser) -> None:
         """
@@ -164,7 +164,7 @@ class TestFormulaParser(BaseSpreadsheetTest):
         # Second reference: 'Quarterly Report'!B2:C10
         assert references[1].sheet == "Quarterly Report"
         assert references[1].is_range
-        assert references[1].cell_count == 18  # 2 columns × 9 rows
+        assert references[1].cell_count == 18  # 2 columns x 9 rows
 
     def test_parse_complex_formula(self, parser: FormulaParser) -> None:
         """
@@ -363,8 +363,8 @@ class TestDependencyGraph(BaseSpreadsheetTest):
         # Verify graph structure
         assert len(graph.nodes) == 3
         assert "Sheet1!A1" in graph.nodes
-        assert "Sheet1!B1" in graph.adjacency_list["Sheet1!B1"]
-        assert "Sheet1!C1" in graph.adjacency_list["Sheet1!C1"]
+        assert "Sheet1!A1" in graph.adjacency_list["Sheet1!B1"]
+        assert "Sheet1!B1" in graph.adjacency_list["Sheet1!C1"]
 
         # Verify reverse adjacency (who depends on me?)
         assert "Sheet1!B1" in graph.reverse_adjacency["Sheet1!A1"]

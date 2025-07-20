@@ -57,9 +57,24 @@ def timeout(seconds: int):
         yield
         return
 
+    # Check if we're in the main thread
+    import threading
+
+    if threading.current_thread() is not threading.main_thread():
+        # Not in main thread, can't use signals
+        logger.debug("Stage timeouts not supported in non-main thread")
+        yield
+        return
+
     # Set up signal handler for Unix-like systems
-    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(seconds)
+    try:
+        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(seconds)
+    except (ValueError, AttributeError) as e:
+        # Signal not available or other error
+        logger.warning("Could not set timeout: %s", e)
+        yield
+        return
 
     try:
         yield

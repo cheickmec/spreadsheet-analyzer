@@ -63,6 +63,17 @@ NAMESPACES = {
     "x14ac": "http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac",
 }
 
+# Standard OOXML namespace URLs that should not be flagged as external links
+# These are part of the Excel file format specification
+OOXML_NAMESPACE_WHITELIST = {
+    "http://schemas.openxmlformats.org/",
+    "http://schemas.microsoft.com/office/",
+    "http://purl.oclc.org/ooxml/",
+    "http://purl.org/dc/elements/",
+    "http://purl.org/dc/terms/",
+    "http://purl.org/dc/dcmitype/",
+}
+
 # ==================== Pure Security Check Functions ====================
 
 
@@ -206,6 +217,12 @@ def check_for_external_links(file_path: Path) -> tuple[bool, list[SecurityThreat
                         for link_type, pattern in EXTERNAL_LINK_PATTERNS.items():
                             matches = pattern.findall(rels_str)
                             for match in matches:
+                                # Skip whitelisted OOXML namespaces
+                                if link_type == "http" and any(
+                                    match.startswith(ns) for ns in OOXML_NAMESPACE_WHITELIST
+                                ):
+                                    continue
+
                                 has_external_links = True
                                 threats.append(
                                     SecurityThreat(
@@ -437,17 +454,24 @@ def check_formula_injection(file_path: Path) -> list[SecurityThreat]:
                     for ref_type, pattern in external_formula_patterns.items():
                         matches = pattern.findall(content)
                         if matches:
-                            threats.append(
-                                SecurityThreat(
-                                    threat_type=f"FORMULA_EXTERNAL_{ref_type.upper()}",
-                                    severity=7,
-                                    location=sheet_file,
-                                    description=f"Formula contains external {ref_type.replace('_', ' ')} reference",
-                                    risk_level="HIGH",
-                                    # Limit to first 5 references
-                                    details={"references": matches[:5], "total_count": len(matches)},
+                            # Filter out whitelisted namespaces for HTTP URLs
+                            if ref_type == "http_in_formula":
+                                matches = [
+                                    m for m in matches if not any(m.startswith(ns) for ns in OOXML_NAMESPACE_WHITELIST)
+                                ]
+
+                            if matches:  # Only add threat if there are non-whitelisted matches
+                                threats.append(
+                                    SecurityThreat(
+                                        threat_type=f"FORMULA_EXTERNAL_{ref_type.upper()}",
+                                        severity=7,
+                                        location=sheet_file,
+                                        description=f"Formula contains external {ref_type.replace('_', ' ')} reference",
+                                        risk_level="HIGH",
+                                        # Limit to first 5 references
+                                        details={"references": matches[:5], "total_count": len(matches)},
+                                    )
                                 )
-                            )
                 except (OSError, ValueError, UnicodeDecodeError):
                     pass
 

@@ -1,14 +1,26 @@
 [project]
 name = "spreadsheet-analyzer"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-powered Excel analysis system"
 requires-python = ">=3.12"
 dependencies = [
     "certifi==2025.7.14",
     "chardet>=5.2.0",
     "defusedxml>=0.7.1",
     "openpyxl>=3.1.5",
+    "click>=8.1.0",
+    "structlog>=24.1.0",
+    "pyyaml>=6.0",
+    "rich>=13.7.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "tqdm>=4.66.0",
+    "neo4j>=5.28.1",
+    "networkx>=3.0",
 ]
+
+[project.scripts]
+spreadsheet-analyzer = "spreadsheet_analyzer.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -27,6 +39,10 @@ dev = [
 graph = [
     "neo4j>=5.28.1",
     "tqdm>=4.66.0",
+]
+cli = [
+    "rich>=13.7.0",
+    "watchdog>=4.0.0",  # For future watch command
 ]
 
 [tool.ruff]
@@ -135,6 +151,22 @@ ignore_missing_imports = true
 module = "pandas.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "structlog.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "click.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "yaml.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "rich.*"
+ignore_missing_imports = true
+
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv"]
 skips = ["B101"]  # Skip assert_used test
@@ -177,5 +209,6 @@ style = [
 
 [dependency-groups]
 dev = [
+    "pytest-cov>=6.2.1",
     "pytest-timeout>=2.4.0",
 ]

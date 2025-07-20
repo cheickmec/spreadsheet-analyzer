@@ -40,27 +40,38 @@ cd spreadsheet-analyzer
 # Install dependencies using uv
 uv sync
 
+# Install CLI tool
+uv pip install -e .
+
 # Run a simple analysis
-uv run python scripts/analyze_excel.py test-files/data-analysis/advanced_excel_formulas.xlsx
+spreadsheet-analyzer analyze test-files/data-analysis/advanced_excel_formulas.xlsx
 ```
 
 ### Basic Usage
 
 ```bash
+# Install the package with CLI dependencies
+uv sync
+uv pip install -e .
+
 # Analyze a single Excel file
-uv run python scripts/analyze_excel.py financial-model.xlsx
+spreadsheet-analyzer analyze financial-model.xlsx
 
-# Quick analysis with fast mode
-uv run python scripts/analyze_excel.py data.xlsx --mode fast
+# Verbose output with progress tracking
+spreadsheet-analyzer -vv analyze data.xlsx
 
-# Strict security analysis
-uv run python scripts/analyze_excel.py sensitive.xlsx --mode strict --detailed
+# Fast mode with JSON output
+spreadsheet-analyzer analyze data.xlsx --mode fast --format json
 
-# Batch analyze directory
-uv run python scripts/batch_analyze.py /path/to/excel/files --recursive
+# Save results to file
+spreadsheet-analyzer analyze sensitive.xlsx -o results.yaml
 
-# Run comprehensive test suite
-uv run python scripts/run_test_suite.py
+# Skip formula analysis for faster results
+spreadsheet-analyzer analyze large-file.xlsx --no-formulas
+
+# Help and available options
+spreadsheet-analyzer --help
+spreadsheet-analyzer analyze --help
 ```
 
 ## 🔍 What It Does
@@ -137,18 +148,21 @@ uv run pre-commit run --all-files
 ```
 spreadsheet-analyzer/
 │├──── src/spreadsheet_analyzer/     # Main application code
-│   │└── pipeline/                 # 5-stage analysis pipeline
-│       │├──── stages/               # Individual stage implementations
-│       │├──── types.py              # Immutable data structures
-│       │└── pipeline.py           # Main orchestrator
-│├──── scripts/                      # Analysis utilities
-│   │├──── analyze_excel.py          # Single file analyzer
-│   │├──── batch_analyze.py          # Batch processing
-│   │└── run_test_suite.py         # Comprehensive testing
+│   │├──── pipeline/                 # 5-stage analysis pipeline
+│   │   │├──── stages/               # Individual stage implementations
+│   │   │├──── types.py              # Immutable data structures
+│   │   │└── pipeline.py           # Main orchestrator
+│   │├──── cli/                      # Command-line interface
+│   │   │├──── commands/             # CLI commands (analyze, batch, etc.)
+│   │   │└── __init__.py           # CLI entry point
+│   │├──── services/                 # Business logic layer
+│   │   │└── analysis_service.py   # Core analysis service
+│   │└── graph_db/                 # Graph database integration
 │├──── test-files/                   # Example Excel files
 │├──── tests/                        # Test suite
 │└── docs/                         # Documentation
     │├──── design/                   # System design documents
+    │├──── progress/                 # Implementation tracking
     │└── research/                 # AI/LLM research
 ```
 
@@ -157,7 +171,7 @@ spreadsheet-analyzer/
 - **[Implementation Status](docs/progress/implementation-status.md)**: 📊 Current progress and roadmap tracking
 - **[Pipeline Design](docs/design/deterministic-analysis-pipeline.md)**: 5-stage pipeline architecture
 - **[System Design](docs/design/comprehensive-system-design.md)**: Complete technical specification
-- **[Script Usage](scripts/README.md)**: Guide to analysis utilities
+- **[CLI Architecture](docs/design/cli-architecture-design.md)**: Terminal interface design
 - **[Contributing](CONTRIBUTING.md)**: Development practices and testing philosophy
 
 ## ⚡ Performance
