@@ -110,6 +110,22 @@ Adopt these core principles when developing:
 1. **"Tests Over Tools"** - When tools conflict with testing, prioritize having the test
 1. **"Documentation-First Development"** - ALWAYS Start with clear requirements before coding
 
+## Code Evolution Practices
+
+When modifying or improving code:
+
+1. **Edit Files In Place** - Never create new files with suffixes like `_refactored`, `_enhanced`, `_improved`, `_v2`, etc. Always edit the existing file directly.
+
+1. **Rely on Git History** - Version control tracks all changes. There's no need to keep old versions as separate files. Ensure changes are committed before making major edits.
+
+1. **Use Descriptive Names** - File names should describe what the code does, not its version state. For example:
+
+   - ✅ `stage_3_formulas.py` (describes functionality)
+   - ❌ `stage_3_formulas_refactored.py` (indicates version)
+   - ❌ `stage_3_formulas_enhanced.py` (indicates improvement)
+
+1. **Replace, Don't Duplicate** - When improving code, replace the existing implementation rather than creating alternatives that make the original redundant.
+
 ## Key Design Principles
 
 Based on the comprehensive system design document:
