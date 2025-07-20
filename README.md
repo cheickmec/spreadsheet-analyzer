@@ -154,6 +154,7 @@ spreadsheet-analyzer/
 
 ## 📚 Documentation
 
+- **[Implementation Status](docs/progress/implementation-status.md)**: 📊 Current progress and roadmap tracking
 - **[Pipeline Design](docs/design/deterministic-analysis-pipeline.md)**: 5-stage pipeline architecture
 - **[System Design](docs/design/comprehensive-system-design.md)**: Complete technical specification
 - **[Script Usage](scripts/README.md)**: Guide to analysis utilities
