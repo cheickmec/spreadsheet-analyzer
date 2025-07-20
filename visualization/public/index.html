@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spreadsheet Dependency Visualization</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/neovis.js@2.1.0/dist/neovis.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Spreadsheet Dependency Graph</h1>
+            <p>Interactive visualization of Excel formula dependencies</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="querySelect">Predefined Queries:</label>
+                <select id="querySelect">
+                    <option value="">-- Select a query --</option>
+                </select>
+                <button id="runQuery">Run Query</button>
+            </div>
+
+            <div class="control-group">
+                <label for="customQuery">Custom Cypher Query:</label>
+                <textarea id="customQuery" rows="3" placeholder="MATCH (n:Cell) RETURN n LIMIT 25"></textarea>
+                <button id="runCustom">Run Custom</button>
+            </div>
+
+            <div class="control-group">
+                <button id="clearViz">Clear</button>
+                <button id="stabilize">Stabilize</button>
+                <button id="centerGraph">Center</button>
+                <span id="nodeCount">Nodes: 0</span>
+            </div>
+        </div>
+
+        <div id="viz"></div>
+
+        <div class="info-panel">
+            <h3>Node Information</h3>
+            <div id="nodeInfo">Click on a node to see details</div>
+        </div>
+
+        <div class="legend">
+            <h3>Legend</h3>
+            <div class="legend-item">
+                <span class="node-cell"></span> Cell with Formula
+            </div>
+            <div class="legend-item">
+                <span class="node-range"></span> Range Node
+            </div>
+            <div class="legend-item">
+                <span class="edge-depends"></span> Depends On
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

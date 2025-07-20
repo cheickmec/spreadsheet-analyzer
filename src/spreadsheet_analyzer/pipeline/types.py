@@ -190,6 +190,8 @@ class CellReference:
     cell: CellRef
     is_absolute: bool
     is_range: bool
+    ref_type: Literal["single_cell", "range", "named_range", "external"] = "single_cell"
+    edge_label: str = "DEPENDS_ON"  # Semantic edge type
 
 
 @dataclass(frozen=True)
@@ -202,6 +204,11 @@ class FormulaNode:
     dependencies: frozenset[CellReference]
     dependents: frozenset[CellReference]
     depth: int  # Distance from leaf nodes
+    node_type: Literal["cell", "range"] = "cell"
+    range_info: dict[str, Any] | None = None  # For range nodes
+    is_volatile: bool = False  # Contains volatile functions
+    value_type: str | None = None  # Data type of cell value
+    pagerank: float | None = None  # Pre-computed importance score
 
 
 @dataclass(frozen=True)
@@ -214,6 +221,7 @@ class FormulaAnalysis:
     external_references: tuple[str, ...]
     max_dependency_depth: int
     formula_complexity_score: int
+    range_membership_index: Any | None = None  # Optional range tracking
 
     @property
     def has_circular_references(self) -> bool:

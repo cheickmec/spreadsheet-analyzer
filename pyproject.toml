@@ -23,6 +23,10 @@ dev = [
     "types-defusedxml>=0.7.0.20240218",
     "types-jsonschema>=4.17.3",
 ]
+graph = [
+    "neo4j>=5.28.1",
+    "tqdm>=4.66.0",
+]
 
 [tool.ruff]
 # Ruff configuration

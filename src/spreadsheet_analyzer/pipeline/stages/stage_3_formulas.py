@@ -10,7 +10,9 @@ import re
 from collections import defaultdict, deque
 from collections.abc import Callable
 from pathlib import Path
-from typing import ClassVar, Final
+
+# Type imports for optional features
+from typing import TYPE_CHECKING, Any, ClassVar, Final, Literal
 
 import openpyxl
 from openpyxl.formula import Tokenizer
@@ -32,6 +34,12 @@ LOW_DEPTH_THRESHOLD: Final[int] = 2
 
 # Performance settings
 FORMULA_ANALYSIS_CHUNK_SIZE: Final[int] = 1000  # Process 1000 rows at a time
+
+# Range handling settings
+SMALL_RANGE_THRESHOLD: Final[int] = 10  # Expand ranges smaller than this
+MEDIUM_RANGE_THRESHOLD: Final[int] = 100  # Create range nodes for larger ranges
+RANGE_HANDLING_MODE: Final[str] = "smart"  # "skip" | "expand" | "summarize" | "smart"
+ENABLE_RANGE_MEMBERSHIP_INDEX: Final[bool] = True  # Track empty cell memberships
 
 # Complexity score weights
 SCORE_HIGH_FORMULA_COUNT: Final[int] = 20
@@ -63,6 +71,57 @@ def format_cell_key(sheet_name: str, cell_ref: str) -> str:
         Formatted cell key (e.g., "Sheet1!A1")
     """
     return f"{sheet_name}!{cell_ref}"
+
+
+def parse_range_size(range_ref: str) -> tuple[int, dict[str, Any]]:
+    """
+    Calculate the size of a range reference and extract metadata.
+
+    Args:
+        range_ref: Range reference (e.g., "B1:B10", "A:A", "1:1")
+
+    Returns:
+        Tuple of (size, metadata_dict)
+    """
+    import re
+
+    from openpyxl.utils import column_index_from_string
+
+    # Handle full column ranges (e.g., "A:A", "B:D")
+    if re.match(r"^[A-Z]+:[A-Z]+$", range_ref):
+        return (1048576, {"type": "column", "full_column": True})
+    # Handle full row ranges (e.g., "1:1", "5:10")
+    if re.match(r"^\d+:\d+$", range_ref):
+        return (16384, {"type": "row", "full_row": True})
+
+    # Parse normal range (e.g., "B1:D10")
+    match = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", range_ref)
+    if match:
+        start_col, start_row, end_col, end_row = match.groups()
+
+        col_start = column_index_from_string(start_col)
+        col_end = column_index_from_string(end_col)
+        row_start = int(start_row)
+        row_end = int(end_row)
+
+        num_cols = col_end - col_start + 1
+        num_rows = row_end - row_start + 1
+        size = num_cols * num_rows
+
+        metadata = {
+            "type": "normal",
+            "start_cell": f"{start_col}{start_row}",
+            "end_cell": f"{end_col}{end_row}",
+            "rows": num_rows,
+            "cols": num_cols,
+            "is_column_range": num_cols == 1 and num_rows > 1,
+            "is_row_range": num_rows == 1 and num_cols > 1,
+        }
+
+        return (size, metadata)
+
+    # Default for unparseable ranges
+    return (1, {"type": "unknown"})
 
 
 # ==================== Formula Parsing Utilities ====================
@@ -103,43 +162,45 @@ class FormulaParser:
         if not formula or not formula.startswith("="):
             return references
 
-        # Remove the leading '='
-        formula = formula[1:]
-
-        # Try to use openpyxl's tokenizer if available
+        # Try to use openpyxl's tokenizer - it requires the = sign
         try:
-            tokenizer = Tokenizer(formula)
+            tokenizer = Tokenizer(formula)  # Keep the = sign for proper parsing
             for token in tokenizer.items:
                 if token.type == "OPERAND" and token.subtype == "RANGE":
                     refs = self._parse_reference(token.value)
                     references.update(refs)
         except (ValueError, AttributeError, TypeError):
-            # Fallback to regex parsing
-            references.update(self._parse_with_regex(formula))
+            # Fallback to regex parsing if tokenizer fails
+            # Remove the leading '=' for regex parsing
+            formula_without_eq = formula[1:]
+            references.update(self._parse_with_regex(formula_without_eq))
 
         return references
 
     def _parse_reference(self, ref_str: str) -> set[CellReference]:
-        """Parse a single reference string."""
+        """Parse a single reference string from tokenizer output."""
         references: set[CellReference] = set()
 
+        # Extract sheet name if present
+        sheet = self.current_sheet
+        cell_part = ref_str
+
+        # Handle quoted sheet names like 'Sheet 2'!B1
+        if ref_str.startswith("'") and "'!" in ref_str:
+            sheet_end = ref_str.index("'!")
+            sheet = ref_str[1:sheet_end]  # Remove quotes
+            cell_part = ref_str[sheet_end + 2 :]  # Skip '!
+        # Handle unquoted sheet names like TestSheet!A1:A10
+        elif "!" in ref_str and not ref_str.startswith("'"):
+            sheet, cell_part = ref_str.split("!", 1)
+
         # Check for range reference
-        if ":" in ref_str:
-            match = self.RANGE_PATTERN.match(ref_str)
-            if match:
-                sheet = match.group("sheet") or self.current_sheet
-                # For ranges, we just note it as a range reference
-                references.add(CellReference(sheet=sheet, cell=ref_str, is_absolute="$" in ref_str, is_range=True))
+        if ":" in cell_part:
+            # This is a range like A1:A10
+            references.add(CellReference(sheet=sheet, cell=cell_part, is_absolute="$" in ref_str, is_range=True))
         else:
             # Single cell reference
-            match = self.CELL_PATTERN.match(ref_str)
-            if match:
-                sheet = match.group("sheet") or self.current_sheet
-                col = match.group("col")
-                row = match.group("row")
-                references.add(
-                    CellReference(sheet=sheet, cell=f"{col}{row}", is_absolute="$" in ref_str, is_range=False)
-                )
+            references.add(CellReference(sheet=sheet, cell=cell_part, is_absolute="$" in ref_str, is_range=False))
 
         return references
 
@@ -177,62 +238,108 @@ class DependencyGraph:
 
     CLAUDE-KNOWLEDGE: We use an adjacency list representation
     for efficient traversal and cycle detection.
+    CLAUDE-IMPORTANT: Now supports range nodes as first-class citizens
+    to handle range dependencies without edge explosion.
     """
 
     def __init__(self):
         """Initialize empty graph."""
-        self.nodes: dict[str, FormulaNode] = {}
+        self.nodes: set[str] = set()  # All node keys
         self.edges: dict[str, set[str]] = defaultdict(set)
         self.reverse_edges: dict[str, set[str]] = defaultdict(set)
+        self.formulas: dict[str, str] = {}  # node_key -> formula
+        self.node_types: dict[str, str] = {}  # node_key -> "cell" | "range"
+        self.range_metadata: dict[str, dict] = {}  # node_key -> range info
+        self.node_depths: dict[str, int] = {}  # node_key -> depth
         self._circular_refs: list[tuple[str, ...]] = []
 
-    def add_node(self, cell_key: str, sheet: str, cell: str, formula: str):
-        """Add a formula node to the graph."""
-        if cell_key not in self.nodes:
-            self.nodes[cell_key] = FormulaNode(
-                sheet=sheet, cell=cell, formula=formula, dependencies=frozenset(), dependents=frozenset(), depth=0
-            )
+    def add_node(
+        self,
+        node_key: str,
+        _sheet: str,
+        _cell_ref: str,
+        formula: str | None,
+        *,
+        node_type: str = "cell",
+        range_metadata: dict | None = None,
+    ):
+        """Add a node (cell or range) to the graph."""
+        if node_key not in self.nodes:
+            self.nodes.add(node_key)
+            self.node_types[node_key] = node_type
+            if formula:
+                self.formulas[node_key] = formula
+            if range_metadata:
+                self.range_metadata[node_key] = range_metadata
 
-    def add_edge(self, from_cell: str, to_cell: str):
-        """Add dependency edge from from_cell to to_cell."""
-        self.edges[from_cell].add(to_cell)
-        self.reverse_edges[to_cell].add(from_cell)
+    def add_edge(self, from_node: str, to_node: str):
+        """Add dependency edge from from_node to to_node."""
+        # Ensure both nodes exist
+        self.nodes.add(from_node)
+        self.nodes.add(to_node)
+        # Add edges
+        self.edges[from_node].add(to_node)
+        self.reverse_edges[to_node].add(from_node)
 
-    def finalize_dependencies(self):
+    def finalize(self) -> dict[str, FormulaNode]:
         """
-        Finalize dependency relationships in nodes.
+        Convert internal representation to immutable FormulaNodes.
 
-        CLAUDE-IMPORTANT: This must be called after all edges are added
-        to update the immutable FormulaNode structures.
+        CLAUDE-IMPORTANT: This creates the final output structure
+        with proper handling of range nodes.
         """
-        for cell_key, node in self.nodes.items():
-            # Create frozen sets of dependencies
-            deps = frozenset(
+        formula_nodes = {}
+
+        for node_key in self.nodes:
+            # Parse node key to get sheet and cell
+            if "!" in node_key:
+                sheet, cell_ref = node_key.split("!", 1)
+            else:
+                sheet = ""
+                cell_ref = node_key
+
+            # Get node info
+            node_type_str = self.node_types.get(node_key, "cell")
+            # Ensure node_type is a proper literal type
+            node_type: Literal["cell", "range"] = "range" if node_type_str == "range" else "cell"
+            formula = self.formulas.get(node_key, "")
+            depth = self.node_depths.get(node_key, 0)
+
+            # Convert dependencies to CellReference objects
+            dependencies = frozenset(
                 CellReference(
-                    sheet=self.nodes[dep].sheet,
-                    cell=self.nodes[dep].cell,
-                    is_absolute=False,  # Simplified
-                    is_range=False,
+                    sheet=dep.split("!")[0] if "!" in dep else sheet,
+                    cell=dep.split("!")[1] if "!" in dep else dep,
+                    is_absolute=False,
+                    is_range=self.node_types.get(dep, "cell") == "range",
                 )
-                for dep in self.edges.get(cell_key, set())
-                if dep in self.nodes
+                for dep in self.edges.get(node_key, set())
             )
 
+            # Convert dependents to CellReference objects
             dependents = frozenset(
-                CellReference(sheet=self.nodes[dep].sheet, cell=self.nodes[dep].cell, is_absolute=False, is_range=False)
-                for dep in self.reverse_edges.get(cell_key, set())
-                if dep in self.nodes
+                CellReference(
+                    sheet=dep.split("!")[0] if "!" in dep else sheet,
+                    cell=dep.split("!")[1] if "!" in dep else dep,
+                    is_absolute=False,
+                    is_range=self.node_types.get(dep, "cell") == "range",
+                )
+                for dep in self.reverse_edges.get(node_key, set())
             )
 
-            # Update node with dependencies
-            self.nodes[cell_key] = FormulaNode(
-                sheet=node.sheet,
-                cell=node.cell,
-                formula=node.formula,
-                dependencies=deps,
+            # Create FormulaNode with range info if applicable
+            formula_nodes[node_key] = FormulaNode(
+                sheet=sheet,
+                cell=cell_ref,
+                formula=formula,
+                dependencies=dependencies,
                 dependents=dependents,
-                depth=node.depth,
+                depth=depth,
+                node_type=node_type,
+                range_info=self.range_metadata.get(node_key),
             )
+
+        return formula_nodes
 
     def detect_circular_references(self) -> list[tuple[str, ...]]:
         """
@@ -298,23 +405,14 @@ class DependencyGraph:
                 else:
                     depths[dependent] = max(depths[dependent], current_depth + 1)
 
-        # Update nodes with depths
-        for cell_key, node in self.nodes.items():
-            depth = depths.get(cell_key, 0)
-            self.nodes[cell_key] = FormulaNode(
-                sheet=node.sheet,
-                cell=node.cell,
-                formula=node.formula,
-                dependencies=node.dependencies,
-                dependents=node.dependents,
-                depth=depth,
-            )
+        # Store depths for use in finalize
+        self.node_depths = depths
 
     def get_max_depth(self) -> int:
         """Get maximum dependency depth."""
-        if not self.nodes:
+        if not self.node_depths:
             return 0
-        return max(node.depth for node in self.nodes.values())
+        return max(self.node_depths.values(), default=0)
 
 
 # ==================== Formula Analyzer Class ====================
@@ -345,6 +443,17 @@ class FormulaAnalyzer:
         self.volatile_formulas: list[str] = []
         self.external_references: list[str] = []
         self.parser_cache: dict[str, FormulaParser] = {}
+        # Range membership tracking for empty cell queries
+        if TYPE_CHECKING:
+            from spreadsheet_analyzer.graph_db.range_membership import RangeMembershipIndex
+
+            self.range_index: RangeMembershipIndex | None
+        self.range_index = None
+
+        if ENABLE_RANGE_MEMBERSHIP_INDEX:
+            from spreadsheet_analyzer.graph_db.range_membership import RangeMembershipIndex
+
+            self.range_index = RangeMembershipIndex()
 
     def analyze_workbook(self, workbook) -> FormulaAnalysis:
         """
@@ -361,27 +470,29 @@ class FormulaAnalyzer:
             sheet = workbook[sheet_name]
             self._analyze_sheet(sheet, sheet_name)
 
-        # Finalize graph structure
-        self.graph.finalize_dependencies()
+        # Calculate depths first
+        self.graph.calculate_depths()
 
+        # Detect circular references
         # CLAUDE-GOTCHA: Excel allows some circular references with iterative calculation
         # but they can cause performance issues and calculation errors
         circular_refs = self.graph.detect_circular_references()
 
-        # Calculate depths
-        self.graph.calculate_depths()
+        # Finalize graph structure to create immutable nodes
+        formula_nodes = self.graph.finalize()
 
         # Calculate complexity score
         complexity_score = self._calculate_complexity_score()
 
         # Create analysis result
         return FormulaAnalysis(
-            dependency_graph=dict(self.graph.nodes),
+            dependency_graph=formula_nodes,
             circular_references=tuple(circular_refs),
             volatile_formulas=tuple(set(self.volatile_formulas)),
             external_references=tuple(set(self.external_references)),
             max_dependency_depth=self.graph.get_max_depth(),
             formula_complexity_score=complexity_score,
+            range_membership_index=self.range_index,
         )
 
     def _analyze_sheet(self, sheet, sheet_name: str):
@@ -428,12 +539,86 @@ class FormulaAnalyzer:
         # Parse dependencies
         dependencies = parser.parse_formula(formula)
 
-        # Add edges to graph
+        # Add edges to graph with range handling
         for dep in dependencies:
             dep_key = format_cell_key(dep.sheet, dep.cell)
-            # Only add edge if it's a single cell reference
+
             if not dep.is_range:
+                # Single cell reference - add direct edge
                 self.graph.add_edge(cell_key, dep_key)
+            else:
+                # Range reference - handle based on size and configuration
+                self._handle_range_dependency(cell_key, dep, dep_key)
+
+    def _handle_range_dependency(self, formula_key: str, dep: CellReference, range_key: str):
+        """Handle range dependencies based on size and configuration."""
+        # Calculate range size and metadata
+        range_size, range_metadata = parse_range_size(dep.cell)
+
+        # Add to range membership index for empty cell tracking
+        if self.range_index:
+            self.range_index.add_range(dep.cell, formula_key, dep.sheet)
+
+        # Determine handling strategy
+        if RANGE_HANDLING_MODE == "skip":
+            # Don't add any edges for ranges
+            return
+
+        elif RANGE_HANDLING_MODE == "expand" and range_size <= SMALL_RANGE_THRESHOLD:
+            # Expand small ranges to individual cell edges
+            self._expand_range_to_cells(formula_key, dep.sheet, dep.cell)
+
+        elif RANGE_HANDLING_MODE == "smart":
+            # Smart handling based on range size
+            if range_size <= SMALL_RANGE_THRESHOLD:
+                # Small range - expand to individual cells
+                self._expand_range_to_cells(formula_key, dep.sheet, dep.cell)
+            else:
+                # Medium/large range - create range node
+                self.graph.add_node(
+                    range_key,
+                    dep.sheet,
+                    dep.cell,
+                    None,
+                    node_type="range",
+                    range_metadata=range_metadata,
+                )
+                self.graph.add_edge(formula_key, range_key)
+
+        else:  # "summarize" or default
+            # Always create range nodes
+            self.graph.add_node(
+                range_key,
+                dep.sheet,
+                dep.cell,
+                None,
+                node_type="range",
+                range_metadata=range_metadata,
+            )
+            self.graph.add_edge(formula_key, range_key)
+
+    def _expand_range_to_cells(self, formula_key: str, sheet: str, range_ref: str):
+        """Expand a range reference to individual cell edges."""
+        import re
+
+        from openpyxl.utils import column_index_from_string, get_column_letter
+
+        # Parse range (e.g., "B1:D3")
+        match = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", range_ref)
+        if match:
+            start_col, start_row, end_col, end_row = match.groups()
+            col_start = column_index_from_string(start_col)
+            col_end = column_index_from_string(end_col)
+            row_start = int(start_row)
+            row_end = int(end_row)
+
+            # Create edges to each cell in range
+            for row in range(row_start, row_end + 1):
+                for col_idx in range(col_start, col_end + 1):
+                    col_letter = get_column_letter(col_idx)
+                    cell_ref = f"{col_letter}{row}"
+                    cell_key = format_cell_key(sheet, cell_ref)
+                    self.graph.add_edge(formula_key, cell_key)
 
     def _get_parser(self, sheet_name: str) -> FormulaParser:
         """Get or create parser for sheet."""

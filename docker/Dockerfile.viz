@@ -1,0 +1,19 @@
+FROM node:20-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY visualization/package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application files
+COPY visualization/ ./
+
+# Expose port
+EXPOSE 3000
+
+# Start the application
+CMD ["npm", "start"]

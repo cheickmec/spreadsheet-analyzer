@@ -1,0 +1,36 @@
+FROM python:3.12-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY pyproject.toml ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir uv && \
+    uv venv && \
+    . .venv/bin/activate && \
+    uv pip install -e . && \
+    uv pip install neo4j==5.28.1 tqdm
+
+# Copy application code
+COPY src/ ./src/
+COPY test-files/ ./test-files/
+
+# Set Python path
+ENV PYTHONPATH=/app/src
+
+# Use virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Default command
+CMD ["python", "-m", "spreadsheet_analyzer.graph_db.batch_loader"]
