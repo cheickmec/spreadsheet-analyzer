@@ -188,6 +188,7 @@ addopts = [
 markers = [
     "requires_excel: marks tests that require Excel file creation",
     "slow: marks tests that are slow to run",
+    "integration: marks tests that use real external resources",
 ]
 
 

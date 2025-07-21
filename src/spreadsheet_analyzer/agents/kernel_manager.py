@@ -40,6 +40,7 @@ class KernelResourceLimits:
     max_memory_mb: int = 1024
     max_execution_time: float = 30.0
     max_output_size_mb: int = 10
+    idle_timeout_seconds: float = 300.0  # 5 minutes default
 
     def __post_init__(self) -> None:
         """Validate resource limits."""
@@ -63,6 +64,7 @@ class KernelResource:
     created_at: float = field(default_factory=time.time)
     last_used_at: float | None = None
     _kernel_manager: AsyncKernelManager | None = None
+    _acquisition_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def acquire(self) -> None:
         """Mark kernel as in use."""
@@ -209,6 +211,7 @@ class AgentKernelManager:
         self.sessions: dict[str, KernelSession] = {}
         self._kernel_managers: dict[str, AsyncKernelManager] = {}
         self._shutdown = False
+        self._eviction_task: asyncio.Task[None] | None = None
 
     async def __aenter__(self) -> "AgentKernelManager":
         """Async context manager entry."""
@@ -227,6 +230,10 @@ class AgentKernelManager:
             spec_manager.get_kernel_spec(self.kernel_name)
         except Exception as e:
             raise RuntimeError(f"Kernel spec '{self.kernel_name}' not found: {e}") from e
+
+        # Start idle kernel eviction task
+        if self.resource_limits.idle_timeout_seconds > 0:
+            self._eviction_task = asyncio.create_task(self._evict_idle_kernels())
 
     @asynccontextmanager
     async def acquire_kernel(
@@ -275,17 +282,19 @@ class AgentKernelManager:
         # Acquire a kernel from the pool
         kernel_resource = await self.pool.acquire(timeout)
         try:
-            # Create kernel manager if needed
-            if kernel_resource.kernel_id not in self._kernel_managers:
-                await self._create_kernel(kernel_resource)
+            # CLAUDE-GOTCHA: Use per-kernel lock to prevent race conditions
+            async with kernel_resource._acquisition_lock:
+                # Create kernel manager if needed
+                if kernel_resource.kernel_id not in self._kernel_managers:
+                    await self._create_kernel(kernel_resource)
 
-            kernel_manager = self._kernel_managers[kernel_resource.kernel_id]
+                kernel_manager = self._kernel_managers[kernel_resource.kernel_id]
 
-            # Create new session
-            session = KernelSession(
-                session_id=str(uuid.uuid4()), kernel_id=kernel_resource.kernel_id, agent_id=agent_id
-            )
-            self.sessions[agent_id] = session
+                # Create new session - protected by kernel lock
+                session = KernelSession(
+                    session_id=str(uuid.uuid4()), kernel_id=kernel_resource.kernel_id, agent_id=agent_id
+                )
+                self.sessions[agent_id] = session
 
             yield kernel_manager, session
 
@@ -299,8 +308,19 @@ class AgentKernelManager:
         # Start the kernel (this will generate a kernel_id)
         await kernel_manager.start_kernel()
 
-        # Store the manager
-        self._kernel_managers[kernel_resource.kernel_id] = kernel_manager
+        # CLAUDE-IMPORTANT: Update kernel_resource with actual kernel ID to prevent mismatch
+        actual_kernel_id = kernel_manager.kernel_id
+        old_kernel_id = kernel_resource.kernel_id
+
+        # Update the pool's kernel dictionary with correct ID
+        if old_kernel_id != actual_kernel_id:
+            # Remove old entry and add with correct ID
+            del self.pool.kernels[old_kernel_id]
+            kernel_resource.kernel_id = actual_kernel_id
+            self.pool.kernels[actual_kernel_id] = kernel_resource
+
+        # Store the manager with correct ID
+        self._kernel_managers[actual_kernel_id] = kernel_manager
         kernel_resource._kernel_manager = kernel_manager
 
     async def execute_code(self, session: KernelSession, code: str) -> dict[str, Any]:
@@ -341,11 +361,17 @@ class AgentKernelManager:
         else:
             return result
         finally:
+            # CLAUDE-GOTCHA: Use synchronous stop_channels as async version not available in jupyter_client
+            # This is safe as it's non-blocking cleanup
             client.stop_channels()
 
     async def _collect_execution_result(self, client: Any, msg_id: str, timeout: float) -> dict[str, Any]:
-        """Collect execution result from kernel."""
+        """Collect execution result from kernel with output size limits."""
         result: dict[str, Any] = {"msg_id": msg_id, "status": "unknown", "outputs": [], "error": None}
+
+        # CLAUDE-SECURITY: Track cumulative output size to prevent flooding
+        output_size_bytes = 0
+        max_output_bytes = self.resource_limits.max_output_size_mb * 1024 * 1024
 
         # Wait for execute reply
         try:
@@ -359,26 +385,95 @@ class AgentKernelManager:
             result["status"] = "timeout"
             raise
 
-        # Collect output messages
+        # Collect output messages with size tracking
+        start_time = time.time()
         while True:
             try:
-                msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=1.0)
+                # Respect overall timeout
+                elapsed = time.time() - start_time
+                remaining_timeout = max(0.1, min(1.0, timeout - elapsed))
+
+                msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=remaining_timeout)
 
                 msg_type = msg.get("msg_type", "")
 
                 if msg_type == "stream":
-                    result["outputs"].append({"type": "stream", "text": msg["content"]["text"]})
+                    text = msg["content"]["text"]
+                    text_bytes = len(text.encode("utf-8"))
+
+                    # Check if adding this output would exceed limit
+                    if output_size_bytes + text_bytes > max_output_bytes:
+                        result["outputs"].append(
+                            {
+                                "type": "output_truncated",
+                                "reason": "max_output_size_exceeded",
+                                "size_bytes": output_size_bytes,
+                            }
+                        )
+                        break
+
+                    output_size_bytes += text_bytes
+                    result["outputs"].append({"type": "stream", "text": text})
+
                 elif msg_type == "execute_result":
+                    # Estimate size of data representation
+                    data_str = str(msg["content"]["data"])
+                    data_bytes = len(data_str.encode("utf-8"))
+
+                    if output_size_bytes + data_bytes > max_output_bytes:
+                        result["outputs"].append(
+                            {
+                                "type": "output_truncated",
+                                "reason": "max_output_size_exceeded",
+                                "size_bytes": output_size_bytes,
+                            }
+                        )
+                        break
+
+                    output_size_bytes += data_bytes
                     result["outputs"].append({"type": "execute_result", "data": msg["content"]["data"]})
+
                 elif msg_type == "error":
                     result["error"] = msg["content"]
+
                 elif msg_type == "status" and msg["content"]["execution_state"] == "idle":
                     break
 
             except TimeoutError:
+                # Normal timeout on iopub messages - kernel is idle
+                break
+
+            # Check if we've exceeded overall timeout
+            if time.time() - start_time > timeout:
+                result["outputs"].append(
+                    {"type": "timeout_during_output_collection", "collected_bytes": output_size_bytes}
+                )
                 break
 
         return result
+
+    async def get_kernel_resource_usage(self, kernel_id: str) -> dict[str, Any]:
+        """
+        Get resource usage for a specific kernel.
+
+        CLAUDE-KNOWLEDGE: To enable actual resource monitoring, install psutil
+        and use it to track the kernel process's CPU and memory usage.
+
+        Returns:
+            Dictionary with resource usage metrics (placeholder for now)
+        """
+        kernel_manager = self._kernel_managers.get(kernel_id)
+        if not kernel_manager:
+            return {"error": "Kernel not found"}
+
+        # Placeholder for resource usage
+        # In production, use psutil to get actual process metrics
+        return {
+            "kernel_id": kernel_id,
+            "cpu_percent": 0.0,  # Would use psutil.Process(pid).cpu_percent()
+            "memory_mb": 0.0,  # Would use psutil.Process(pid).memory_info().rss / 1024 / 1024
+            "status": "running" if kernel_manager.is_alive() else "dead",
+        }
 
     def save_checkpoint(self, session: KernelSession) -> dict[str, Any]:
         """Save a checkpoint of the session state."""
@@ -391,9 +486,67 @@ class AgentKernelManager:
         if "execution_history" in checkpoint_data:
             session.execution_history = checkpoint_data["execution_history"]
 
+    async def _evict_idle_kernels(self) -> None:
+        """Background task to evict idle kernels."""
+        check_interval = min(60.0, self.resource_limits.idle_timeout_seconds / 5)
+
+        while not self._shutdown:
+            try:
+                await asyncio.sleep(check_interval)
+
+                current_time = time.time()
+                kernels_to_evict = []
+
+                # Check each kernel for idle timeout
+                for kernel_id, kernel_resource in list(self.pool.kernels.items()):
+                    if kernel_resource.is_available and kernel_resource.last_used_at is not None:
+                        idle_time = current_time - kernel_resource.last_used_at
+
+                        if idle_time > self.resource_limits.idle_timeout_seconds:
+                            kernels_to_evict.append((kernel_id, kernel_resource))
+
+                # Evict idle kernels
+                for kernel_id, kernel_resource in kernels_to_evict:
+                    try:
+                        # Mark as shutting down to prevent new acquisitions
+                        kernel_resource.is_shutting_down = True
+
+                        # Shutdown the kernel
+                        if kernel_id in self._kernel_managers:
+                            kernel_manager = self._kernel_managers[kernel_id]
+                            await kernel_manager.shutdown_kernel(now=False, restart=False)
+                            del self._kernel_managers[kernel_id]
+
+                        # Remove from pool
+                        del self.pool.kernels[kernel_id]
+
+                        # Remove any sessions using this kernel
+                        sessions_to_remove = [
+                            agent_id for agent_id, session in self.sessions.items() if session.kernel_id == kernel_id
+                        ]
+                        for agent_id in sessions_to_remove:
+                            del self.sessions[agent_id]
+
+                    except (OSError, RuntimeError):
+                        # CLAUDE-GOTCHA: Continue with other evictions on error
+                        # In production, log the error for monitoring
+                        continue
+
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                # Prevent eviction task from crashing on unexpected errors
+                await asyncio.sleep(check_interval)
+
     async def shutdown(self) -> None:
         """Shutdown all kernels and cleanup resources."""
         self._shutdown = True
+
+        # Cancel eviction task
+        if self._eviction_task and not self._eviction_task.done():
+            self._eviction_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._eviction_task
 
         # Shutdown all kernel managers
         for kernel_manager in self._kernel_managers.values():
