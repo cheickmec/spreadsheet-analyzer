@@ -291,48 +291,91 @@ class CellReference:
 
 @dataclass(frozen=True)
 class FormulaNode:
-    """Node in formula dependency graph."""
+    """
+    Represents a cell with a formula in the dependency graph.
 
-    sheet: SheetName
-    cell: CellRef
-    formula: Formula
-    dependencies: frozenset[CellReference]
-    dependents: frozenset[CellReference]
-    depth: int  # Distance from leaf nodes
-    node_type: Literal["cell", "range"] = "cell"
-    range_info: dict[str, Any] | None = None  # For range nodes
-    is_volatile: bool = False  # Contains volatile functions
-    value_type: str | None = None  # Data type of cell value
+    This enhanced node structure includes optional semantic metadata
+    for richer analysis capabilities. Used by both formula analysis
+    and graph database components.
+    """
+
+    sheet: str
+    cell: str
+    formula: str
+    dependencies: frozenset[str]
+
+    # Analysis metadata
+    volatile: bool = False
+    external: bool = False
+    complexity_score: float = 1.0
+
+    # Optional semantic metadata (populated during enhanced analysis)
+    edge_labels: dict[str, EdgeMetadata] | None = None
+    cell_metadata: dict[str, Any] | None = None
+
+    # Graph-specific fields (populated during graph operations)
+    dependents: frozenset[str] | None = None
+    depth: int | None = None  # Distance from leaf nodes
     pagerank: float | None = None  # Pre-computed importance score
+
+    def with_semantic_data(
+        self, edge_labels: dict[str, EdgeMetadata], cell_metadata: dict[str, Any] | None = None
+    ) -> "FormulaNode":
+        """Create a new node with semantic data added."""
+        from dataclasses import replace
+
+        return replace(self, edge_labels=edge_labels, cell_metadata=cell_metadata)
+
+    def with_graph_data(self, dependents: frozenset[str], depth: int, pagerank: float | None = None) -> "FormulaNode":
+        """Create a new node with graph analysis data added."""
+        from dataclasses import replace
+
+        return replace(self, dependents=dependents, depth=depth, pagerank=pagerank)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {
+        result = {
             "sheet": self.sheet,
             "cell": self.cell,
             "formula": self.formula,
             "dependencies": list(self.dependencies),
-            "dependents": list(self.dependents),
-            "depth": self.depth,
-            "node_type": self.node_type,
-            "range_info": self.range_info,
-            "is_volatile": self.is_volatile,
-            "value_type": self.value_type,
-            "pagerank": self.pagerank,
+            "volatile": self.volatile,
+            "external": self.external,
+            "complexity_score": self.complexity_score,
         }
+
+        # Add optional fields if present
+        if self.edge_labels:
+            result["edge_labels"] = {k: v.__dict__ for k, v in self.edge_labels.items()}
+        if self.cell_metadata:
+            result["cell_metadata"] = self.cell_metadata
+        if self.dependents is not None:
+            result["dependents"] = list(self.dependents)
+        if self.depth is not None:
+            result["depth"] = self.depth
+        if self.pagerank is not None:
+            result["pagerank"] = self.pagerank
+
+        return result
 
 
 @dataclass(frozen=True)
 class FormulaAnalysis:
-    """Stage 3 formula analysis result."""
+    """
+    Complete formula analysis results with optional semantic enhancements.
+
+    This structure contains all analysis outputs including the dependency
+    graph, detected issues, and complexity metrics.
+    """
 
     dependency_graph: dict[str, FormulaNode]
-    circular_references: tuple[tuple[str, ...], ...]
-    volatile_formulas: tuple[str, ...]
-    external_references: tuple[str, ...]
+    circular_references: frozenset[frozenset[str]]
+    volatile_formulas: frozenset[str]
+    external_references: frozenset[str]
     max_dependency_depth: int
-    formula_complexity_score: int
-    range_membership_index: Any | None = None  # Optional range tracking
+    formula_complexity_score: float
+    statistics: dict[str, int]
+    range_index: RangeMembershipIndex
 
     @property
     def has_circular_references(self) -> bool:
@@ -349,6 +392,7 @@ class FormulaAnalysis:
             "max_dependency_depth": self.max_dependency_depth,
             "formula_complexity_score": self.formula_complexity_score,
             "has_circular_references": self.has_circular_references,
+            "statistics": self.statistics,
         }
 
 

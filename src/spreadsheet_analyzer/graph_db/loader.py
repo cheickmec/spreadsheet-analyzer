@@ -123,20 +123,11 @@ class GraphDatabaseLoader:
                 "sheet": node.sheet,
                 "ref": node.cell,
                 "formula": node.formula or "",
-                "depth": node.depth,
-                "node_type": node.node_type,
+                "depth": node.depth if node.depth is not None else 0,
+                "node_type": "cell",  # Default since stage_3 doesn't set this
             }
 
-            # Add range-specific properties
-            if node.node_type == "range" and node.range_info:
-                node_data.update(
-                    {
-                        "range_type": node.range_info.get("type", "unknown"),
-                        "range_size": node.range_info.get("rows", 1) * node.range_info.get("cols", 1),
-                        "start_cell": node.range_info.get("start_cell", ""),
-                        "end_cell": node.range_info.get("end_cell", ""),
-                    }
-                )
+            # Skip range-specific properties for now since stage_3 doesn't populate them
 
             node_batch.append(node_data)
 
@@ -176,7 +167,7 @@ class GraphDatabaseLoader:
                     sheet: node.sheet,
                     ref: node.ref,
                     formula: node.formula,
-                    depth: node.depth
+                    depth: node.depth if node.depth is not None else 0
                 })
                 RETURN count(c) as created
             """,
@@ -196,7 +187,7 @@ class GraphDatabaseLoader:
                     size: node.range_size,
                     start_cell: node.start_cell,
                     end_cell: node.end_cell,
-                    depth: node.depth
+                    depth: node.depth if node.depth is not None else 0
                 })
                 RETURN count(r) as created
             """,

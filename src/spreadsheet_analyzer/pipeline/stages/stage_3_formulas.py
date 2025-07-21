@@ -16,7 +16,8 @@ semantic analysis as an optional feature.
 import logging
 import re
 from collections import defaultdict, deque
-from dataclasses import dataclass, replace
+
+# dataclass imports moved to types.py
 from pathlib import Path
 from typing import Any, Final, NamedTuple
 
@@ -26,7 +27,14 @@ from openpyxl.utils import coordinate_to_tuple, get_column_letter
 from openpyxl.utils.cell import range_boundaries
 from openpyxl.worksheet.worksheet import Worksheet
 
-from spreadsheet_analyzer.pipeline.types import EdgeMetadata, Err, Ok, RangeMembershipIndex
+from spreadsheet_analyzer.pipeline.types import (
+    EdgeMetadata,
+    Err,
+    FormulaAnalysis,
+    FormulaNode,
+    Ok,
+    RangeMembershipIndex,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -134,83 +142,10 @@ class CellReference(NamedTuple):
             return f"{sheet_name}!{cell}"
 
 
-@dataclass(frozen=True)
-class FormulaNode:
-    """
-    Represents a cell with a formula in the dependency graph.
-
-    This enhanced node structure includes optional semantic metadata
-    for richer analysis capabilities.
-    """
-
-    sheet: str
-    cell: str
-    formula: str
-    dependencies: frozenset[str]
-    volatile: bool = False
-    external: bool = False
-    complexity_score: float = BASE_COMPLEXITY_SCORE
-
-    # Optional semantic metadata
-    edge_labels: dict[str, EdgeMetadata] | None = None
-    cell_metadata: dict[str, Any] | None = None
-
-    def with_semantic_data(
-        self, edge_labels: dict[str, EdgeMetadata], cell_metadata: dict[str, Any] | None = None
-    ) -> "FormulaNode":
-        """Create a new node with semantic data added."""
-        return replace(self, edge_labels=edge_labels, cell_metadata=cell_metadata)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "sheet": self.sheet,
-            "cell": self.cell,
-            "formula": self.formula,
-            "dependencies": list(self.dependencies),
-            "volatile": self.volatile,
-            "external": self.external,
-            "complexity_score": self.complexity_score,
-            "edge_labels": {k: v.__dict__ for k, v in self.edge_labels.items()} if self.edge_labels else None,
-            "cell_metadata": self.cell_metadata,
-        }
+# FormulaNode is now imported from types.py
 
 
-@dataclass(frozen=True)
-class FormulaAnalysis:
-    """
-    Complete formula analysis results with optional semantic enhancements.
-
-    This structure contains all analysis outputs including the dependency
-    graph, detected issues, and complexity metrics.
-    """
-
-    dependency_graph: dict[str, FormulaNode]
-    circular_references: frozenset[frozenset[str]]
-    volatile_formulas: frozenset[str]
-    external_references: frozenset[str]
-    max_dependency_depth: int
-    formula_complexity_score: float
-    statistics: dict[str, int]
-    range_index: RangeMembershipIndex
-
-    @property
-    def has_circular_references(self) -> bool:
-        """Check if workbook has circular references."""
-        return len(self.circular_references) > 0
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "dependency_graph": {k: v.to_dict() for k, v in self.dependency_graph.items()},
-            "circular_references": [list(cycle) for cycle in self.circular_references],
-            "volatile_formulas": list(self.volatile_formulas),
-            "external_references": list(self.external_references),
-            "max_dependency_depth": self.max_dependency_depth,
-            "formula_complexity_score": self.formula_complexity_score,
-            "has_circular_references": self.has_circular_references,
-            "statistics": self.statistics,
-        }
+# FormulaAnalysis is now imported from types.py
 
 
 # ============================================================================
