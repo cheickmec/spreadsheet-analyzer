@@ -146,14 +146,28 @@ class FixtureLoader:
         # Note: formula_nodes is complex and may need special handling
         # For now, we'll skip it as it's not in the fixtures
 
-        # Handle lists as tuples
+        # Handle lists as tuples/frozensets
         for field in ["circular_references", "volatile_formulas", "external_references"]:
             if field in data:
                 if field == "circular_references":
-                    # Nested lists
-                    data[field] = tuple(tuple(ref) for ref in data[field])
+                    # Nested lists -> frozenset of frozensets
+                    data[field] = frozenset(frozenset(ref) for ref in data[field])
                 else:
-                    data[field] = tuple(data[field])
+                    # Lists -> frozensets
+                    data[field] = frozenset(data[field])
+
+        # Ensure required fields are present
+        if "dependency_graph" not in data:
+            data["dependency_graph"] = {}
+
+        if "statistics" not in data:
+            data["statistics"] = {}
+
+        # Handle range_index - create a dummy one if not present
+        if "range_index" not in data:
+            from spreadsheet_analyzer.pipeline.types import RangeMembershipIndex
+
+            data["range_index"] = RangeMembershipIndex(sheet_ranges={})
 
         return FormulaAnalysis(**data)
 

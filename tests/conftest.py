@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures."""
 
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 import openpyxl
@@ -79,3 +80,17 @@ def cleanup_test_files(request):
     return
     # Cleanup happens after test
     # Add any cleanup logic here if needed
+
+
+@pytest.fixture
+def performance_tracker() -> dict[str, list[float]]:
+    """Track performance metrics across tests."""
+    return defaultdict(list)
+
+
+@pytest.fixture
+def excel_builder():
+    """Create ExcelTestDataBuilder instance for tests."""
+    from tests.test_base import ExcelTestDataBuilder
+
+    return ExcelTestDataBuilder()

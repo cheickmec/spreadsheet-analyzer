@@ -239,8 +239,9 @@ class SemanticEdgeDetector:
             metadata=metadata,
         )
 
-    def _extract_function_context(self, formula: str, dependency: CellReference) -> tuple[str | None, int | None]:  # noqa: ARG002
+    def _extract_function_context(self, formula: str, _dependency: CellReference) -> tuple[str | None, int | None]:
         """Extract the function name and argument position for a dependency."""
+        # dependency parameter is reserved for future use when we implement full AST parsing
         # This is a simplified version - a full implementation would need
         # proper formula parsing to handle nested functions
 
@@ -563,11 +564,24 @@ class DependencyGraph:
         if not self.nodes:
             return 0
 
-        # Find nodes with no dependencies (leaf nodes)
-        leaf_nodes = [node_key for node_key, node in self.nodes.items() if not node.dependencies]
+        # Find nodes with no dependencies OR whose dependencies are not in the graph
+        # (i.e., they depend on cells that aren't formulas)
+        leaf_nodes = []
+        for node_key, node in self.nodes.items():
+            if not node.dependencies:
+                leaf_nodes.append(node_key)
+            else:
+                # Check if all dependencies are outside the graph
+                all_deps_external = True
+                for dep in node.dependencies:
+                    if dep in self.nodes:
+                        all_deps_external = False
+                        break
+                if all_deps_external:
+                    leaf_nodes.append(node_key)
 
         if not leaf_nodes:
-            # All nodes have dependencies - there must be cycles
+            # All nodes have dependencies that are in the graph - there must be cycles
             return -1
 
         # BFS from leaf nodes
@@ -651,6 +665,10 @@ class FormulaAnalyzer:
         wb = openpyxl.load_workbook(workbook_path, read_only=True, data_only=False, keep_vba=False)
 
         try:
+            # Report initial progress
+            if progress_callback:
+                progress_callback("formula_analysis", 0.0, "Starting formula analysis")
+
             # Analyze each sheet
             for sheet_name in wb.sheetnames:
                 sheet = wb[sheet_name]
@@ -680,6 +698,12 @@ class FormulaAnalyzer:
                 "parser_cache_hits": self.parser._cache_hits,
                 "parser_cache_misses": self.parser._cache_misses,
             }
+
+            # Report completion
+            if progress_callback:
+                progress_callback(
+                    "formula_analysis", 1.0, f"Analysis complete: {self.total_formulas} formulas analyzed"
+                )
 
             return FormulaAnalysis(
                 dependency_graph=dict(self.graph.nodes),

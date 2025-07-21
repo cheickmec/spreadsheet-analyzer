@@ -184,6 +184,10 @@ addopts = [
     "--cov-report=html",
     "--cov-fail-under=25",  # Temporary lower threshold while building test suite
 ]
+markers = [
+    "requires_excel: marks tests that require Excel file creation",
+    "slow: marks tests that are slow to run",
+]
 
 
 
