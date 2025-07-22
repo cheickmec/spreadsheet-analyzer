@@ -1,0 +1,46 @@
+{# Default analysis strategy template - fallback for unknown strategies #}
+{% extends "base/master.jinja2" %}
+
+{% block system_context %}
+You are performing spreadsheet analysis using a general-purpose approach.
+Focus on understanding the data structure, identifying patterns, and
+providing actionable insights.
+{% endblock %}
+
+{% block task_description %}
+{{ task.description }}
+{% endblock %}
+
+{% block strategy_instructions %}
+## General Analysis Approach
+
+1. **Data Overview**
+   - Load and examine the Excel file structure
+   - Identify all sheets and their purposes
+   - Check data types and formats
+
+2. **Content Analysis**
+   - Examine data patterns and distributions
+   - Identify formulas and calculations
+   - Find relationships between sheets
+
+3. **Quality Assessment**
+   - Check for errors or inconsistencies
+   - Validate formulas and references
+   - Identify missing or anomalous data
+
+4. **Insight Generation**
+   - Summarize key findings
+   - Highlight important patterns
+   - Suggest potential improvements
+{% endblock %}
+
+{% block output_format %}
+Provide a comprehensive analysis including:
+- Data structure overview
+- Key findings with evidence
+- Potential issues or risks
+- Recommendations for improvement
+
+Use clear, documented Python code to support your analysis.
+{% endblock %}

@@ -1,1211 +1,1172 @@
-# Jupyter Notebook-LLM Interface Framework
+# LLM-Jupyter Notebook Interface Framework
 
 ## Executive Summary
 
-This document provides a comprehensive specification for the Jupyter notebook interfacing framework that enables Large Language Models (LLMs) to analyze Excel spreadsheets effectively. The framework leverages notebooks as the primary execution and communication medium, providing a natural interface that aligns with how LLMs process text and code while maintaining complete audit trails and enabling sophisticated analysis patterns.
+This document specifies a modular, extensible framework for Large Language Model (LLM) interaction with Jupyter notebooks for Excel spreadsheet analysis. The framework follows a three-layer concentric architecture (Orchestration → Strategy → Protocol) that enables sophisticated prompt and context engineering strategies to be developed, tested, and deployed independently through configuration rather than code changes.
 
-The design philosophy centers on presenting notebook content to LLMs in a way that maximizes their analytical capabilities while managing context limitations and ensuring reproducible results. By treating notebooks as first-class citizens in the analysis pipeline, we create a system that is both powerful and transparent.
+Key innovations include:
+
+- **Plugin Architecture**: Hot-swappable components using Python entry points
+- **Strategy Pattern**: Runtime selection of prompt/context engineering approaches
+- **Template Inheritance**: DRY prompt management with Jinja2
+- **Graph-Based Context**: Dependency-aware compression strategies
+- **Python-First Orchestration**: Immediate implementation with full code control
+- **Multi-Tier Models**: Intelligent routing for cost optimization
+- **Future YAML Workflows**: Planned declarative orchestration layer
 
 ## Table of Contents
 
-1. [Design Philosophy](#design-philosophy)
 1. [Architecture Overview](#architecture-overview)
-1. [Cell Presentation Framework](#cell-presentation-framework)
-1. [Context Management Strategies](#context-management-strategies)
-1. [Integration with Deterministic Pipeline](#integration-with-deterministic-pipeline)
-1. [Graph Database Integration](#graph-database-integration)
-1. [Implementation Patterns](#implementation-patterns)
-1. [Security Considerations](#security-considerations)
-1. [Performance Optimization](#performance-optimization)
-1. [Future Extensions](#future-extensions)
-
-## Design Philosophy
-
-### Why Notebooks as the Primary Interface?
-
-The decision to use Jupyter notebooks as the primary interface between the analysis system and LLMs stems from several key insights:
-
-1. **Natural Text-Code Duality**: LLMs have been extensively trained on both prose and code, making notebook cells (which combine both) an ideal format for consumption.
-
-1. **Execution History Preservation**: Unlike traditional REPLs or execution environments, notebooks maintain a complete, reviewable history of all operations, supporting our validation-first philosophy.
-
-1. **Progressive Exploration**: The cell-by-cell structure naturally supports the iterative exploration pattern that characterizes effective spreadsheet analysis.
-
-1. **Self-Documenting Analysis**: Notebooks inherently create documentation as analysis proceeds, with markdown cells explaining reasoning and code cells showing implementation.
-
-1. **Error Recovery Visibility**: Failed attempts and recovery strategies are preserved, creating valuable learning data for future analyses.
-
-### Core Principles
-
-1. **Cell Autonomy**: Each cell should be independently meaningful while contributing to the overall narrative.
-
-1. **Context Efficiency**: Present only the most relevant information within LLM token limits.
-
-1. **Semantic Grouping**: Related cells should be presented together to maintain analytical coherence.
-
-1. **Progressive Disclosure**: Start with high-level insights and dive deeper based on LLM requests.
-
-1. **Bidirectional Communication**: LLMs can both consume notebook content and generate new cells for execution.
+1. [Three-Layer Concentric Design](#three-layer-concentric-design)
+1. [Plugin Architecture](#plugin-architecture)
+1. [Strategy Pattern Implementation](#strategy-pattern-implementation)
+1. [Prompt Template System](#prompt-template-system)
+1. [Context Engineering Strategies](#context-engineering-strategies)
+1. [Workflow Orchestration](#workflow-orchestration)
+1. [Configuration Management](#configuration-management)
+1. [Integration Patterns](#integration-patterns)
+1. [Example Implementations](#example-implementations)
+1. [Performance Considerations](#performance-considerations)
+1. [Security Model](#security-model)
 
 ## Architecture Overview
 
-The notebook-LLM interface builds upon the NAP foundation with domain-specific layers:
-
-```mermaid
-graph TB
-    subgraph "Enhanced Notebook-LLM Architecture"
-        subgraph "NAP Foundation Layer"
-            UD[Unified Dispatcher<br/>NAP protocol handler]
-            RO[Range Operations<br/>Efficient cell access]
-            TE[Token Estimator<br/>Context management]
-        end
-        
-        subgraph "Domain Enhancement Layer"
-            EC[Excel Context<br/>Spreadsheet awareness]
-            SG[Semantic Grouper<br/>Formula chains]
-            VF[Validation Framework<br/>Claim verification]
-        end
-        
-        subgraph "Presentation Layer"
-            CP[Cell Presenter<br/>LLM formatting]
-            CS[Context Streamer<br/>Progressive disclosure]
-            GE[Graph Enricher<br/>Dependency context]
-        end
-        
-        subgraph "Execution Layer"
-            SE[Secure Executor<br/>Sandboxed kernels]
-            VL[Validation Layer<br/>Automatic checks]
-            RH[Recovery Handler<br/>Error mitigation]
-        end
-        
-        subgraph "Storage Layer"
-            NS[Notebook Storage<br/>Persistent state]
-            CH[Cache Handler<br/>Result caching]
-            HI[History Index<br/>Audit trail]
-        end
-    end
-    
-    LLM[LLM<br/>Analysis Engine] -->|Requests cells| CP
-    CP --> SG
-    SG --> CS
-    CS --> GE
-    GE --> ME
-    ME --> PE
-    
-    LLM -->|Generates code| NE
-    NE --> VL
-    VL --> RH
-    RH --> NS
-    
-    NS --> CH
-    CH --> HI
-    HI -->|Historical context| CP
-    
-    classDef present fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef enhance fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef execute fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    classDef storage fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    
-    class CP,SG,CS present
-    class GE,ME,PE enhance
-    class NE,VL,RH execute
-    class NS,CH,HI storage
-```
-
-## NAP Integration Strategy
-
-### Adopting the Notebook Agent Protocol
-
-The Notebook Agent Protocol (NAP) provides a clean, provider-agnostic foundation for notebook manipulation. We adopt its core principles while layering our spreadsheet-specific intelligence on top:
-
-#### Core NAP Principles We Adopt:
-
-1. **Unified Dispatcher**: Single entry point for all operations
-1. **Execution-by-Default**: Code cells execute immediately after creation/edit
-1. **Provider Agnostic**: JSON schema works across OpenAI, Anthropic, etc.
-1. **Range-Based Operations**: Efficient handling of large notebooks
-1. **Token Awareness**: Every response includes token estimates
-
-#### Our Domain Enhancements:
-
-1. **Excel Context Injection**: Every cell enriched with spreadsheet metadata
-1. **Semantic Grouping**: Beyond positional slicing to meaningful cell clusters
-1. **Validation Framework**: Automatic claim verification on execution
-1. **Graph Integration**: Dependency insights from Neo4j
-1. **Security Sandboxing**: Comprehensive execution constraints
-
-### Protocol Schema (Enhanced)
-
-```json
-{
-  "op": "add_cell" | "edit_cell" | "get_cells" | "run_cells",
-  "path": "analysis.ipynb",
-  "position": 3,
-  "source": "df['Total'].sum()",
-  "execute": true,
-  "kernel": "shared",
-  // Our additions:
-  "excel_context": {
-    "sheet": "Sales",
-    "references": ["E:E"],
-    "formula_equivalent": "=SUM(E:E)"
-  },
-  "validation": {
-    "enabled": true,
-    "claims": ["sum_matches_excel"]
-  }
-}
-```
-
-## Cell Presentation Framework
-
-### Cell Structure for LLM Consumption
-
-Each notebook cell is transformed into an LLM-optimized format that preserves essential information while maximizing readability:
-
-```python
-@dataclass
-class LLMCell:
-    """Optimized cell representation for LLM consumption."""
-    
-    id: str  # Unique cell identifier
-    type: Literal["code", "markdown", "output"]
-    content: str  # The actual cell content
-    metadata: CellMetadata
-    context: CellContext
-    relationships: CellRelationships
-    
-@dataclass
-class CellMetadata:
-    """Execution and timing metadata."""
-    
-    execution_count: int | None
-    execution_time_ms: float | None
-    memory_delta_mb: float | None
-    error_occurred: bool
-    tags: list[str]  # e.g., ["data_load", "validation", "recovery"]
-    
-@dataclass
-class CellContext:
-    """Enriched context for understanding."""
-    
-    sheet_references: list[str]  # Excel sheets referenced
-    cell_references: list[str]  # Excel cells accessed
-    dataframe_shapes: dict[str, tuple[int, int]]  # Variable -> (rows, cols)
-    formula_count: int
-    
-@dataclass
-class CellRelationships:
-    """How this cell relates to others."""
-    
-    depends_on: list[str]  # Previous cell IDs
-    required_by: list[str]  # Subsequent cell IDs
-    error_recovery_for: str | None  # If this recovers from an error
-    semantic_group: str  # e.g., "initial_exploration", "formula_analysis"
-```
-
-### Presentation Strategies
-
-#### Strategy 1: Narrative Flow
-
-Present cells as a coherent story of exploration and discovery:
-
-````markdown
-## Analysis Narrative: Understanding Sales Calculations
-
-### Discovery Phase
-
-**Cell 1** [Exploration - 125ms]
-```python
-# Initial data sample to understand structure
-df_sample = pd.read_excel(EXCEL_FILE, sheet_name="Sales", nrows=5)
-print(f"Columns: {df_sample.columns.tolist()}")
-print(f"Shape: {df_sample.shape}")
-````
-
-*Output:*
+The framework adopts a clean, layered architecture that separates concerns while enabling flexibility:
 
 ```
-Columns: ['Date', 'Product', 'Units', 'Price', 'Total']
-Shape: (5, 5)
+┌─────────────────────────────────────────────────────────┐
+│                   Orchestration Layer                    │
+│  • Workflow Management  • Multi-Agent Coordination       │
+│  • Token Budget Control • Error Recovery                 │
+├─────────────────────────────────────────────────────────┤
+│                    Strategy Layer                        │
+│  • Prompt Engineering   • Context Compression           │
+│  • Result Validation    • Adaptive Selection            │
+├─────────────────────────────────────────────────────────┤
+│                 NAP Protocol Layer                       │
+│  • Notebook Operations  • Cell Management               │
+│  • Kernel Lifecycle     • Execution Control             │
+├─────────────────────────────────────────────────────────┤
+│                Jupyter Kernel Manager                    │
+│  • Process Management   • Communication                  │
+│  • Resource Control     • State Persistence             │
+└─────────────────────────────────────────────────────────┘
 ```
 
-*Context: First contact with data, identifying structure*
+## Three-Layer Concentric Design
 
-**Cell 2** [Formula Detection - 89ms]
+### Layer 1: Orchestration Layer (Outer)
 
-```python
-# Check if Total column contains formulas
-wb = load_workbook(EXCEL_FILE, data_only=False)
-ws = wb["Sales"]
-formulas_found = sum(1 for cell in ws['E'] if cell.data_type == 'f')
-print(f"Formulas in Total column: {formulas_found}")
-```
-
-*Output:*
-
-```
-Formulas in Total column: 1248
-```
-
-*Graph Context: Column E formulas reference columns C and D extensively*
-*Next: Analyzing formula patterns...*
-
-````
-
-#### Strategy 2: Problem-Solution Pairs
-Group cells that show problems and their resolutions:
-
-```markdown
-### Challenge: Mixed Data Types in Revenue Column
-
-**Problem Detection** (Cell 8)
-```python
-# Attempting aggregation
-revenue_sum = df['Revenue'].sum()
-````
-
-*Error: TypeError - unsupported operand type(s)*
-
-**Root Cause Analysis** (Cell 9)
-
-```python
-# Investigate data types
-print(df['Revenue'].dtype)
-print(df['Revenue'].apply(type).value_counts())
-```
-
-*Output:*
-
-```
-object
-<class 'str'>      45
-<class 'float'>    1203
-```
-
-**Solution Implementation** (Cell 10)
-
-```python
-# Clean and convert
-df['Revenue'] = pd.to_numeric(df['Revenue'], errors='coerce')
-revenue_sum = df['Revenue'].sum()
-print(f"Total Revenue: ${revenue_sum:,.2f}")
-```
-
-*Output:*
-
-```
-Total Revenue: $1,234,567.89
-```
-
-*Learning: 45 cells contained text values, now converted to NaN*
-
-````
-
-#### Strategy 3: Hierarchical Exploration
-Present analysis as a tree of investigations:
+The orchestration layer manages high-level workflows and coordinates multiple analysis strategies:
 
 ```yaml
-Analysis Tree:
-├── Sheet Structure Overview (Cells 1-3)
-│   ├── Dimension Analysis
-│   └── Content Type Distribution
-├── Formula Investigation (Cells 4-12)
-│   ├── Dependency Mapping (Cells 4-7)
-│   │   ├── Direct References
-│   │   └── Range Dependencies
-│   └── Complexity Assessment (Cells 8-12)
-│       ├── Nesting Depth
-│       └── Volatile Functions
-└── Data Quality Checks (Cells 13-20)
-    ├── Type Consistency
-    ├── Missing Values
-    └── Outlier Detection
-````
+# Example orchestration configuration
+orchestration:
+  workflow_engine: langgraph  # or temporal, prefect
+  
+  default_pipeline:
+    - step: data_exploration
+      strategy: hierarchical_exploration
+      budget: 0.3  # 30% of token budget
+      
+    - step: formula_analysis
+      strategy: graph_based_compression
+      budget: 0.4
+      
+    - step: validation
+      strategy: chain_of_thought
+      budget: 0.3
+      
+  error_recovery:
+    max_retries: 3
+    backoff_strategy: exponential
+    fallback_chain:
+      - simplified_analysis
+      - manual_review
+```
 
-## Context Management Strategies
+**Key Responsibilities:**
 
-### Token Budget Allocation
+- Multi-step workflow coordination
+- Token budget management across steps
+- Error recovery and retry logic
+- Multi-agent task distribution
+- Progress tracking and reporting
 
-The system must carefully manage LLM context windows, typically ranging from 4K to 128K tokens:
+### Layer 2: Strategy Layer (Middle)
+
+The strategy layer implements specific approaches for prompt engineering and context management:
 
 ```python
-class TokenBudgetManager:
-    """Manages token allocation across different context types."""
+# Strategy interface
+class AnalysisStrategy(Protocol):
+    """Base protocol for all analysis strategies."""
     
-    def __init__(self, max_tokens: int = 100_000):
-        self.max_tokens = max_tokens
-        self.allocation = {
-            'system_prompt': 0.05,      # 5% for instructions
-            'bootstrap_context': 0.15,  # 15% for file metadata
-            'notebook_cells': 0.60,     # 60% for actual analysis
-            'graph_context': 0.10,      # 10% for dependencies
-            'history_context': 0.10     # 10% for relevant past analyses
+    def prepare_context(
+        self, 
+        notebook: NotebookDocument,
+        focus: AnalysisFocus,
+        token_budget: int
+    ) -> ContextPackage:
+        """Prepare optimized context for LLM."""
+        ...
+        
+    def format_prompt(
+        self,
+        context: ContextPackage,
+        task: AnalysisTask
+    ) -> str:
+        """Generate task-specific prompt."""
+        ...
+        
+    def parse_response(
+        self,
+        response: str,
+        expected_format: ResponseFormat
+    ) -> AnalysisResult:
+        """Parse and validate LLM response."""
+        ...
+```
+
+**Built-in Strategies:**
+
+1. **Hierarchical Exploration**
+
+   - Progressive disclosure from overview to details
+   - Semantic grouping of related cells
+   - Automatic summarization at multiple levels
+
+1. **Graph-Based Compression (PROMPT-SAW)**
+
+   - Dependency graph construction
+   - PageRank-based importance scoring
+   - Selective subgraph extraction
+
+1. **SpreadsheetLLM Compression**
+
+   - Structural anchor detection
+   - Homogeneous region compression
+   - Formula deduplication
+
+1. **Chain-of-Thought (CoT)**
+
+   - Step-by-step reasoning
+   - Self-consistency validation
+   - Explanation generation
+
+### Layer 3: NAP Protocol Layer (Inner)
+
+The NAP (Notebook Agent Protocol) layer provides low-level notebook operations:
+
+```python
+# NAP-compliant interface
+class NotebookProtocol:
+    """Core notebook manipulation protocol."""
+    
+    async def execute_cell(
+        self,
+        notebook_id: str,
+        cell_content: str,
+        cell_type: CellType = CellType.CODE
+    ) -> CellExecutionResult:
+        """Execute a cell in the notebook."""
+        
+    async def get_cells(
+        self,
+        notebook_id: str,
+        selector: CellSelector
+    ) -> List[Cell]:
+        """Retrieve cells based on selector."""
+        
+    async def update_cell(
+        self,
+        notebook_id: str,
+        cell_id: str,
+        new_content: str
+    ) -> Cell:
+        """Update existing cell content."""
+```
+
+## Plugin Architecture
+
+### Entry Point Discovery
+
+The framework uses Python entry points for plugin discovery:
+
+```python
+# setup.py for a strategy plugin
+setup(
+    name="spreadsheet-llm-strategies",
+    entry_points={
+        "llm_jupyter.strategies": [
+            "hierarchical = my_strategies:HierarchicalStrategy",
+            "graph_based = my_strategies:GraphBasedStrategy",
+            "custom_excel = my_strategies:CustomExcelStrategy",
+        ],
+        "llm_jupyter.compressors": [
+            "spreadsheet = my_compressors:SpreadsheetCompressor",
+            "formula_aware = my_compressors:FormulaAwareCompressor",
+        ],
+    }
+)
+```
+
+### Plugin Loading System
+
+```python
+class StrategyRegistry:
+    """Dynamic strategy discovery and loading."""
+    
+    def __init__(self):
+        self._strategies = {}
+        self._load_plugins()
+        
+    def _load_plugins(self):
+        """Discover and load all registered strategies."""
+        for ep in pkg_resources.iter_entry_points("llm_jupyter.strategies"):
+            try:
+                strategy_class = ep.load()
+                self._strategies[ep.name] = strategy_class()
+                logger.info(f"Loaded strategy: {ep.name}")
+            except Exception as e:
+                logger.error(f"Failed to load {ep.name}: {e}")
+                
+    def get_strategy(self, name: str) -> AnalysisStrategy:
+        """Retrieve strategy by name."""
+        if name not in self._strategies:
+            raise ValueError(f"Unknown strategy: {name}")
+        return self._strategies[name]
+```
+
+## Strategy Pattern Implementation
+
+### Base Strategy Framework
+
+```python
+from abc import ABC, abstractmethod
+from typing import Dict, Any, List
+
+class BaseStrategy(ABC):
+    """Abstract base for all strategies."""
+    
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.validators = self._load_validators()
+        self.compressor = self._load_compressor()
+        
+    @abstractmethod
+    def prepare_context(
+        self, 
+        notebook: NotebookDocument,
+        focus: AnalysisFocus,
+        token_budget: int
+    ) -> ContextPackage:
+        """Strategy-specific context preparation."""
+        
+    @abstractmethod
+    def format_prompt(
+        self,
+        context: ContextPackage,
+        task: AnalysisTask
+    ) -> str:
+        """Strategy-specific prompt formatting."""
+        
+    def execute(
+        self,
+        notebook: NotebookDocument,
+        task: AnalysisTask,
+        llm: LLMInterface
+    ) -> AnalysisResult:
+        """Template method for strategy execution."""
+        # 1. Prepare context
+        context = self.prepare_context(
+            notebook,
+            task.focus,
+            llm.token_budget
+        )
+        
+        # 2. Format prompt
+        prompt = self.format_prompt(context, task)
+        
+        # 3. Call LLM
+        response = llm.generate(prompt)
+        
+        # 4. Parse and validate
+        result = self.parse_response(response, task.expected_format)
+        
+        # 5. Post-process
+        return self.post_process(result)
+```
+
+### Example Strategy: Graph-Based Analysis
+
+```python
+class GraphBasedStrategy(BaseStrategy):
+    """PROMPT-SAW inspired graph compression strategy."""
+    
+    def prepare_context(
+        self, 
+        notebook: NotebookDocument,
+        focus: AnalysisFocus,
+        token_budget: int
+    ) -> ContextPackage:
+        # Build dependency graph
+        graph = self._build_dependency_graph(notebook)
+        
+        # Score nodes by importance
+        scores = self._pagerank_scoring(graph, focus)
+        
+        # Select subgraph within budget
+        subgraph = self._select_subgraph(graph, scores, token_budget)
+        
+        # Serialize for LLM
+        return ContextPackage(
+            cells=self._serialize_subgraph(subgraph),
+            metadata=self._extract_metadata(subgraph),
+            focus_hints=self._generate_focus_hints(focus, subgraph)
+        )
+        
+    def format_prompt(
+        self,
+        context: ContextPackage,
+        task: AnalysisTask
+    ) -> str:
+        template = self.template_engine.get_template(
+            "graph_analysis.jinja2"
+        )
+        return template.render(
+            context=context,
+            task=task,
+            config=self.config
+        )
+```
+
+## Prompt Template System
+
+### Jinja2 Template Hierarchy
+
+```
+templates/
+├── base/
+│   ├── master.jinja2          # Base template with common structure
+│   ├── components/
+│   │   ├── context.jinja2     # Context formatting macros
+│   │   ├── instructions.jinja2 # Common instructions
+│   │   └── validation.jinja2  # Validation prompts
+│   └── partials/
+│       ├── cell_format.jinja2 # Cell presentation
+│       └── error_format.jinja2 # Error handling
+├── strategies/
+│   ├── hierarchical/
+│   │   ├── exploration.jinja2
+│   │   └── refinement.jinja2
+│   ├── graph_based/
+│   │   ├── analysis.jinja2
+│   │   └── compression.jinja2
+│   └── chain_of_thought/
+│       ├── reasoning.jinja2
+│       └── validation.jinja2
+└── custom/                    # User-defined templates
+```
+
+### Template Inheritance Example
+
+```jinja2
+{# base/master.jinja2 #}
+<system>
+You are analyzing an Excel spreadsheet using Jupyter notebooks.
+{% block system_context %}{% endblock %}
+</system>
+
+<task>
+{% block task_description %}{% endblock %}
+</task>
+
+<context>
+{% block context_presentation %}
+{% include 'components/context.jinja2' %}
+{% endblock %}
+</context>
+
+<instructions>
+{% block analysis_instructions %}
+{% include 'components/instructions.jinja2' %}
+{% endblock %}
+</instructions>
+
+{% block additional_sections %}{% endblock %}
+```
+
+```jinja2
+{# strategies/hierarchical/exploration.jinja2 #}
+{% extends "base/master.jinja2" %}
+
+{% block system_context %}
+You excel at hierarchical data exploration, starting with high-level patterns
+and progressively diving into details based on discovered insights.
+{% endblock %}
+
+{% block task_description %}
+Explore the spreadsheet {{ context.workbook_name }} to understand its structure,
+purpose, and key data patterns. Focus on {{ task.focus_area }}.
+{% endblock %}
+
+{% block context_presentation %}
+{{ super() }}
+
+### Hierarchical Overview
+{% for level in context.hierarchy %}
+#### Level {{ loop.index }}: {{ level.name }}
+{{ level.summary }}
+{% endfor %}
+{% endblock %}
+```
+
+## Context Engineering Strategies
+
+### Strategy 1: Hierarchical Summarization
+
+```python
+class HierarchicalCompressor:
+    """Multi-level context compression."""
+    
+    def compress(
+        self,
+        notebook: NotebookDocument,
+        token_budget: int
+    ) -> CompressedContext:
+        # Level 1: Full notebook summary
+        summary = self._create_notebook_summary(notebook)
+        
+        # Level 2: Section summaries
+        sections = self._identify_sections(notebook)
+        section_summaries = {
+            name: self._summarize_section(section)
+            for name, section in sections.items()
         }
         
-    def allocate_for_cells(self, cells: list[LLMCell]) -> list[LLMCell]:
-        """Select cells that fit within budget."""
-        budget = int(self.max_tokens * self.allocation['notebook_cells'])
+        # Level 3: Key cells with context
+        key_cells = self._identify_key_cells(notebook)
         
-        # Score cells by relevance
-        scored_cells = [
-            (self._score_cell(cell), cell) 
-            for cell in cells
-        ]
-        scored_cells.sort(reverse=True, key=lambda x: x[0])
-        
-        # Select highest scoring cells within budget
-        selected = []
-        used_tokens = 0
-        
-        for score, cell in scored_cells:
-            cell_tokens = self._estimate_tokens(cell)
-            if used_tokens + cell_tokens <= budget:
-                selected.append(cell)
-                used_tokens += cell_tokens
-                
-        return selected
-    
-    def _score_cell(self, cell: LLMCell) -> float:
-        """Score cell importance for inclusion."""
-        score = 1.0
-        
-        # Boost cells with errors (learning opportunity)
-        if cell.metadata.error_occurred:
-            score *= 1.5
-            
-        # Boost cells that discovered patterns
-        if 'pattern_found' in cell.metadata.tags:
-            score *= 1.4
-            
-        # Boost cells with high formula density
-        if cell.context.formula_count > 10:
-            score *= 1.3
-            
-        # Reduce score for repetitive operations
-        if 'repetitive' in cell.metadata.tags:
-            score *= 0.5
-            
-        return score
-```
-
-### Progressive Context Expansion
-
-Start with minimal context and expand based on LLM needs:
-
-```python
-class ProgressiveContextProvider:
-    """Provides context in expanding waves."""
-    
-    def __init__(self, notebook: Notebook, budget_manager: TokenBudgetManager):
-        self.notebook = notebook
-        self.budget_manager = budget_manager
-        self.provided_cells = set()
-        
-    def get_initial_context(self) -> AnalysisContext:
-        """Provide high-level overview."""
-        return AnalysisContext(
-            summary=self._generate_notebook_summary(),
-            key_findings=self._extract_key_findings(),
-            cell_groups=self._identify_major_sections(),
-            available_deep_dives=self._list_expansion_options()
+        # Allocate token budget
+        allocation = self._allocate_budget(
+            token_budget,
+            summary,
+            section_summaries,
+            key_cells
         )
         
-    def expand_context(self, focus_area: str) -> AnalysisContext:
-        """Expand context for specific area."""
-        relevant_cells = self._find_relevant_cells(focus_area)
-        new_cells = [
-            cell for cell in relevant_cells 
-            if cell.id not in self.provided_cells
-        ]
-        
-        # Add to provided set
-        for cell in new_cells:
-            self.provided_cells.add(cell.id)
-            
-        return AnalysisContext(
-            cells=self.budget_manager.allocate_for_cells(new_cells),
-            graph_context=self._get_graph_context(focus_area),
-            related_analyses=self._find_similar_patterns()
-        )
-```
-
-### Context Compression Techniques
-
-When approaching token limits, compress less critical information:
-
-```python
-class ContextCompressor:
-    """Compresses context to fit token limits."""
-    
-    def compress_cells(self, cells: list[LLMCell], target_reduction: float) -> list[LLMCell]:
-        """Reduce token usage by target percentage."""
-        compressed = []
-        
-        for cell in cells:
-            if self._can_summarize(cell):
-                compressed.append(self._create_summary_cell(cell))
-            elif self._can_truncate_output(cell):
-                compressed.append(self._truncate_output(cell))
-            elif self._is_repetitive(cell):
-                # Skip repetitive cells, add count annotation
-                continue
-            else:
-                compressed.append(cell)
-                
-        return compressed
-    
-    def _create_summary_cell(self, cell: LLMCell) -> LLMCell:
-        """Create compressed version of cell."""
-        if len(cell.content) > 1000:
-            # Summarize long cells
-            summary = f"# Summary of {cell.id}\n"
-            summary += f"# Original: {len(cell.content)} chars\n"
-            summary += self._extract_key_lines(cell.content)
-            
-            return LLMCell(
-                id=f"{cell.id}_summary",
-                type="markdown",
-                content=summary,
-                metadata=cell.metadata,
-                context=cell.context,
-                relationships=cell.relationships
+        return CompressedContext(
+            summary=summary,
+            sections=self._fit_to_budget(
+                section_summaries, 
+                allocation['sections']
+            ),
+            cells=self._fit_to_budget(
+                key_cells,
+                allocation['cells']
             )
-        return cell
-```
-
-## Integration with Deterministic Pipeline
-
-The notebook interface seamlessly integrates with the deterministic analysis pipeline:
-
-````python
-class DeterministicContextProvider:
-    """Provides deterministic analysis results to notebook agents."""
-    
-    def __init__(self, pipeline_result: PipelineResult):
-        self.pipeline_result = pipeline_result
-        
-    def generate_bootstrap_cell(self, sheet_name: str) -> str:
-        """Generate initial cell with deterministic context."""
-        
-        # Extract relevant results for this sheet
-        sheet_context = self._extract_sheet_context(sheet_name)
-        
-        return f'''# Bootstrap Context for {sheet_name}
-        
-## File Overview
-- **Path**: {self.pipeline_result.file_path}
-- **Total Sheets**: {len(self.pipeline_result.structure.sheets)}
-- **Analysis Time**: {self.pipeline_result.execution_time:.2f}s
-
-## Sheet Statistics
-- **Dimensions**: {sheet_context.dimensions}
-- **Formula Count**: {sheet_context.formula_count}
-- **Named Ranges**: {sheet_context.named_ranges}
-- **External References**: {sheet_context.external_refs}
-
-## Key Findings
-{self._format_key_findings(sheet_context)}
-
-## Available Data
-```python
-# Pre-computed analysis results
-FORMULA_GRAPH = {sheet_context.formula_graph!r}
-CELL_TYPES = {sheet_context.cell_types!r}
-CIRCULAR_REFS = {sheet_context.circular_refs!r}
-
-# Helper functions
-from spreadsheet_analyzer.notebook_helpers import *
-````
-
-'''
-
-````
-
-## Graph Database Integration
-
-The notebook interface enriches cell presentations with graph database insights:
-
-```python
-class GraphContextEnricher:
-    """Enriches notebook cells with graph database context."""
-    
-    def __init__(self, query_engine: SpreadsheetQueryEngine):
-        self.query_engine = query_engine
-        
-    def enrich_cell(self, cell: LLMCell) -> LLMCell:
-        """Add graph insights to cell presentation."""
-        
-        # Extract references from cell
-        references = self._extract_references(cell)
-        
-        if not references:
-            return cell
-            
-        # Build enriched content
-        enriched_content = cell.content
-        enriched_content += "\n\n### Graph Insights\n"
-        
-        for ref in references:
-            sheet, cell_ref = self._parse_reference(ref)
-            
-            # Query graph for insights
-            stats = self.query_engine.query("stats", sheet=sheet, cell=cell_ref)
-            deps = self.query_engine.query("dependencies", sheet=sheet, cell=cell_ref)
-            
-            enriched_content += f"\n**{ref}**:\n"
-            enriched_content += f"- Dependencies: {stats.data['total_dependencies']}\n"
-            enriched_content += f"- Dependents: {stats.data['total_dependents']}\n"
-            
-            if deps.cells:
-                enriched_content += "- Formula: `{}`\n".format(
-                    deps.cells[0].formula or "No formula"
-                )
-                
-        return LLMCell(
-            id=cell.id,
-            type=cell.type,
-            content=enriched_content,
-            metadata=cell.metadata,
-            context=cell.context,
-            relationships=cell.relationships
         )
-````
-
-### Query Integration Patterns
-
-Enable LLMs to query the graph database through notebook cells:
-
-```python
-# Example: LLM-generated cell for graph query
-def analyze_dependencies(cell_ref: str):
-    """Analyze dependencies for a specific cell."""
-    
-    # Use injected query engine
-    result = QUERY_ENGINE.query(
-        "impact",
-        sheet=CURRENT_SHEET,
-        cell=cell_ref,
-        depth=3
-    )
-    
-    print(f"Impact Analysis for {CURRENT_SHEET}!{cell_ref}")
-    print(f"Total cells affected: {result.data['impacted_cells']}")
-    
-    # Visualize impact
-    if result.relationships:
-        print("\nImpact Chain:")
-        for rel in result.relationships[:10]:  # First 10
-            print(f"  → {rel.cell.sheet}!{rel.cell.ref}")
-            
-    return result
 ```
 
-## Implementation Patterns
-
-### NAP-Inspired Unified Dispatcher Pattern
-
-Based on insights from the Notebook Agent Protocol (NAP), we adopt a unified dispatcher approach while maintaining our domain-specific enhancements:
+### Strategy 2: Graph-Based Compression (PROMPT-SAW)
 
 ```python
-class SpreadsheetNotebookDispatcher:
-    """Unified dispatcher with spreadsheet awareness."""
+class GraphCompressor:
+    """Graph-based context selection."""
     
-    def dispatch(self, cmd: dict) -> dict:
-        """Process notebook operations with domain enrichment."""
-        op = cmd["op"]
+    def compress(
+        self,
+        notebook: NotebookDocument,
+        focus: AnalysisFocus,
+        token_budget: int
+    ) -> CompressedContext:
+        # Build comprehensive graph
+        graph = DependencyGraph()
         
-        # Pre-process: Enrich with spreadsheet context
-        if op in ["add_cell", "edit_cell"]:
-            cmd = self._enrich_with_excel_context(cmd)
+        # Add nodes for cells
+        for cell in notebook.cells:
+            graph.add_node(
+                cell.id,
+                content=cell.source,
+                type=cell.cell_type,
+                metadata=cell.metadata
+            )
             
-        # Execute with security sandbox
-        with self.security_sandbox:
-            result = self._execute_operation(op, cmd)
+        # Add edges for dependencies
+        for cell in notebook.cells:
+            deps = self._extract_dependencies(cell)
+            for dep in deps:
+                graph.add_edge(dep, cell.id, type='depends_on')
+                
+        # Add semantic relationships
+        self._add_semantic_edges(graph, notebook)
+        
+        # Score nodes
+        scores = self._score_nodes(graph, focus)
+        
+        # Select subgraph
+        selected = self._select_by_importance(
+            graph,
+            scores,
+            token_budget
+        )
+        
+        return self._serialize_subgraph(selected)
+```
+
+### Strategy 3: SpreadsheetLLM Compression
+
+```python
+class SpreadsheetLLMCompressor:
+    """Excel-aware compression using structural understanding."""
+    
+    def compress(
+        self,
+        cells: List[Cell],
+        token_budget: int
+    ) -> CompressedContext:
+        # Identify structural anchors
+        anchors = self._find_anchors(cells)
+        
+        # Detect homogeneous regions
+        regions = self._detect_homogeneous_regions(cells, anchors)
+        
+        # Compress each region
+        compressed_regions = []
+        for region in regions:
+            if region.is_homogeneous:
+                compressed = self._compress_homogeneous(region)
+            else:
+                compressed = self._compress_heterogeneous(region)
+            compressed_regions.append(compressed)
             
-        # Post-process: Add token-aware presentation
-        result["token_estimate"] = len(json.dumps(result))
-        result["excel_insights"] = self._extract_excel_insights(result)
+        # Deduplicate formulas
+        formula_map = self._deduplicate_formulas(compressed_regions)
+        
+        return CompressedContext(
+            regions=compressed_regions,
+            formula_templates=formula_map,
+            anchors=anchors
+        )
+```
+
+## Workflow Orchestration
+
+### Future Enhancement: YAML Workflow Definition
+
+**Note**: YAML-based workflow orchestration is a planned future enhancement. The immediate implementation uses pure Python code for all workflow logic, providing maximum flexibility and easier debugging during initial development. The YAML approach will be introduced later as an optional configuration layer for users who prefer declarative workflows.
+
+#### Example Future YAML Workflow
+
+```yaml
+# workflows/excel_analysis.yaml (FUTURE)
+name: comprehensive_excel_analysis
+version: 1.0
+
+inputs:
+  workbook_path: str
+  analysis_depth: enum[basic, detailed, exhaustive]
+  focus_areas: list[str]
+
+parameters:
+  max_tokens: 100000
+  model_routing:
+    exploration: gpt-4o-mini
+    analysis: gpt-4o
+    validation: claude-3-sonnet
+
+workflow:
+  - id: setup
+    type: parallel
+    steps:
+      - action: load_workbook
+        output: workbook
+      - action: create_notebook
+        output: notebook_id
+
+  - id: exploration
+    type: sequential
+    strategy: hierarchical_exploration
+    steps:
+      - action: analyze_structure
+        input: workbook
+        output: structure_summary
+        
+      - action: identify_patterns
+        input: structure_summary
+        output: patterns
+        
+      - action: prioritize_areas
+        input: 
+          patterns: patterns
+          focus_areas: inputs.focus_areas
+        output: priority_areas
+
+  - id: deep_analysis
+    type: parallel
+    foreach: area in priority_areas
+    strategy: graph_based_compression
+    steps:
+      - action: analyze_area
+        input:
+          area: area
+          depth: inputs.analysis_depth
+        output: area_analysis
+
+  - id: validation
+    type: sequential
+    strategy: chain_of_thought
+    steps:
+      - action: cross_validate
+        input: deep_analysis.results
+        output: validation_report
+        
+      - action: generate_summary
+        input:
+          analyses: deep_analysis.results
+          validation: validation_report
+        output: final_report
+```
+
+### Immediate Implementation: Python-Based Orchestration
+
+For the initial implementation, all workflow logic is coded directly in Python, providing maximum flexibility and debuggability:
+
+```python
+class PythonWorkflowOrchestrator:
+    """Pure Python workflow orchestration - immediate implementation."""
+    
+    def __init__(self, registry: StrategyRegistry):
+        self.registry = registry
+        self.models = self._init_models()
+        
+    async def analyze_spreadsheet(
+        self,
+        notebook_id: str,
+        workbook_path: Path,
+        analysis_config: AnalysisConfig
+    ) -> AnalysisResult:
+        """Main orchestration method - all logic in Python."""
+        
+        # Step 1: Data exploration with hierarchical strategy
+        exploration_strategy = self.registry.get_strategy("hierarchical_exploration")
+        exploration_context = await exploration_strategy.prepare_context(
+            notebook_id,
+            AnalysisFocus.STRUCTURE,
+            token_budget=30000  # 30% of 100k budget
+        )
+        exploration_result = await self._execute_with_model(
+            exploration_strategy,
+            exploration_context,
+            self.models["exploration"]
+        )
+        
+        # Step 2: Identify focus areas from exploration
+        focus_areas = self._extract_focus_areas(exploration_result)
+        
+        # Step 3: Deep analysis using appropriate strategies
+        detailed_results = []
+        for area in focus_areas:
+            # Select strategy based on area characteristics
+            if area.has_complex_formulas:
+                strategy = self.registry.get_strategy("graph_based_compression")
+            elif area.has_large_data:
+                strategy = self.registry.get_strategy("spreadsheet_llm")
+            else:
+                strategy = self.registry.get_strategy("hierarchical_exploration")
+                
+            # Execute analysis
+            context = await strategy.prepare_context(
+                notebook_id,
+                area.focus,
+                token_budget=40000  # 40% budget for deep analysis
+            )
+            result = await self._execute_with_model(
+                strategy,
+                context,
+                self.models["analysis"]
+            )
+            detailed_results.append(result)
+            
+        # Step 4: Validation using chain-of-thought
+        validation_strategy = self.registry.get_strategy("chain_of_thought")
+        validation_context = await validation_strategy.prepare_context(
+            notebook_id,
+            AnalysisFocus.VALIDATION,
+            token_budget=30000  # 30% budget for validation
+        )
+        validation_result = await self._execute_with_model(
+            validation_strategy,
+            validation_context,
+            self.models["validation"]
+        )
+        
+        # Synthesize all results
+        return self._synthesize_results(
+            exploration_result,
+            detailed_results,
+            validation_result
+        )
+```
+
+### Future YAML Workflow Engine
+
+The YAML workflow engine will be added later as an optional layer that generates Python orchestration code:
+
+```python
+class YAMLWorkflowEngine:
+    """Future enhancement - translates YAML to Python orchestration."""
+    
+    def __init__(self, registry: StrategyRegistry):
+        self.registry = registry
+        self.orchestrator = PythonWorkflowOrchestrator(registry)
+        
+    async def execute_workflow(
+        self,
+        workflow_path: str,
+        inputs: Dict[str, Any]
+    ) -> WorkflowResult:
+        # Load and parse YAML workflow
+        workflow = self._load_workflow(workflow_path)
+        
+        # Translate to Python orchestration calls
+        # This is a future enhancement that provides
+        # declarative configuration over the Python API
+        return await self._translate_and_execute(workflow, inputs)
+```
+
+## Configuration Management
+
+### Hierarchical Configuration
+
+```yaml
+# config/default.yaml
+llm_jupyter:
+  # Global settings
+  global:
+    default_model: gpt-4o
+    max_retries: 3
+    timeout: 300
+    
+  # Plugin settings
+  plugins:
+    discovery:
+      enabled: true
+      paths:
+        - ~/.llm_jupyter/plugins
+        - /usr/share/llm_jupyter/plugins
+        
+  # Strategy configurations
+  strategies:
+    hierarchical_exploration:
+      summarization:
+        algorithm: extractive
+        compression_ratio: 0.1
+      section_detection:
+        method: semantic_similarity
+        threshold: 0.7
+        
+    graph_based_compression:
+      graph_construction:
+        include_semantic_edges: true
+        similarity_threshold: 0.8
+      node_scoring:
+        algorithm: pagerank
+        damping_factor: 0.85
+      selection:
+        method: greedy
+        
+  # Template settings
+  templates:
+    search_paths:
+      - ./templates
+      - ~/.llm_jupyter/templates
+    cache_compiled: true
+    auto_reload: false
+    
+  # Model routing
+  model_routing:
+    rules:
+      - condition: "task.complexity == 'simple'"
+        model: gpt-4o-mini
+      - condition: "task.tokens > 50000"
+        model: claude-3-opus
+      - condition: "task.type == 'validation'"
+        model: gpt-4o
+```
+
+### Environment-Specific Overrides
+
+```yaml
+# config/production.yaml
+llm_jupyter:
+  global:
+    default_model: gpt-4o  # Use most capable model
+    max_retries: 5         # More resilient
+    timeout: 600           # Longer timeout
+    
+  strategies:
+    hierarchical_exploration:
+      summarization:
+        algorithm: abstractive  # Better quality
+        
+  templates:
+    cache_compiled: true    # Performance
+    auto_reload: false      # Stability
+```
+
+## Integration Patterns
+
+### Pattern 1: Strategy Selection
+
+```python
+class StrategySelector:
+    """Intelligent strategy selection based on context."""
+    
+    def select_strategy(
+        self,
+        task: AnalysisTask,
+        workbook_stats: WorkbookStats,
+        available_tokens: int
+    ) -> str:
+        # Rule-based selection
+        if task.type == "exploration" and workbook_stats.total_cells < 1000:
+            return "hierarchical_exploration"
+            
+        if task.type == "formula_analysis" and workbook_stats.formula_density > 0.3:
+            return "graph_based_compression"
+            
+        if available_tokens < 10000:
+            return "aggressive_compression"
+            
+        # ML-based selection (future)
+        if self.ml_selector:
+            features = self._extract_features(task, workbook_stats)
+            return self.ml_selector.predict(features)
+            
+        return "hierarchical_exploration"  # Default
+```
+
+### Pattern 2: Progressive Analysis
+
+```python
+class ProgressiveAnalyzer:
+    """Implements progressive analysis with strategy switching."""
+    
+    async def analyze(
+        self,
+        notebook_id: str,
+        task: AnalysisTask
+    ) -> AnalysisResult:
+        # Start with overview
+        overview_strategy = self.registry.get_strategy("hierarchical_exploration")
+        overview = await overview_strategy.execute(notebook_id, task)
+        
+        # Identify areas needing deep analysis
+        focus_areas = self._identify_focus_areas(overview)
+        
+        # Deep dive with appropriate strategy
+        detailed_results = []
+        for area in focus_areas:
+            strategy_name = self.selector.select_strategy(
+                area.task_type,
+                area.complexity,
+                self.token_budget.remaining
+            )
+            strategy = self.registry.get_strategy(strategy_name)
+            result = await strategy.execute(notebook_id, area)
+            detailed_results.append(result)
+            
+        # Synthesize results
+        return self._synthesize_results(overview, detailed_results)
+```
+
+### Pattern 3: Multi-Model Routing
+
+```python
+class ModelRouter:
+    """Routes tasks to appropriate models based on complexity and cost."""
+    
+    def __init__(self, config: RouterConfig):
+        self.models = {
+            "simple": ModelInterface("gpt-4o-mini"),
+            "standard": ModelInterface("gpt-4o"),
+            "complex": ModelInterface("claude-3-opus"),
+            "vision": ModelInterface("gpt-4-vision")
+        }
+        self.cost_tracker = CostTracker()
+        
+    def route_request(
+        self,
+        prompt: str,
+        complexity: ComplexityScore,
+        constraints: Dict[str, Any]
+    ) -> ModelResult:
+        # Check if multimodal
+        if self._requires_vision(prompt):
+            return self.models["vision"].generate(prompt)
+            
+        # Route by complexity and constraints
+        if complexity.score < 0.3 and constraints.get("optimize_cost", False):
+            model = self.models["simple"]
+        elif complexity.score > 0.7 or constraints.get("high_quality", False):
+            model = self.models["complex"]
+        else:
+            model = self.models["standard"]
+            
+        # Track costs
+        result = model.generate(prompt)
+        self.cost_tracker.record(model.name, result.tokens_used)
         
         return result
 ```
 
-### Pattern 1: Exploratory Analysis Loop
+## Example Implementations
+
+### Example 1: Custom Excel Strategy
 
 ```python
-class ExploratoryAnalysisPattern:
-    """Common pattern for exploratory analysis."""
+class ExcelFormulaStrategy(BaseStrategy):
+    """Specialized strategy for Excel formula analysis."""
     
-    def generate_exploration_cells(self, focus: str) -> list[str]:
-        """Generate notebook cells for exploration."""
+    def prepare_context(
+        self,
+        notebook: NotebookDocument,
+        focus: AnalysisFocus,
+        token_budget: int
+    ) -> ContextPackage:
+        # Extract formula-bearing cells
+        formula_cells = [
+            cell for cell in notebook.cells
+            if self._contains_excel_formula(cell)
+        ]
         
-        cells = []
+        # Group by formula pattern
+        pattern_groups = self._group_by_pattern(formula_cells)
         
-        # Cell 1: Load and inspect
-        cells.append(f'''
-# Initial exploration of {focus}
-df = pd.read_excel(EXCEL_FILE, sheet_name=SHEET_NAME)
-print(f"Shape: {{df.shape}}")
-print(f"\\nColumns: {{df.columns.tolist()}}")
-print(f"\\nFirst few rows:")
-df.head()
-''')
-        
-        # Cell 2: Check for formulas
-        cells.append('''
-# Check for formulas in the data
-wb = load_workbook(EXCEL_FILE, data_only=False)
-ws = wb[SHEET_NAME]
-
-formula_cells = []
-for row in ws.iter_rows():
-    for cell in row:
-        if cell.data_type == 'f':
-            formula_cells.append(f"{cell.coordinate}: {cell.value}")
+        # Compress similar formulas
+        compressed_groups = {}
+        for pattern, cells in pattern_groups.items():
+            compressed_groups[pattern] = self._compress_formula_group(cells)
             
-print(f"Found {len(formula_cells)} formulas")
-if formula_cells:
-    print("\\nFirst 5 formulas:")
-    for fc in formula_cells[:5]:
-        print(f"  {fc}")
-''')
+        return ContextPackage(
+            formula_patterns=compressed_groups,
+            dependency_graph=self._build_formula_graph(formula_cells),
+            statistics=self._calculate_formula_stats(formula_cells)
+        )
         
-        # Cell 3: Pattern detection
-        cells.append('''
-# Look for patterns in the data
-patterns = detect_patterns(df)
-for pattern_type, instances in patterns.items():
-    print(f"\\n{pattern_type}: {len(instances)} instances")
-    if instances:
-        print(f"  Example: {instances[0]}")
-''')
-        
-        return cells
+    def format_prompt(
+        self,
+        context: ContextPackage,
+        task: AnalysisTask
+    ) -> str:
+        template = self.template_engine.get_template(
+            "excel/formula_analysis.jinja2"
+        )
+        return template.render(
+            patterns=context.formula_patterns,
+            graph=context.dependency_graph,
+            stats=context.statistics,
+            task=task
+        )
 ```
 
-### Pattern 2: Range-Based Operations for Large Notebooks
-
-Adopting NAP's approach for handling large spreadsheets:
+### Example 2: Workflow Implementation
 
 ```python
-def get_cells_semantic(self, path: str, focus: str, max_tokens: int):
-    """Semantic cell selection within token budget."""
-    # Not just positional slicing - semantic grouping
-    groups = self.identify_formula_chains(path, focus)
-    selected = self.token_manager.select_groups(groups, max_tokens)
+# Complete workflow for spreadsheet analysis
+async def analyze_spreadsheet(file_path: Path, config: Config):
+    # Initialize components
+    registry = StrategyRegistry()
+    engine = WorkflowEngine(registry)
     
-    return {
-        "cells": selected,
-        "excel_context": self.graph_enricher.enrich(selected),
-        "token_estimate": self._calculate_tokens(selected),
-        "next_groups": self._suggest_expansions(groups, selected)
-    }
+    # Execute workflow
+    result = await engine.execute_workflow(
+        "workflows/excel_analysis.yaml",
+        inputs={
+            "workbook_path": str(file_path),
+            "analysis_depth": "detailed",
+            "focus_areas": ["formulas", "data_validation", "pivot_tables"]
+        }
+    )
+    
+    # Generate report
+    report = ReportGenerator().generate(result)
+    return report
 ```
 
-### Pattern 3: Error Recovery Flow
+## Performance Considerations
+
+### Token Optimization
 
 ```python
-class ErrorRecoveryPattern:
-    """Pattern for handling and recovering from errors."""
+class TokenOptimizer:
+    """Optimizes token usage across strategies."""
     
-    def generate_recovery_sequence(self, error_info: dict) -> list[str]:
-        """Generate cells that handle specific error."""
+    def __init__(self, budget: int):
+        self.total_budget = budget
+        self.used_tokens = 0
+        self.allocation_history = []
         
-        cells = []
+    def allocate(
+        self,
+        strategy_name: str,
+        estimated_need: int,
+        priority: float = 1.0
+    ) -> int:
+        remaining = self.total_budget - self.used_tokens
         
-        # Diagnosis cell
-        cells.append(f'''
-# Diagnose the error: {error_info['error_type']}
-# Original operation: {error_info['operation']}
-
-# Let's understand what went wrong
-try:
-    # Reproduce the error
-    {error_info['original_code']}
-except Exception as e:
-    print(f"Error reproduced: {{type(e).__name__}}")
-    print(f"Message: {{str(e)}}")
-    
-    # Analyze the data that caused it
-    {self._generate_diagnostic_code(error_info)}
-''')
+        # Apply priority scaling
+        adjusted_need = int(estimated_need * priority)
         
-        # Recovery cell
-        recovery_strategies = self._get_recovery_strategies(error_info['error_type'])
+        # Never exceed remaining budget
+        allocated = min(adjusted_need, remaining)
         
-        for i, strategy in enumerate(recovery_strategies):
-            cells.append(f'''
-# Recovery Strategy {i+1}: {strategy['name']}
-try:
-    {strategy['code']}
-    print("✓ Recovery successful!")
-except Exception as e:
-    print(f"✗ Recovery failed: {{e}}")
-''')
+        self.used_tokens += allocated
+        self.allocation_history.append({
+            "strategy": strategy_name,
+            "requested": estimated_need,
+            "allocated": allocated,
+            "priority": priority
+        })
         
-        return cells
+        return allocated
 ```
 
-### Pattern 4: Execution-by-Default with Validation
-
-Combining NAP's execution philosophy with our validation requirements:
+### Caching Strategy
 
 ```python
-def add_analysis_cell(self, source: str, metadata: dict, 
-                     execute: bool = True,  # NAP default
-                     validate: bool = True):  # Our addition
-    """Add cell with automatic execution and validation."""
-    cell = self._create_cell(source, metadata)
+class StrategyCache:
+    """Caches strategy results for reuse."""
     
-    if execute and cell.type == "code":
-        result = self.secure_executor.execute(cell)
+    def __init__(self, cache_dir: Path):
+        self.cache_dir = cache_dir
+        self.memory_cache = LRUCache(maxsize=100)
         
-        if validate:
-            validation = self.validator.check_claims(result)
-            cell.metadata["validation_status"] = validation
+    def get_or_compute(
+        self,
+        key: str,
+        compute_fn: Callable,
+        ttl: int = 3600
+    ) -> Any:
+        # Check memory cache
+        if key in self.memory_cache:
+            return self.memory_cache[key]
             
-    return cell
-```
-
-### Pattern 5: Validation Sequences
-
-```python
-class ValidationPattern:
-    """Pattern for validating analysis results."""
-    
-    def generate_validation_cells(self, 
-                                 claim: str, 
-                                 evidence: dict) -> list[str]:
-        """Generate cells that validate analytical claims."""
-        
-        cells = []
-        
-        # State the claim
-        cells.append(f'''
-# Validation: {claim}
-# Evidence provided: {list(evidence.keys())}
-
-validation_results = {{}}
-''')
-        
-        # Generate validation tests
-        for evidence_type, evidence_data in evidence.items():
-            validation_code = self._generate_validation_code(
-                evidence_type, 
-                evidence_data
-            )
+        # Check disk cache
+        cache_path = self.cache_dir / f"{key}.pkl"
+        if cache_path.exists():
+            age = time.time() - cache_path.stat().st_mtime
+            if age < ttl:
+                with open(cache_path, 'rb') as f:
+                    result = pickle.load(f)
+                self.memory_cache[key] = result
+                return result
+                
+        # Compute and cache
+        result = compute_fn()
+        self.memory_cache[key] = result
+        with open(cache_path, 'wb') as f:
+            pickle.dump(result, f)
             
-            cells.append(f'''
-# Validate: {evidence_type}
-try:
-    result = {validation_code}
-    validation_results['{evidence_type}'] = {{
-        'valid': result['valid'],
-        'confidence': result['confidence'],
-        'details': result.get('details', {{}})
-    }}
-    print(f"✓ {evidence_type}: Valid ({{result['confidence']:.1%}} confidence)")
-except Exception as e:
-    validation_results['{evidence_type}'] = {{
-        'valid': False,
-        'error': str(e)
-    }}
-    print(f"✗ {evidence_type}: Validation failed - {{e}}")
-''')
-        
-        # Summary cell
-        cells.append('''
-# Validation Summary
-valid_count = sum(1 for v in validation_results.values() if v.get('valid', False))
-total_count = len(validation_results)
-
-print(f"\\nValidation Results: {valid_count}/{total_count} passed")
-print(f"Overall Confidence: {np.mean([v.get('confidence', 0) for v in validation_results.values()]):.1%}")
-
-if valid_count < total_count:
-    print("\\nFailed validations:")
-    for test, result in validation_results.items():
-        if not result.get('valid', False):
-            print(f"  - {test}: {result.get('error', 'Unknown error')}")
-''')
-        
-        return cells
+        return result
 ```
 
-## Security Considerations
+## Security Model
 
-### Execution-by-Default Security Implications
-
-With NAP's execution-by-default philosophy, security becomes even more critical:
-
-1. **Every cell creation/edit triggers execution** - Higher attack surface
-1. **Shared kernels maintain state** - Potential for persistent compromise
-1. **Token-driven operations** - Need rate limiting and resource controls
-
-### Enhanced Sandboxed Execution
-
-Our security model extends NAP's basic execution with comprehensive controls:
+### Sandboxed Execution
 
 ```python
-class SecureNotebookExecutor:
-    """Executes notebook cells with security constraints."""
+class SecureExecutor:
+    """Executes LLM-generated code safely."""
     
     def __init__(self):
-        self.sandbox_config = {
-            'max_execution_time': 30,  # seconds
-            'max_memory': 512 * 1024 * 1024,  # 512MB
+        self.sandbox = {
             'allowed_modules': {
-                'pandas', 'numpy', 'openpyxl', 
-                'json', 're', 'datetime', 'math'
+                'pandas', 'numpy', 'openpyxl',
+                'json', 'datetime', 'math'
             },
             'blocked_builtins': {
-                'eval', 'exec', '__import__', 
-                'compile', 'open', 'input'
+                'eval', 'exec', '__import__',
+                'open', 'compile'
             },
-            'filesystem_access': 'readonly',
-            'network_access': False
+            'resource_limits': {
+                'cpu_time': 30,
+                'memory': 512 * 1024 * 1024,
+                'file_size': 10 * 1024 * 1024
+            }
         }
         
-    def execute_cell(self, code: str, context: dict) -> CellResult:
-        """Execute cell code in sandbox."""
+    def validate_code(self, code: str) -> ValidationResult:
+        """Pre-execution validation."""
+        issues = []
         
-        # Validate code before execution
-        validation = self._validate_code(code)
-        if not validation.safe:
-            return CellResult(
-                success=False,
-                error=f"Security violation: {validation.reason}"
-            )
-            
-        # Create restricted globals
-        restricted_globals = self._create_restricted_globals(context)
-        
-        # Execute with timeout
-        try:
-            with self._timeout(self.sandbox_config['max_execution_time']):
-                with self._memory_limit(self.sandbox_config['max_memory']):
-                    exec(code, restricted_globals)
+        # Check imports
+        tree = ast.parse(code)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name not in self.sandbox['allowed_modules']:
+                        issues.append(f"Blocked import: {alias.name}")
+                        
+            elif isinstance(node, ast.ImportFrom):
+                if node.module not in self.sandbox['allowed_modules']:
+                    issues.append(f"Blocked import: {node.module}")
                     
-            return CellResult(
-                success=True,
-                outputs=self._capture_outputs(restricted_globals),
-                execution_time=self._get_execution_time()
-            )
-            
-        except TimeoutError:
-            return CellResult(
-                success=False,
-                error="Execution timeout exceeded"
-            )
-        except MemoryError:
-            return CellResult(
-                success=False,
-                error="Memory limit exceeded"
-            )
-        except Exception as e:
-            return CellResult(
-                success=False,
-                error=str(e),
-                traceback=self._safe_traceback()
-            )
+        return ValidationResult(
+            safe=len(issues) == 0,
+            issues=issues
+        )
 ```
 
 ### Input Sanitization
 
-Ensure all LLM-generated code is safe:
-
 ```python
-class CodeSanitizer:
-    """Sanitizes LLM-generated code before execution."""
+class InputSanitizer:
+    """Sanitizes inputs before processing."""
     
-    def sanitize(self, code: str) -> tuple[str, list[str]]:
-        """Sanitize code and return sanitized version with warnings."""
-        
-        warnings = []
-        
-        # Check for dangerous patterns
-        dangerous_patterns = [
-            (r'__[a-zA-Z]+__', 'Access to dunder attributes'),
-            (r'exec\s*\(', 'Dynamic code execution'),
-            (r'eval\s*\(', 'Dynamic expression evaluation'),
-            (r'compile\s*\(', 'Code compilation'),
-            (r'globals\s*\(', 'Access to global namespace'),
-            (r'locals\s*\(', 'Access to local namespace'),
-        ]
-        
-        for pattern, description in dangerous_patterns:
-            if re.search(pattern, code):
-                warnings.append(f"Removed: {description}")
-                code = re.sub(pattern, '# BLOCKED: ' + pattern, code)
-                
-        # Ensure imports are from allowed list
-        code = self._sanitize_imports(code, warnings)
-        
-        # Limit string sizes to prevent memory attacks
-        code = self._limit_string_sizes(code, warnings)
-        
-        return code, warnings
-```
-
-## Performance Optimization
-
-### Caching Strategies
-
-Implement intelligent caching to avoid recomputation:
-
-```python
-class NotebookCacheManager:
-    """Manages caching of notebook execution results."""
-    
-    def __init__(self, cache_dir: Path):
-        self.cache_dir = cache_dir
-        self.cache_index = self._load_cache_index()
-        
-    def get_cached_result(self, 
-                         cell_code: str, 
-                         context_hash: str) -> CellResult | None:
-        """Retrieve cached result if available."""
-        
-        cache_key = self._compute_cache_key(cell_code, context_hash)
-        
-        if cache_key in self.cache_index:
-            cache_entry = self.cache_index[cache_key]
+    def sanitize_excel_reference(self, ref: str) -> str:
+        """Ensure Excel reference is safe."""
+        # Remove any potential formula injection
+        if ref.startswith('='):
+            ref = ref[1:]
             
-            # Check if cache is still valid
-            if self._is_cache_valid(cache_entry):
-                return self._load_cached_result(cache_entry)
-                
-        return None
-        
-    def cache_result(self, 
-                    cell_code: str, 
-                    context_hash: str, 
-                    result: CellResult):
-        """Cache execution result."""
-        
-        cache_key = self._compute_cache_key(cell_code, context_hash)
-        cache_path = self.cache_dir / f"{cache_key}.pkl"
-        
-        # Store result
-        with open(cache_path, 'wb') as f:
-            pickle.dump(result, f)
+        # Validate format
+        if not re.match(r'^[A-Z]+\d+$', ref):
+            raise ValueError(f"Invalid cell reference: {ref}")
             
-        # Update index
-        self.cache_index[cache_key] = {
-            'path': cache_path,
-            'timestamp': datetime.now(),
-            'context_hash': context_hash,
-            'result_summary': self._summarize_result(result)
-        }
+        return ref
         
-    def _is_cache_valid(self, cache_entry: dict) -> bool:
-        """Check if cache entry is still valid."""
+    def sanitize_file_path(self, path: str) -> Path:
+        """Ensure file path is within allowed directories."""
+        path = Path(path).resolve()
         
-        # Cache expires after 24 hours
-        age = datetime.now() - cache_entry['timestamp']
-        if age.total_seconds() > 86400:
-            return False
+        # Check against allowed directories
+        allowed_dirs = [Path.cwd(), Path.home() / "data"]
+        if not any(path.is_relative_to(d) for d in allowed_dirs):
+            raise ValueError(f"Path outside allowed directories: {path}")
             
-        # Check if file still exists
-        return cache_entry['path'].exists()
-```
-
-### Parallel Execution
-
-Enable parallel execution of independent cells:
-
-```python
-class ParallelNotebookExecutor:
-    """Executes independent notebook cells in parallel."""
-    
-    def __init__(self, max_workers: int = 4):
-        self.max_workers = max_workers
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        
-    def execute_cells(self, cells: list[NotebookCell]) -> list[CellResult]:
-        """Execute cells in parallel where possible."""
-        
-        # Build dependency graph
-        dep_graph = self._build_dependency_graph(cells)
-        
-        # Identify execution waves
-        waves = self._identify_execution_waves(dep_graph)
-        
-        results = {}
-        
-        for wave in waves:
-            # Execute cells in current wave in parallel
-            futures = []
-            
-            for cell_id in wave:
-                cell = self._get_cell(cells, cell_id)
-                context = self._build_context(cell, results)
-                
-                future = self.executor.submit(
-                    self._execute_single_cell, 
-                    cell, 
-                    context
-                )
-                futures.append((cell_id, future))
-                
-            # Wait for wave to complete
-            for cell_id, future in futures:
-                results[cell_id] = future.result()
-                
-        return [results[cell.id] for cell in cells]
-        
-    def _identify_execution_waves(self, dep_graph: dict) -> list[list[str]]:
-        """Identify groups of cells that can execute in parallel."""
-        
-        waves = []
-        executed = set()
-        
-        while len(executed) < len(dep_graph):
-            # Find cells with no unexecuted dependencies
-            wave = []
-            
-            for cell_id, deps in dep_graph.items():
-                if cell_id not in executed:
-                    if all(dep in executed for dep in deps):
-                        wave.append(cell_id)
-                        
-            if not wave:
-                raise ValueError("Circular dependency detected")
-                
-            waves.append(wave)
-            executed.update(wave)
-            
-        return waves
-```
-
-## Future Extensions
-
-### 1. Multi-Modal Analysis
-
-Extend the framework to handle Excel files with embedded images and charts:
-
-```python
-class MultiModalCellPresenter:
-    """Presents cells with visual content to multi-modal LLMs."""
-    
-    def present_chart_cell(self, chart_info: ChartInfo) -> str:
-        """Format chart information for LLM consumption."""
-        
-        return f'''
-### Chart Analysis: {chart_info.title}
-
-**Type**: {chart_info.chart_type}
-**Data Range**: {chart_info.data_range}
-**Series Count**: {len(chart_info.series)}
-
-![Chart]({chart_info.image_path})
-
-**Key Observations**:
-- X-Axis: {chart_info.x_axis_title} ({chart_info.x_axis_range})
-- Y-Axis: {chart_info.y_axis_title} ({chart_info.y_axis_range})
-- Trend: {chart_info.detected_trend}
-'''
-```
-
-### 2. Collaborative Analysis
-
-Enable multiple LLM agents to collaborate through shared notebooks:
-
-```python
-class CollaborativeNotebookManager:
-    """Manages notebooks shared between multiple agents."""
-    
-    def coordinate_analysis(self, 
-                          agents: list[Agent], 
-                          workbook: Workbook) -> NotebookCollection:
-        """Coordinate multi-agent analysis."""
-        
-        notebooks = {}
-        
-        # Create notebook for each agent
-        for agent in agents:
-            notebooks[agent.id] = self.create_agent_notebook(
-                agent, 
-                workbook
-            )
-            
-        # Enable cross-notebook references
-        for agent in agents:
-            agent.set_peer_notebooks(notebooks)
-            
-        # Run analysis rounds
-        for round in range(self.max_rounds):
-            # Each agent analyzes in parallel
-            futures = []
-            
-            for agent in agents:
-                future = agent.analyze_async(
-                    notebook=notebooks[agent.id],
-                    round=round
-                )
-                futures.append(future)
-                
-            # Wait for round completion
-            for future in futures:
-                future.result()
-                
-            # Share insights between agents
-            self.share_insights(agents, notebooks)
-            
-        return NotebookCollection(notebooks)
-```
-
-### 3. Learning Integration
-
-Incorporate learning from successful analyses:
-
-```python
-class LearningNotebookSystem:
-    """System that learns from successful analysis patterns."""
-    
-    def __init__(self):
-        self.pattern_database = PatternDatabase()
-        self.success_metrics = SuccessMetrics()
-        
-    def learn_from_notebook(self, 
-                          notebook: Notebook, 
-                          analysis_result: AnalysisResult):
-        """Extract patterns from successful analysis."""
-        
-        if analysis_result.success_score > 0.8:
-            # Extract successful patterns
-            patterns = self.extract_patterns(notebook)
-            
-            for pattern in patterns:
-                self.pattern_database.add(
-                    pattern,
-                    context=notebook.context,
-                    score=analysis_result.success_score
-                )
-                
-    def suggest_next_cell(self, 
-                         current_notebook: Notebook, 
-                         goal: str) -> str:
-        """Suggest next cell based on learned patterns."""
-        
-        # Find similar contexts
-        similar_patterns = self.pattern_database.find_similar(
-            context=current_notebook.context,
-            goal=goal
-        )
-        
-        if similar_patterns:
-            # Adapt best pattern to current context
-            best_pattern = similar_patterns[0]
-            return self.adapt_pattern(best_pattern, current_notebook)
-            
-        return None
+        return path
 ```
 
 ## Conclusion
 
-The Jupyter notebook-LLM interface framework provides a powerful, flexible foundation for AI-driven spreadsheet analysis. By leveraging the natural alignment between notebook structure and LLM capabilities, we create a system that is both sophisticated in its analysis capabilities and transparent in its operations.
+This framework provides a robust, extensible foundation for LLM-Jupyter notebook interaction with Excel analysis capabilities. The three-layer architecture ensures clean separation of concerns while the plugin system enables easy extension and customization. By following configuration-over-code principles and leveraging established patterns like strategy and template inheritance, the framework supports both simple use cases and sophisticated multi-strategy analyses.
 
-The framework's emphasis on progressive exploration, error recovery, and validation aligns perfectly with the overall system's philosophy of trustworthy, auditable analysis. As LLM capabilities continue to evolve, this framework provides a stable interface that can adapt to leverage new capabilities while maintaining backward compatibility.
+Key benefits:
 
-For implementation details and code examples, refer to the [Implementation Guide](./notebook-interface-implementation.md). For integration with the broader system architecture, see the [Comprehensive System Design](./comprehensive-system-design.md#agent-system). For a detailed analysis of notebook manipulation tools and technologies, including nbformat, MCP servers, and alternative approaches, see the [Notebook Manipulation Analysis](./notebook-manipulation-analysis.md).
+- **Modularity**: Each layer can evolve independently
+- **Extensibility**: New strategies added without core changes
+- **Performance**: Intelligent routing and compression
+- **Maintainability**: DRY principles throughout
+- **Flexibility**: Configuration-driven behavior
+
+Implementation approach:
+
+- **Phase 1**: Pure Python orchestration with full programmatic control
+- **Phase 2**: Plugin-based strategies with configuration management
+- **Phase 3**: Template system for prompt management
+- **Future**: Optional YAML workflow layer for declarative configuration
+
+The framework is designed for immediate implementation with Python-based orchestration, allowing maximum flexibility during initial development while maintaining the architecture to support future declarative configuration options.

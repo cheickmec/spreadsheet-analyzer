@@ -251,7 +251,7 @@ Uses conventional commits format:
 - `test:` Test additions/modifications
 - `chore:` Maintenance tasks
 
-**IMPORTANT**: Never include the "ü§ñ Generated with Claude Code" signature or any Claude-related signatures in commit messages.
+**IMPORTANT**: Never include the "ü§ñ Generated with Claude Code" signature or any Claude-related signatures in commit messages.
 
 ## Pull Request Requirements
 
@@ -399,3 +399,9 @@ All development tools are specified in `pyproject.toml` under `[project.optional
 - bandit for security scanning
 - pre-commit for automated checks
 - pypandoc for HTML to Markdown conversion
+
+## Environment Configuration
+
+### API Key Management
+
+- The OPENAI_API_KEY and ANTHROPIC_API_KEY environment variables are available on this host machine

@@ -57,6 +57,12 @@ uv pip install -e .
 # Analyze a single Excel file
 spreadsheet-analyzer analyze financial-model.xlsx
 
+# Analyze a specific sheet with LLM-powered insights
+analyze-sheet financial-model.xlsx "Balance Sheet"
+
+# List all sheets in an Excel file
+analyze-sheet financial-model.xlsx --list-sheets
+
 # Verbose output with progress tracking
 spreadsheet-analyzer -vv analyze data.xlsx
 
@@ -71,8 +77,32 @@ spreadsheet-analyzer analyze large-file.xlsx --no-formulas
 
 # Help and available options
 spreadsheet-analyzer --help
-spreadsheet-analyzer analyze --help
+analyze-sheet --help
 ```
+
+### Single Sheet Analysis
+
+The `analyze-sheet` command provides focused analysis of individual Excel sheets using LLM-powered insights:
+
+```bash
+# Basic sheet analysis
+analyze-sheet data.xlsx "Revenue Sheet"
+
+# Use different LLM models
+analyze-sheet data.xlsx "Sheet1" --model claude-opus-4-20250514
+
+# Different analysis strategies
+analyze-sheet data.xlsx "Sheet1" --strategy detailed
+
+# Custom output directory
+analyze-sheet data.xlsx "Sheet1" --output-dir my_results
+```
+
+Each sheet analysis creates:
+
+- A dedicated Jupyter notebook with the analysis
+- Metadata file with LLM insights and results
+- Organized folder structure: `analysis_results/[file_name]/[sheet_name].ipynb`
 
 ## 🔍 What It Does
 
@@ -172,6 +202,7 @@ spreadsheet-analyzer/
 - **[Pipeline Design](docs/design/deterministic-analysis-pipeline.md)**: 5-stage pipeline architecture
 - **[System Design](docs/design/comprehensive-system-design.md)**: Complete technical specification
 - **[CLI Architecture](docs/design/cli-architecture-design.md)**: Terminal interface design
+- **[Single Sheet Analysis CLI](docs/single-sheet-analysis-cli.md)**: LLM-powered sheet analysis guide
 - **[Contributing](CONTRIBUTING.md)**: Development practices and testing philosophy
 
 ## ⚡ Performance

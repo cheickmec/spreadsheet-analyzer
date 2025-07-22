@@ -1,0 +1,38 @@
+{# Partial template for formatting cell information #}
+
+{% macro format_cell(cell) -%}
+{{ cell.coordinate }}: {% if cell.formula %}={{ cell.formula }}{% else %}{{ cell.value }}{% endif %}
+{%- if cell.data_type %} [{{ cell.data_type }}]{% endif %}
+{%- if cell.number_format %} {fmt: {{ cell.number_format }}}{% endif %}
+{%- endmacro %}
+
+{% macro format_cell_detailed(cell) %}
+Cell {{ cell.coordinate }}:
+  Value: {{ cell.value }}
+  {% if cell.formula %}Formula: {{ cell.formula }}{% endif %}
+  Type: {{ cell.data_type }}
+  {% if cell.number_format %}Format: {{ cell.number_format }}{% endif %}
+  {% if cell.comment %}Comment: {{ cell.comment }}{% endif %}
+  {% if cell.hyperlink %}Link: {{ cell.hyperlink }}{% endif %}
+{% endmacro %}
+
+{% macro format_range(cells, max_display=20) %}
+{% for cell in cells[:max_display] %}
+{{ format_cell(cell) }}
+{% endfor %}
+{% if cells|length > max_display %}
+... ({{ cells|length - max_display }} more cells)
+{% endif %}
+{% endmacro %}
+
+{% macro format_formula_info(formula_info) %}
+Formula: {{ formula_info.formula }}
+  - References: {{ formula_info.references | join(', ') }}
+  - Functions: {{ formula_info.functions | join(', ') }}
+  {% if formula_info.is_array %}
+  - Array Formula: Yes
+  {% endif %}
+  {% if formula_info.has_error %}
+  - Error: {{ formula_info.error_type }}
+  {% endif %}
+{% endmacro %}

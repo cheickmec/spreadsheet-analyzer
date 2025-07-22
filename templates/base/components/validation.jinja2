@@ -1,0 +1,79 @@
+{# Validation prompts and instructions #}
+
+{% macro validation_checklist() %}
+## Validation Requirements
+
+Before completing your analysis, ensure you have:
+
+- [ ] Verified all numeric calculations
+- [ ] Checked formula consistency
+- [ ] Validated data types and formats
+- [ ] Tested edge cases
+- [ ] Confirmed relationships between sheets
+- [ ] Documented any anomalies or errors
+{% endmacro %}
+
+{% macro formula_validation() %}
+## Formula Validation
+
+For each formula analyzed:
+1. Parse the formula structure
+2. Identify all cell references
+3. Verify referenced cells exist
+4. Check for circular references
+5. Validate calculation logic
+6. Test with sample data
+{% endmacro %}
+
+{% macro data_quality_checks() %}
+## Data Quality Validation
+
+Check for:
+- Missing or null values
+- Data type inconsistencies
+- Out-of-range values
+- Duplicate entries
+- Referential integrity
+- Formula errors (#REF!, #VALUE!, etc.)
+{% endmacro %}
+
+{% macro cross_validation() %}
+## Cross-Validation Steps
+
+1. **Internal Consistency**:
+   - Totals match sum of components
+   - Percentages sum to 100%
+   - Date sequences are logical
+
+2. **Cross-Sheet Validation**:
+   - References resolve correctly
+   - Linked data matches source
+   - Aggregations are accurate
+
+3. **Business Logic**:
+   - Calculations follow expected rules
+   - Results are within reasonable ranges
+   - Relationships make business sense
+{% endmacro %}
+
+{% macro validation_code_template() %}
+```python
+# Validation template
+def validate_finding(description, test_func, *args):
+    """Execute validation test and report results."""
+    try:
+        result = test_func(*args)
+        status = "PASS" if result else "FAIL"
+        print(f"[{status}] {description}")
+        return result
+    except Exception as e:
+        print(f"[ERROR] {description}: {str(e)}")
+        return False
+
+# Example usage:
+validate_finding(
+    "Sum of column A equals reported total",
+    lambda: df['A'].sum() == reported_total
+)
+```
+{% endmacro %}

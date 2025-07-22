@@ -18,10 +18,20 @@ dependencies = [
     "neo4j>=5.28.1",
     "networkx>=3.0",
     "jupyter-client>=8.6.3",
+    "jinja2>=3.1.6",
+    "tiktoken>=0.9.0",
+    "openai>=1.0.0",
+    "anthropic>=0.39.0",
+    "pandas-stubs==2.3.0.250703",
 ]
 
 [project.scripts]
 spreadsheet-analyzer = "spreadsheet_analyzer.cli:main"
+analyze-sheet = "spreadsheet_analyzer.cli.analyze_sheet:main"
+
+[project.entry-points."spreadsheet_analyzer.strategies"]
+hierarchical = "spreadsheet_analyzer.notebook_llm.strategies.hierarchical:HierarchicalStrategy"
+graph_based = "spreadsheet_analyzer.notebook_llm.strategies.graph_based:GraphBasedStrategy"
 
 [project.optional-dependencies]
 dev = [
@@ -168,6 +178,18 @@ ignore_missing_imports = true
 module = "rich.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "tiktoken.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "openai.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "anthropic.*"
+ignore_missing_imports = true
+
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv"]
 skips = ["B101"]  # Skip assert_used test
@@ -220,3 +242,6 @@ dev = [
     "pytest-cov>=6.2.1",
     "pytest-timeout>=2.4.0",
 ]
+
+[tool.uv]
+package = true

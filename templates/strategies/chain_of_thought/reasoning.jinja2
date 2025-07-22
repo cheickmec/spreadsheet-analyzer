@@ -1,0 +1,108 @@
+{# Chain-of-thought reasoning strategy template #}
+{% extends "base/master.jinja2" %}
+
+{% block system_context %}
+You are performing step-by-step analysis of the spreadsheet using chain-of-thought reasoning.
+Break down complex analytical tasks into clear, logical steps, showing your reasoning
+at each stage. This approach helps ensure thorough analysis and clear documentation.
+{% endblock %}
+
+{% block task_description %}
+{{ task.description }}
+
+{% if previous_thoughts %}
+Building on previous reasoning:
+{% for thought in previous_thoughts[-3:] %}
+- {{ thought.summary }}
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block strategy_instructions %}
+## Chain-of-Thought Analysis Process
+
+### Step-by-Step Approach:
+
+1. **Problem Decomposition**
+   - Break the analysis task into subtasks
+   - Identify dependencies between steps
+   - Plan the logical sequence
+
+2. **Reasoning at Each Step**
+   - State what you're investigating
+   - Explain why this step matters
+   - Show your analytical process
+   - Document findings before moving on
+
+3. **Progressive Building**
+   - Each step builds on previous findings
+   - Maintain clear connections between steps
+   - Accumulate evidence for conclusions
+
+4. **Self-Validation**
+   - Question your assumptions
+   - Verify intermediate results
+   - Consider alternative explanations
+   - Test edge cases
+
+### Thought Structure:
+```
+Step N: [Clear description of what you're doing]
+Reasoning: [Why this step is necessary]
+Action: [Code or analysis to perform]
+Finding: [What you discovered]
+Implication: [What this means for next steps]
+```
+{% endblock %}
+
+{% block output_format %}
+Present your analysis as a series of clear steps:
+
+```python
+# Chain-of-Thought Analysis: {{ task.description }}
+
+# Step 1: [First logical step]
+# Reasoning: [Why we start here]
+print("Step 1: Analyzing...")
+# [Code for step 1]
+step1_finding = ...
+print(f"Finding: {step1_finding}")
+
+# Step 2: [Next logical step based on Step 1]
+# Reasoning: [How Step 1 leads to Step 2]
+print("\nStep 2: Building on Step 1...")
+# [Code for step 2]
+step2_finding = ...
+print(f"Finding: {step2_finding}")
+
+# Continue for all necessary steps...
+
+# Final Synthesis
+print("\n=== SYNTHESIS ===")
+print("Based on the step-by-step analysis:")
+conclusions = {
+    'main_findings': [...],
+    'supporting_evidence': {...},
+    'confidence_level': ...,
+    'caveats': [...]
+}
+```
+
+Ensure each step is:
+- Clearly labeled and explained
+- Logically connected to previous steps
+- Validated with actual data/calculations
+- Contributing to the overall analysis goal
+{% endblock %}
+
+{% block additional_sections %}
+<reasoning_hints>
+Good chain-of-thought practices:
+- Start with simple observations
+- Build complexity gradually
+- Show calculation work
+- Explain surprising findings
+- Connect findings to business logic
+- Question and verify assumptions
+</reasoning_hints>
+{% endblock %}
