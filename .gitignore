@@ -43,6 +43,7 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+coverage.json
 *.cover
 *.py,cover
 .hypothesis/
@@ -189,3 +190,7 @@ neo4j_data/
 neo4j_logs/
 neo4j_import/
 neo4j_plugins/
+
+# Temporary test files
+test_claude_direct.py
+test_*_direct.py
