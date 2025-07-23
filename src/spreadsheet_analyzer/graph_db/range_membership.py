@@ -119,7 +119,7 @@ class RangeMembershipIndex:
     reasonable memory usage.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the range membership index."""
         # Map from sheet to list of range references
         self.ranges_by_sheet: dict[str, list[RangeReference]] = defaultdict(list)

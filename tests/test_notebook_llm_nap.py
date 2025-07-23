@@ -54,6 +54,7 @@ class TestCell:
             metadata={},
             outputs=[{"output_type": "execute_result", "data": {"text/plain": "2"}}],
         )
+        assert cell.outputs is not None
         assert len(cell.outputs) == 1
         assert cell.outputs[0]["data"]["text/plain"] == "2"
 
@@ -87,6 +88,7 @@ class TestCellExecutionResult:
             execution_count=2,
         )
         assert not result.success
+        assert result.error is not None
         assert result.error["ename"] == "ValueError"
 
     def test_execution_with_metadata(self):
@@ -112,6 +114,7 @@ class TestCellSelector:
     def test_select_by_tag(self):
         """Test selecting cells by tag."""
         selector = CellSelector(tag_filter=["analysis", "visualization"])
+        assert selector.tag_filter is not None
         assert "analysis" in selector.tag_filter
         assert "visualization" in selector.tag_filter
 
@@ -129,7 +132,9 @@ class TestCellSelector:
             cell_types=[CellType.CODE, CellType.MARKDOWN],
         )
         assert selector.index_range == (0, 1)
+        assert selector.tag_filter is not None
         assert len(selector.tag_filter) == 1
+        assert selector.cell_types is not None
         assert len(selector.cell_types) == 2
 
 
