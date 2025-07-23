@@ -49,7 +49,7 @@ class TestRealKernelBasicOperations:
     operations that any Python code execution system must support.
     """
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_creation_and_execution(self) -> None:
         """
         Test kernel creation and basic code execution with real Jupyter kernels.
@@ -69,23 +69,22 @@ class TestRealKernelBasicOperations:
         """
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Execute simple calculation
-                result = await manager.execute_code(session, "2 + 2")
-                assert result.get("status") == "ok"
-                assert "4" in str(result.get("outputs", []))
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Execute simple calculation
+            result = await manager.execute_code(session, "2 + 2")
+            assert result.get("status") == "ok"
+            assert "4" in str(result.get("outputs", []))
 
-                # Execute with variables
-                await manager.execute_code(session, "x = 10")
-                result = await manager.execute_code(session, "x * 2")
-                assert result.get("status") == "ok"
-                assert "20" in str(result.get("outputs", []))
+            # Execute with variables
+            await manager.execute_code(session, "x = 10")
+            result = await manager.execute_code(session, "x * 2")
+            assert result.get("status") == "ok"
+            assert "20" in str(result.get("outputs", []))
 
-                # Verify session history
-                assert len(session.execution_history) == 3
+            # Verify session history
+            assert len(session.execution_history) == 3
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_error_handling(self) -> None:
         """
         Test error detection and handling with real Jupyter kernels.
@@ -105,19 +104,18 @@ class TestRealKernelBasicOperations:
         """
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Execute code with error
-                result = await manager.execute_code(session, "1 / 0")
-                assert result.get("error") is not None
-                assert "ZeroDivisionError" in str(result.get("error", {}))
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Execute code with error
+            result = await manager.execute_code(session, "1 / 0")
+            assert result.get("error") is not None
+            assert "ZeroDivisionError" in str(result.get("error", {}))
 
-                # Execute code with undefined variable
-                result = await manager.execute_code(session, "undefined_variable")
-                assert result.get("error") is not None
-                assert "NameError" in str(result.get("error", {}))
+            # Execute code with undefined variable
+            result = await manager.execute_code(session, "undefined_variable")
+            assert result.get("error") is not None
+            assert "NameError" in str(result.get("error", {}))
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_timeout(self) -> None:
         """
         Test execution timeout mechanism with real Jupyter kernels.
@@ -137,13 +135,12 @@ class TestRealKernelBasicOperations:
         """
         manager = AgentKernelManager(max_kernels=1, resource_limits=KernelResourceLimits(max_execution_time=2.0))
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Execute code that will timeout
-                with pytest.raises(KernelTimeoutError):
-                    await manager.execute_code(session, "import time; time.sleep(5)")
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Execute code that will timeout
+            with pytest.raises(KernelTimeoutError):
+                await manager.execute_code(session, "import time; time.sleep(5)")
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_session_persistence(self) -> None:
         """
         Test session state persistence across multiple kernel acquisitions.
@@ -178,7 +175,7 @@ class TestRealKernelBasicOperations:
                 assert "y=100" in str(result.get("outputs", []))
                 assert len(session.execution_history) == 3
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_multiple_outputs(self) -> None:
         """
         Test handling of multiple output types from real Jupyter kernels.
@@ -198,32 +195,31 @@ class TestRealKernelBasicOperations:
         """
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Execute code with print statements and return value
-                result = await manager.execute_code(session, "print('Hello')\nprint('World')\n42")
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Execute code with print statements and return value
+            result = await manager.execute_code(session, "print('Hello')\nprint('World')\n42")
 
-                assert result.get("status") == "ok"
-                outputs = result.get("outputs", [])
-                assert len(outputs) > 0
+            assert result.get("status") == "ok"
+            outputs = result.get("outputs", [])
+            assert len(outputs) > 0
 
-                # Should have both stream and execute_result outputs
-                has_stream = any(output.get("type") == "stream" for output in outputs)
-                has_execute_result = any(output.get("type") == "execute_result" for output in outputs)
+            # Should have both stream and execute_result outputs
+            has_stream = any(output.get("type") == "stream" for output in outputs)
+            has_execute_result = any(output.get("type") == "execute_result" for output in outputs)
 
-                assert has_stream
-                assert has_execute_result
+            assert has_stream
+            assert has_execute_result
 
-                # Check stream content
-                stream_text = ""
-                for output in outputs:
-                    if output.get("type") == "stream":
-                        stream_text += output.get("text", "")
+            # Check stream content
+            stream_text = ""
+            for output in outputs:
+                if output.get("type") == "stream":
+                    stream_text += output.get("text", "")
 
-                assert "Hello" in stream_text
-                assert "World" in stream_text
+            assert "Hello" in stream_text
+            assert "World" in stream_text
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_large_output(self) -> None:
         """
         Test handling of large output data from real Jupyter kernels.
@@ -243,24 +239,23 @@ class TestRealKernelBasicOperations:
         """
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Generate large output
-                large_data = "x" * 10000
-                result = await manager.execute_code(session, f"print('{large_data}')")
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Generate large output
+            large_data = "x" * 10000
+            result = await manager.execute_code(session, f"print('{large_data}')")
 
-                assert result.get("status") == "ok"
-                outputs = result.get("outputs", [])
-                assert len(outputs) > 0
+            assert result.get("status") == "ok"
+            outputs = result.get("outputs", [])
+            assert len(outputs) > 0
 
-                # Verify large output is handled
-                output_text = ""
-                for output in outputs:
-                    if output.get("type") == "stream":
-                        output_text += output.get("text", "")
+            # Verify large output is handled
+            output_text = ""
+            for output in outputs:
+                if output.get("type") == "stream":
+                    output_text += output.get("text", "")
 
-                assert len(output_text) > 0
-                assert "x" in output_text
+            assert len(output_text) > 0
+            assert "x" in output_text
 
 
 class TestRealNotebookFileOperations:
@@ -329,7 +324,7 @@ class TestRealNotebookFileOperations:
             language_info={"name": "python", "version": "3.12"},
         )
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_execution(self) -> None:
         """
         Test complete notebook execution with real Jupyter kernels.
@@ -374,13 +369,12 @@ class TestRealNotebookFileOperations:
             for output in cell.outputs:
                 if output.get("output_type") == "stream":
                     output_text += output.get("text", "")
-                elif output.get("output_type") == "execute_result":
-                    if "text/plain" in output.get("data", {}):
-                        output_text += str(output["data"]["text/plain"])
+                elif output.get("output_type") == "execute_result" and "text/plain" in output.get("data", {}):
+                    output_text += str(output["data"]["text/plain"])
 
             assert len(output_text) > 0, f"Cell {i} should have output text"
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_save_and_load(self) -> None:
         """
         Test notebook file persistence with save and load operations.
@@ -462,7 +456,7 @@ class TestRealNotebookFileOperations:
             # Clean up
             Path(temp_path).unlink(missing_ok=True)
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_cell_addition_and_execution(self) -> None:
         """
         Test dynamic cell addition and execution in existing notebooks.
@@ -521,7 +515,7 @@ class TestRealNotebookFileOperations:
             assert "This is a new cell!" in output_text
             assert "z = 18" in output_text  # x=8 from cell2, so z=8+10=18
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_cell_modification_and_reexecution(self) -> None:
         """
         Test cell modification and re-execution workflows.
@@ -567,14 +561,13 @@ class TestRealNotebookFileOperations:
             for output in result.get("outputs", []):
                 if output.get("type") == "stream":
                     output_text += output.get("text", "")
-                elif output.get("type") == "execute_result":
-                    if "text/plain" in output.get("data", {}):
-                        output_text += str(output["data"]["text/plain"])
+                elif output.get("type") == "execute_result" and "text/plain" in output.get("data", {}):
+                    output_text += str(output["data"]["text/plain"])
 
             assert "Modified result: 15" in output_text
             assert "30" in output_text  # 15 * 2
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_error_handling_and_recovery(self) -> None:
         """
         Test error handling and recovery in notebook execution.
@@ -680,7 +673,7 @@ class TestRealKernelResourceManagement:
     multiple agents and manage system resources properly.
     """
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_pooling(self) -> None:
         """
         Test kernel pooling and reuse mechanisms with real Jupyter kernels.
@@ -722,7 +715,7 @@ class TestRealKernelResourceManagement:
                 result = await manager.execute_code(session1, "print(x)")
                 assert "10" in str(result.get("outputs", []))
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_pool_exhaustion(self) -> None:
         """
         Test handling when kernel pool is exhausted and no kernels are available.
@@ -742,17 +735,15 @@ class TestRealKernelResourceManagement:
         """
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            # Acquire the only kernel
-            async with manager.acquire_kernel("agent-1") as (km1, session1):
-                await manager.execute_code(session1, "x = 10")
+        async with manager, manager.acquire_kernel("agent-1") as (km1, session1):
+            await manager.execute_code(session1, "x = 10")
 
-                # Try to acquire for different agent (should timeout)
-                with pytest.raises(Exception):  # Should timeout or raise pool exhausted
-                    async with manager.acquire_kernel("agent-2", timeout=1.0):
-                        pass
+            # Try to acquire for different agent (should timeout)
+            with pytest.raises((TimeoutError, RuntimeError)):  # Should timeout or raise pool exhausted
+                async with manager.acquire_kernel("agent-2", timeout=1.0):
+                    pass
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_graceful_shutdown(self) -> None:
         """
         Test graceful shutdown procedures for real Jupyter kernels.
@@ -799,7 +790,7 @@ class TestRealNotebookAdvancedFeatures:
     data science and scientific computing scenarios.
     """
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_with_pandas(self) -> None:
         """
         Test notebook execution with pandas data analysis workflows.
@@ -864,13 +855,12 @@ class TestRealNotebookAdvancedFeatures:
             for output in cell.outputs:
                 if output.get("output_type") == "stream":
                     output_text += output.get("text", "")
-                elif output.get("output_type") == "execute_result":
-                    if "text/plain" in output.get("data", {}):
-                        output_text += str(output["data"]["text/plain"])
+                elif output.get("output_type") == "execute_result" and "text/plain" in output.get("data", {}):
+                    output_text += str(output["data"]["text/plain"])
 
             assert len(output_text) > 0, f"Cell {i} should have output text"
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_with_matplotlib(self) -> None:
         """
         Test notebook execution with matplotlib plotting and visualization.
@@ -927,7 +917,7 @@ class TestRealNotebookAdvancedFeatures:
             assert has_output, f"Expected output for cell {i + 1}, got: {cell.outputs}"
             assert cell.execution_count == i + 1
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_session_checkpointing(self) -> None:
         """
         Test session checkpointing and restoration with real kernels.
@@ -947,31 +937,30 @@ class TestRealNotebookAdvancedFeatures:
         """
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Execute some code
-                await manager.execute_code(session, "x = 10")
-                await manager.execute_code(session, "y = 20")
-                await manager.execute_code(session, "z = x + y")
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Execute some code
+            await manager.execute_code(session, "x = 10")
+            await manager.execute_code(session, "y = 20")
+            await manager.execute_code(session, "z = x + y")
 
-                # Create checkpoint
-                checkpoint_data = manager.save_checkpoint(session)
+            # Create checkpoint
+            checkpoint_data = manager.save_checkpoint(session)
 
-                assert checkpoint_data["session_id"] == session.session_id
-                assert checkpoint_data["agent_id"] == session.agent_id
-                assert len(checkpoint_data["execution_history"]) == 3
+            assert checkpoint_data["session_id"] == session.session_id
+            assert checkpoint_data["agent_id"] == session.agent_id
+            assert len(checkpoint_data["execution_history"]) == 3
 
-                # Create new session and restore
-                new_session = KernelSession(session_id="new-session", kernel_id="kernel-2", agent_id="test-agent")
+            # Create new session and restore
+            new_session = KernelSession(session_id="new-session", kernel_id="kernel-2", agent_id="test-agent")
 
-                manager.restore_checkpoint(new_session, checkpoint_data)
+            manager.restore_checkpoint(new_session, checkpoint_data)
 
-                assert len(new_session.execution_history) == 3
-                assert new_session.execution_history[0]["code"] == "x = 10"
-                assert new_session.execution_history[1]["code"] == "y = 20"
-                assert new_session.execution_history[2]["code"] == "z = x + y"
+            assert len(new_session.execution_history) == 3
+            assert new_session.execution_history[0]["code"] == "x = 10"
+            assert new_session.execution_history[1]["code"] == "y = 20"
+            assert new_session.execution_history[2]["code"] == "z = x + y"
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_notebook_large_dataset_handling(self) -> None:
         """
         Test handling of large datasets and memory-intensive operations.
@@ -991,26 +980,25 @@ class TestRealNotebookAdvancedFeatures:
         """
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Create large dataset
-                result = await manager.execute_code(
-                    session,
-                    "import numpy as np; data = np.random.rand(1000, 1000); print(f'Dataset shape: {data.shape}')",
-                )
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Create large dataset
+            result = await manager.execute_code(
+                session,
+                "import numpy as np; data = np.random.rand(1000, 1000); print(f'Dataset shape: {data.shape}')",
+            )
 
-                assert result.get("status") == "ok"
-                assert "Dataset shape: (1000, 1000)" in str(result.get("outputs", []))
+            assert result.get("status") == "ok"
+            assert "Dataset shape: (1000, 1000)" in str(result.get("outputs", []))
 
-                # Perform operations on large dataset
-                result = await manager.execute_code(
-                    session,
-                    "mean_val = np.mean(data); std_val = np.std(data); print(f'Mean: {mean_val:.4f}, Std: {std_val:.4f}')",
-                )
+            # Perform operations on large dataset
+            result = await manager.execute_code(
+                session,
+                "mean_val = np.mean(data); std_val = np.std(data); print(f'Mean: {mean_val:.4f}, Std: {std_val:.4f}')",
+            )
 
-                assert result.get("status") == "ok"
-                assert "Mean:" in str(result.get("outputs", []))
-                assert "Std:" in str(result.get("outputs", []))
+            assert result.get("status") == "ok"
+            assert "Mean:" in str(result.get("outputs", []))
+            assert "Std:" in str(result.get("outputs", []))
 
 
 class TestRealKernelPerformance:
@@ -1028,7 +1016,7 @@ class TestRealKernelPerformance:
     in production environments with multiple users.
     """
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_startup_time(self) -> None:
         """
         Test kernel startup time and performance characteristics.
@@ -1050,19 +1038,18 @@ class TestRealKernelPerformance:
 
         start_time = time.time()
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                end_time = time.time()
-                startup_time = end_time - start_time
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            end_time = time.time()
+            startup_time = end_time - start_time
 
-                # Kernel should start within reasonable time (usually < 5 seconds)
-                assert startup_time < 10.0, f"Kernel startup took {startup_time:.2f} seconds"
+            # Kernel should start within reasonable time (usually < 5 seconds)
+            assert startup_time < 10.0, f"Kernel startup took {startup_time:.2f} seconds"
 
-                # Execute simple code to verify kernel is working
-                result = await manager.execute_code(session, "print('Kernel is working')")
-                assert result.get("status") == "ok"
+            # Execute simple code to verify kernel is working
+            result = await manager.execute_code(session, "print('Kernel is working')")
+            assert result.get("status") == "ok"
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_concurrent_execution(self) -> None:
         """
         Test concurrent execution capabilities with multiple kernels.
@@ -1103,7 +1090,7 @@ class TestRealKernelPerformance:
             assert "Agent 2: 2" in results[1]
             assert "Agent 3: 3" in results[2]
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # type: ignore[misc]
     async def test_real_kernel_memory_usage(self) -> None:
         """
         Test memory usage patterns and management with real kernels.
@@ -1123,20 +1110,19 @@ class TestRealKernelPerformance:
         """
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Create large objects and monitor memory
-                result = await manager.execute_code(
-                    session,
-                    "import sys; import numpy as np; data = np.random.rand(100, 100); print(f'Object size: {sys.getsizeof(data)} bytes')",
-                )
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Create large objects and monitor memory
+            result = await manager.execute_code(
+                session,
+                "import sys; import numpy as np; data = np.random.rand(100, 100); print(f'Object size: {sys.getsizeof(data)} bytes')",
+            )
 
-                assert result.get("status") == "ok"
-                assert "Object size:" in str(result.get("outputs", []))
+            assert result.get("status") == "ok"
+            assert "Object size:" in str(result.get("outputs", []))
 
-                # Create more objects
-                result = await manager.execute_code(
-                    session, "data2 = np.random.rand(200, 200); print(f'Total objects created')"
-                )
+            # Create more objects
+            result = await manager.execute_code(
+                session, "data2 = np.random.rand(200, 200); print(f'Total objects created')"
+            )
 
-                assert result.get("status") == "ok"
+            assert result.get("status") == "ok"
