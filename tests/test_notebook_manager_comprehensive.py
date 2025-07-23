@@ -23,6 +23,7 @@ import pytest
 
 from spreadsheet_analyzer.agents.kernel_manager import (
     AgentKernelManager,
+    KernelPoolExhaustedError,
     KernelResourceLimits,
     KernelSession,
     KernelTimeoutError,
@@ -739,7 +740,7 @@ class TestRealKernelResourceManagement:
             await manager.execute_code(session1, "x = 10")
 
             # Try to acquire for different agent (should timeout)
-            with pytest.raises((TimeoutError, RuntimeError)):  # Should timeout or raise pool exhausted
+            with pytest.raises(KernelPoolExhaustedError):  # Should raise pool exhausted exception
                 async with manager.acquire_kernel("agent-2", timeout=1.0):
                     pass
 
