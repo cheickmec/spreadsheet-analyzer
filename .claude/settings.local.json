@@ -4,5 +4,6 @@
       "Bash(uv run pytest:*)"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": false
 }
