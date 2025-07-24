@@ -282,10 +282,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from jupyter_client import AsyncKernelManager
 from jupyter_client.kernelspec import KernelSpecManager
+from nbformat.v4 import new_output
 from structlog import get_logger
 
 logger = get_logger(__name__)
@@ -958,6 +959,85 @@ class AgentKernelManager:
             # This is safe as it's non-blocking cleanup
             client.stop_channels()
 
+    async def execute_code_for_notebook(self, session: KernelSession, code: str) -> list[dict[str, Any]]:
+        """
+        Execute code and return notebook-ready output objects.
+
+        This method is a convenience wrapper around execute_code() that converts
+        raw kernel execution results into properly formatted nbformat output objects
+        ready for use in Jupyter notebooks.
+
+        Args:
+            session: The kernel session to execute code in
+            code: Python code to execute (can be multiple lines)
+
+        Returns:
+            List of notebook-ready output objects in nbformat specification.
+            Each output is a dictionary with proper output_type, data, etc.
+
+        Raises:
+            KernelTimeoutError: If execution exceeds time limit
+            RuntimeError: If kernel is not found
+
+        Example:
+            ```python
+            outputs = await manager.execute_code_for_notebook(session, "print('Hello')")
+            # outputs is now ready to use in notebook cells
+            cell["outputs"] = outputs
+            ```
+        """
+        # Execute code using the existing method
+        raw_result = await self.execute_code(session, code)
+
+        # Convert raw result to notebook-ready outputs
+        notebook_outputs = []
+
+        if raw_result.get("status") == "ok" and "outputs" in raw_result:
+            for output in raw_result["outputs"]:
+                if isinstance(output, dict):
+                    output_type = output.get("type")
+
+                    if output_type == "stream":
+                        nb_output = new_output(output_type="stream", name="stdout", text=[output.get("text", "")])
+                        notebook_outputs.append(nb_output)
+
+                    elif output_type == "execute_result":
+                        nb_output = new_output(
+                            output_type="execute_result",
+                            execution_count=output.get("execution_count", 1),
+                            data=output.get("data", {}),
+                            metadata={},
+                        )
+                        notebook_outputs.append(nb_output)
+
+                    elif output_type == "display_data":
+                        nb_output = new_output(
+                            output_type="display_data", data=output.get("data", {}), metadata=output.get("metadata", {})
+                        )
+                        notebook_outputs.append(nb_output)
+
+                    elif output_type == "error":
+                        nb_output = new_output(
+                            output_type="error",
+                            ename=output.get("ename", "Error"),
+                            evalue=output.get("evalue", "Unknown error"),
+                            traceback=output.get("traceback", []),
+                        )
+                        notebook_outputs.append(nb_output)
+
+        elif raw_result.get("status") == "error":
+            # Handle execution errors
+            error_info = raw_result.get("error", {})
+            nb_output = new_output(
+                output_type="error",
+                ename=error_info.get("ename", "ExecutionError"),
+                evalue=error_info.get("evalue", "Code execution failed"),
+                traceback=error_info.get("traceback", []),
+            )
+            notebook_outputs.append(nb_output)
+
+        return notebook_outputs
+
     async def _collect_execution_result(self, client: Any, msg_id: str, timeout: float) -> dict[str, Any]:
         """
         Collect execution result from kernel with output size limits.
@@ -1338,6 +1418,115 @@ class AgentKernelManager:
             except Exception:
                 # Prevent eviction task from crashing on unexpected errors
                 await asyncio.sleep(check_interval)
+
+    def save_session_as_notebook(self, session: KernelSession, output_path: Path, title: str = "Analysis") -> None:
+        """
+        Save a kernel session directly as a Jupyter notebook.
+
+        Uses the same dictionary-based approach as NotebookBuilder for reliability.
+        This avoids issues with nbformat builders and creates clean notebook structure.
+
+        Args:
+            session: The kernel session containing execution history
+            output_path: Path where to save the notebook
+            title: Title for the notebook
+        """
+        import json
+
+        # Helper function to format source content (inspired by NotebookBuilder)
+        def format_source(content: str) -> list[str]:
+            """Format content as list of lines for Jupyter format."""
+            if not content:
+                return [""]
+
+            lines = content.split("\n")
+            # Add newlines to all lines except the last one
+            formatted = []
+            for i, line in enumerate(lines):
+                if i < len(lines) - 1:
+                    formatted.append(line + "\n")
+                else:
+                    formatted.append(line)
+            return formatted
+
+        # Build cells list
+        cells: list[dict[str, Any]] = []
+
+        # Add title cell
+        title_content = f"# {title}\n\nGenerated from kernel session: {session.session_id}"
+        title_cell = {"cell_type": "markdown", "metadata": {}, "source": format_source(title_content)}
+        cells.append(title_cell)
+
+        # Process execution history
+        execution_count = 1
+        for execution in session.execution_history:
+            code = execution["code"]
+            result = execution["result"]
+
+            # Create code cell with proper structure
+            code_cell = {
+                "cell_type": "code",
+                "execution_count": execution_count,
+                "metadata": {},
+                "source": format_source(code),
+                "outputs": [],
+            }
+
+            # Add outputs if they exist
+            if result.get("outputs"):
+                for output in result["outputs"]:
+                    output_type = output.get("type")
+
+                    if output_type == "stream":
+                        # Stream output (print statements)
+                        nb_output = {"output_type": "stream", "name": "stdout", "text": output.get("text", [])}
+                        cast("list[dict[str, Any]]", code_cell["outputs"]).append(nb_output)
+
+                    elif output_type == "execute_result":
+                        # Execution result (expression outputs)
+                        nb_output = {
+                            "output_type": "execute_result",
+                            "execution_count": execution_count,
+                            "data": output.get("data", {}),
+                            "metadata": {},
+                        }
+                        cast("list[dict[str, Any]]", code_cell["outputs"]).append(nb_output)
+
+                    elif output_type == "error":
+                        # Error output
+                        nb_output = {
+                            "output_type": "error",
+                            "ename": output.get("ename", "Error"),
+                            "evalue": output.get("evalue", "Unknown error"),
+                            "traceback": output.get("traceback", []),
+                        }
+                        cast("list[dict[str, Any]]", code_cell["outputs"]).append(nb_output)
+
+            cells.append(code_cell)
+            execution_count += 1
+
+        # Create notebook dictionary (inspired by NotebookBuilder.to_notebook())
+        notebook = {
+            "cells": cells,
+            "metadata": {
+                "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+                "language_info": {"name": "python", "version": "3.12"},
+            },
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        }
+
+        # Save notebook
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", encoding="utf-8") as f:
+            json.dump(notebook, f, indent=2)
+
+        logger.info(
+            "Notebook saved directly from kernel session",
+            path=str(output_path),
+            session_id=session.session_id,
+            cells_count=len(cells),
+        )
 
     async def shutdown(self) -> None:
         """
