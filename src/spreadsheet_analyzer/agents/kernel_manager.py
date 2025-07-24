@@ -7,6 +7,130 @@ concurrent execution, resource management, and session persistence in a producti
 environment.
 
 ================================================================================
+UNDER THE HOOD: JUPYTER KERNEL INTERACTION EXPLAINED
+================================================================================
+
+How Jupyter Kernels Work:
+-------------------------
+A Jupyter kernel is a separate Python process that communicates with clients via
+the Jupyter protocol over ZeroMQ sockets. Here's what happens under the hood:
+
+1. Kernel Process Creation:
+   - When a kernel is created, a new Python process is spawned
+   - This process runs an event loop that listens for messages on multiple sockets
+   - The kernel maintains its own Python interpreter state (variables, imports, etc.)
+
+2. Message Protocol:
+   - Clients communicate with kernels using a specific message format
+   - Messages include: header, parent_header, metadata, content, and buffers
+   - Different message types: execute_request, execute_reply, stream, display_data, etc.
+
+3. Code Execution Flow:
+   ```
+   Client (Agent) → Kernel → Python Interpreter → Results → Client
+   ```
+
+4. State Persistence:
+   - Kernels maintain state across executions (variables, imports, etc.)
+   - This allows for incremental code execution and data analysis
+   - State persists until the kernel is shut down
+
+================================================================================
+FILE EDITING AND CODE EXECUTION PROCESS
+================================================================================
+
+How Code Gets Executed in Target Files:
+---------------------------------------
+
+1. Code Preparation:
+   - Agent generates Python code to analyze spreadsheet data
+   - Code is formatted and validated before execution
+   - Dependencies are checked and imported if needed
+
+2. Kernel Acquisition:
+   - Agent requests a kernel from the pool
+   - If no kernel is available, one is created or agent waits
+   - Kernel is marked as "in use" to prevent conflicts
+
+3. Code Execution:
+   - Code is sent to kernel via execute_request message
+   - Kernel parses and executes the code in its Python interpreter
+   - Execution happens in isolated environment (no access to main process)
+
+4. Output Collection:
+   - Kernel sends back various types of outputs:
+     * stdout/stderr streams (print statements, errors)
+     * display_data (rich output like plots, tables)
+     * execute_result (return values from expressions)
+   - All outputs are captured and formatted for the agent
+
+5. State Management:
+   - Variables, imports, and other state persist in the kernel
+   - This allows for incremental analysis (build on previous results)
+   - State can be checkpointed and restored if needed
+
+6. Resource Monitoring:
+   - CPU and memory usage are monitored during execution
+   - Timeouts prevent infinite loops or runaway processes
+   - Resource limits are enforced to prevent system overload
+
+================================================================================
+TARGET FILE INTERACTION DETAILS
+================================================================================
+
+When an agent needs to analyze a spreadsheet file:
+
+1. File Loading:
+   ```python
+   # Agent generates code like this:
+   import pandas as pd
+   df = pd.read_excel('target_file.xlsx')
+   print(f"Loaded {len(df)} rows")
+   ```
+
+2. Analysis Execution:
+   ```python
+   # Code is executed in kernel:
+   # - File is read from disk
+   # - Data is loaded into memory
+   # - Analysis is performed
+   # - Results are captured
+   ```
+
+3. Output Processing:
+   - Text output (print statements) → captured as strings
+   - Data frames → converted to JSON or other formats
+   - Plots/charts → saved as images or HTML
+   - Errors → captured with full traceback
+
+4. State Persistence:
+   - Variables (df, analysis_results) remain in kernel memory
+   - Next code execution can reference these variables
+   - Allows for complex multi-step analysis
+
+================================================================================
+CONCURRENT EXECUTION AND ISOLATION
+================================================================================
+
+How Multiple Agents Work Together:
+---------------------------------
+
+1. Kernel Isolation:
+   - Each agent gets its own kernel process
+   - No shared memory or variables between agents
+   - One agent's errors cannot affect others
+
+2. Resource Pooling:
+   - Limited number of kernels (e.g., 5-10)
+   - Agents wait for available kernels
+   - Kernels are reused across different agents
+
+3. Concurrent Safety:
+   - Locks prevent multiple agents from using same kernel
+   - Timeouts prevent agents from holding kernels indefinitely
+   - Resource limits prevent any single agent from consuming all resources
+
+================================================================================
 BACKGROUND INFORMATION FOR JUNIOR DEVELOPERS
 ================================================================================
 
@@ -100,20 +224,54 @@ manager = AgentKernelManager(
     )
 )
 
-# Use as async context manager for automatic cleanup
+# Use the manager to execute code
 async with manager:
-    # Acquire a kernel for an agent
-    async with manager.acquire_kernel("agent-123") as (kernel, session):
-        # Execute code
-        result = await manager.execute_code(session, "print('Hello, World!')")
-        print(result["outputs"])  # See the output
+    async with manager.acquire_kernel("agent-1") as (kernel, session):
+        # Execute code that analyzes a spreadsheet
+        result = await manager.execute_code(session, '''
+            import pandas as pd
+            df = pd.read_excel('data.xlsx')
+            print(f"Loaded {len(df)} rows")
+            df.head()
+        ''')
 
-        # Execute more code (state persists)
-        result = await manager.execute_code(session, "x = 42; print(x)")
-        print(result["outputs"])  # Prints "42"
+        # Result contains stdout, stderr, and any display data
+        print(result['stdout'])  # "Loaded 1000 rows"
+        print(result['display_data'])  # DataFrame output
 ```
 
 ================================================================================
+TECHNICAL IMPLEMENTATION DETAILS
+================================================================================
+
+Message Flow:
+-------------
+1. execute_request → Kernel receives code to execute
+2. kernel → Python interpreter executes the code
+3. stream (stdout/stderr) → Text output from print/errors
+4. display_data → Rich output (DataFrames, plots, etc.)
+5. execute_reply → Final status and execution count
+
+Resource Management:
+-------------------
+- CPU monitoring via psutil
+- Memory tracking in real-time
+- Timeout enforcement with asyncio
+- Automatic cleanup of idle kernels
+
+Error Handling:
+---------------
+- Kernel crashes are detected and handled
+- Timeouts prevent infinite loops
+- Resource limits trigger graceful shutdown
+- Session state is preserved when possible
+
+State Persistence:
+------------------
+- Variables persist across executions
+- Import statements remain active
+- Checkpoints save session state
+- Sessions can be restored after kernel restart
 """
 
 import asyncio
@@ -625,8 +783,8 @@ class AgentKernelManager:
                             raise TimeoutError(f"Timeout waiting for kernel {kernel_id} to become available")
                         await asyncio.sleep(0.1)
 
-                    # Now acquire the kernel
-                    kernel_resource.acquire()
+                    # Kernel is now available, acquire it directly
+                    kernel_resource.acquire()  # type: ignore[unreachable]
                     try:
                         kernel_manager = self._kernel_managers[kernel_id]
                         yield kernel_manager, session
