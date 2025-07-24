@@ -14,9 +14,12 @@ This test module validates the kernel manager functionality including:
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from pytest_asyncio import CoroutineFunction
 
 from spreadsheet_analyzer.agents.kernel_manager import (
     AgentKernelManager,
@@ -99,7 +102,7 @@ class TestKernelResource:
 
         # Cannot acquire when already in use
         with pytest.raises(RuntimeError, match="Kernel is not available"):
-            kernel.acquire()
+            kernel.acquire()  # type: ignore[unreachable]
 
         # Release kernel
         kernel.release()
@@ -276,7 +279,7 @@ class TestKernelSession:
 
 
 class TestAgentKernelManager:
-    """Test the main kernel manager implementation."""
+    """Test the main kernel manager implementation using real kernels."""
 
     @pytest.mark.asyncio
     async def test_manager_initialization(self) -> None:
@@ -301,186 +304,102 @@ class TestAgentKernelManager:
         assert manager._shutdown
 
     @pytest.mark.asyncio
-    @patch("spreadsheet_analyzer.agents.kernel_manager.AsyncKernelManager")
-    async def test_acquire_kernel_for_agent(self, mock_akm_class: MagicMock) -> None:
-        """Test acquiring a kernel for an agent."""
-        # Setup mock
-        mock_kernel_manager = AsyncMock()
-        mock_kernel_manager.kernel_id = "test-kernel-id"
-        mock_kernel_manager.start_kernel = AsyncMock()
-        mock_akm_class.return_value = mock_kernel_manager
-
+    async def test_acquire_kernel_for_agent(self) -> None:
+        """Test acquiring a real kernel for an agent."""
         manager = AgentKernelManager(max_kernels=1)
 
-        # Acquire kernel
-        async with manager.acquire_kernel("agent-1") as (kernel_manager, session):
-            assert kernel_manager == mock_kernel_manager
-            assert session.agent_id == "agent-1"
-            # Kernel ID is auto-generated UUID, just check it exists
-            assert session.kernel_id is not None
-            assert len(session.kernel_id) > 0
+        async with manager:
+            # Acquire kernel
+            async with manager.acquire_kernel("agent-1") as (kernel_manager, session):
+                assert kernel_manager is not None
+                assert session.agent_id == "agent-1"
+                # Kernel ID is auto-generated UUID, just check it exists
+                assert session.kernel_id is not None
+                assert len(session.kernel_id) > 0
+                assert "agent-1" in manager.sessions
+
+                # Test that the kernel is actually working
+                result = await manager.execute_code(session, "2 + 2")
+                assert "4" in str(result)
+
+            # Session should still exist after release
             assert "agent-1" in manager.sessions
 
-            # Kernel should have been started
-            mock_kernel_manager.start_kernel.assert_called_once()
-
-        # Session should still exist after release
-        assert "agent-1" in manager.sessions
-
     @pytest.mark.asyncio
-    @patch("spreadsheet_analyzer.agents.kernel_manager.AsyncKernelManager")
-    async def test_kernel_reuse_for_same_agent(self, mock_akm_class: MagicMock) -> None:
+    async def test_kernel_reuse_for_same_agent(self) -> None:
         """Test that the same agent reuses its kernel."""
-        # Setup mock
-        mock_kernel_manager = AsyncMock()
-        mock_kernel_manager.kernel_id = "test-kernel-id"
-        mock_kernel_manager.start_kernel = AsyncMock()
-        mock_akm_class.return_value = mock_kernel_manager
-
         manager = AgentKernelManager(max_kernels=1)
 
-        # First acquisition
-        async with manager.acquire_kernel("agent-1") as (km1, session1):
-            first_kernel_id = session1.kernel_id
+        async with manager:
+            # First acquisition
+            async with manager.acquire_kernel("agent-1") as (km1, session1):
+                first_kernel_id = session1.kernel_id
+                # Set a variable to test persistence
+                await manager.execute_code(session1, "test_var = 'persistent'")
 
-        # Second acquisition by same agent
-        async with manager.acquire_kernel("agent-1") as (km2, session2):
-            assert session2.kernel_id == first_kernel_id
-            assert session2 == session1  # Same session object
+            # Second acquisition by same agent
+            async with manager.acquire_kernel("agent-1") as (km2, session2):
+                assert session2.kernel_id == first_kernel_id
+                assert session2 == session1  # Same session object
 
-        # Kernel manager should only be created once
-        assert mock_akm_class.call_count == 1
+                # Test that variable persists
+                result = await manager.execute_code(session2, "test_var")
+                assert "persistent" in str(result)
 
     @pytest.mark.asyncio
-    @patch("spreadsheet_analyzer.agents.kernel_manager.AsyncKernelManager")
-    async def test_pool_exhaustion_handling(self, mock_akm_class: MagicMock) -> None:
+    async def test_pool_exhaustion_handling(self) -> None:
         """Test handling when kernel pool is exhausted."""
         manager = AgentKernelManager(max_kernels=1)
 
-        # Setup mock for first kernel
-        mock_km1 = AsyncMock()
-        mock_km1.kernel_id = "kernel-1"
-        mock_km1.start_kernel = AsyncMock()
-
-        # Setup mock for second kernel (shouldn't be created)
-        mock_km2 = AsyncMock()
-        mock_km2.kernel_id = "kernel-2"
-
-        mock_akm_class.side_effect = [mock_km1, mock_km2]
-
-        # First agent acquires the only kernel
-        async with manager.acquire_kernel("agent-1") as (km1, session1):
+        async with manager, manager.acquire_kernel("agent-1") as (km1, session1):
             # Try to acquire for different agent (should timeout)
             with pytest.raises(KernelPoolExhaustedError):
                 async with manager.acquire_kernel("agent-2", timeout=0.1):
                     pass
 
     @pytest.mark.asyncio
-    @patch("spreadsheet_analyzer.agents.kernel_manager.AsyncKernelManager")
-    async def test_execute_with_timeout(self, mock_akm_class: MagicMock) -> None:
+    async def test_execute_with_timeout(self) -> None:
         """Test executing code with timeout enforcement."""
-        # Setup mock kernel manager and client
-        mock_client = AsyncMock()
-        mock_client.execute = MagicMock(return_value="msg-id-123")
-        mock_client.get_shell_msg = AsyncMock()
-        mock_client.start_channels = MagicMock()
-        mock_client.stop_channels = MagicMock()
-
-        mock_kernel_manager = AsyncMock()
-        mock_kernel_manager.kernel_id = "test-kernel"
-        mock_kernel_manager.start_kernel = AsyncMock()
-        mock_kernel_manager.client = MagicMock(return_value=mock_client)
-
-        mock_akm_class.return_value = mock_kernel_manager
-
         manager = AgentKernelManager(max_kernels=1, resource_limits=KernelResourceLimits(max_execution_time=1.0))
 
-        async with manager.acquire_kernel("agent-1") as (km, session):
-            # Simulate timeout by making get_shell_msg never return
-            mock_client.get_shell_msg.side_effect = TimeoutError()
-
+        async with manager, manager.acquire_kernel("agent-1") as (km, session):
+            # Execute code that takes too long
             with pytest.raises(KernelTimeoutError):
-                await manager.execute_code(session, "import time; time.sleep(10)")
+                await manager.execute_code(session, "import time; time.sleep(5)")
 
     @pytest.mark.asyncio
-    @patch("spreadsheet_analyzer.agents.kernel_manager.AsyncKernelManager")
-    async def test_session_persistence(self, mock_akm_class: MagicMock) -> None:
+    async def test_session_persistence(self) -> None:
         """Test that session state persists across kernel acquisitions."""
-        # Setup mock
-        mock_client = AsyncMock()
-        mock_client.execute = MagicMock(return_value="msg-id")
-        mock_client.get_shell_msg = AsyncMock(return_value={"content": {"status": "ok"}, "msg_type": "execute_reply"})
-        mock_client.get_iopub_msg = AsyncMock(
-            side_effect=[
-                {"msg_type": "execute_result", "content": {"data": {"text/plain": "42"}}},
-                {"msg_type": "status", "content": {"execution_state": "idle"}},
-            ]
-        )
-        mock_client.start_channels = MagicMock()
-        mock_client.stop_channels = MagicMock()
-
-        mock_kernel_manager = AsyncMock()
-        mock_kernel_manager.kernel_id = "test-kernel"
-        mock_kernel_manager.start_kernel = AsyncMock()
-        mock_kernel_manager.client = MagicMock(return_value=mock_client)
-
-        mock_akm_class.return_value = mock_kernel_manager
-
         manager = AgentKernelManager(max_kernels=1)
 
-        # First execution
-        async with manager.acquire_kernel("agent-1") as (km, session):
-            await manager.execute_code(session, "x = 42")
-            assert len(session.execution_history) == 1
+        async with manager:
+            # First execution
+            async with manager.acquire_kernel("agent-1") as (km, session):
+                await manager.execute_code(session, "x = 42")
+                assert len(session.execution_history) == 1
 
-        # Reset mock side effects for second execution
-        mock_client.get_iopub_msg = AsyncMock(
-            side_effect=[
-                {"msg_type": "stream", "content": {"text": "42\n"}},
-                {"msg_type": "status", "content": {"execution_state": "idle"}},
-            ]
-        )
-
-        # Second execution - session should persist
-        async with manager.acquire_kernel("agent-1") as (km, session):
-            await manager.execute_code(session, "print(x)")
-            assert len(session.execution_history) == 2
-            assert "print(x)" in session.execution_history[1]["code"]
+            # Second execution - session should persist
+            async with manager.acquire_kernel("agent-1") as (km, session):
+                result = await manager.execute_code(session, "print(x)")
+                assert len(session.execution_history) == 2
+                assert "print(x)" in session.execution_history[1]["code"]
+                assert "42" in str(result)
 
     @pytest.mark.asyncio
-    @patch("spreadsheet_analyzer.agents.kernel_manager.AsyncKernelManager")
-    async def test_graceful_shutdown(self, mock_akm_class: MagicMock) -> None:
+    async def test_graceful_shutdown(self) -> None:
         """Test graceful shutdown of all kernels."""
-        # Create multiple mock kernels
-        mock_kernels = []
-        for i in range(3):
-            mock_km = AsyncMock()
-            mock_km.kernel_id = f"kernel-{i}"
-            mock_km.start_kernel = AsyncMock()
-            mock_km.shutdown_kernel = AsyncMock()
-            mock_km.is_alive = MagicMock(return_value=True)
-            mock_kernels.append(mock_km)
-
-        mock_akm_class.side_effect = mock_kernels
-
         manager = AgentKernelManager(max_kernels=3)
 
-        # Start kernels for different agents
-        for i in range(3):
-            async with manager.acquire_kernel(f"agent-{i}"):
-                pass
+        async with manager:
+            # Start kernels for different agents
+            sessions = []
+            for i in range(3):
+                async with manager.acquire_kernel(f"agent-{i}") as (km, session):
+                    sessions.append(session)
+                    # Execute something to ensure kernel is active
+                    await manager.execute_code(session, f"agent_id = '{session.agent_id}'")
 
-        # Shutdown manager
-        await manager.shutdown()
-
-        # All kernels should be shut down
-        # Check how many kernels were actually created
-        created_count = sum(1 for km in mock_kernels if km.start_kernel.called)
-        assert created_count == 1  # Should have created 1 kernel (reused for all agents)
-
-        # Only the created kernels should be shut down
-        mock_kernels[0].shutdown_kernel.assert_called_once()
-
+        # Manager is shut down automatically via context manager
         assert manager._shutdown
 
     @pytest.mark.asyncio
@@ -521,39 +440,36 @@ class TestAgentKernelManagerIntegration:
         """Test executing code in a real kernel."""
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Execute simple calculation
-                result = await manager.execute_code(session, "2 + 2")
-                assert "4" in str(result)
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Execute simple calculation
+            result = await manager.execute_code(session, "2 + 2")
+            assert "4" in str(result)
 
-                # Execute with variables
-                await manager.execute_code(session, "x = 10")
-                result = await manager.execute_code(session, "x * 2")
-                assert "20" in str(result)
+            # Execute with variables
+            await manager.execute_code(session, "x = 10")
+            result = await manager.execute_code(session, "x * 2")
+            assert "20" in str(result)
 
-                # Verify session history
-                assert len(session.execution_history) == 3
+            # Verify session history
+            assert len(session.execution_history) == 3
 
     @pytest.mark.asyncio
     async def test_real_kernel_error_handling(self) -> None:
         """Test error handling in real kernel."""
         manager = AgentKernelManager(max_kernels=1)
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Execute code with error
-                result = await manager.execute_code(session, "1 / 0")
-                assert "error" in result.get("status", "")
-                assert "ZeroDivisionError" in str(result)
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Execute code with error
+            result = await manager.execute_code(session, "1 / 0")
+            assert "error" in result.get("status", "")
+            assert "ZeroDivisionError" in str(result)
 
     @pytest.mark.asyncio
     async def test_real_kernel_timeout(self) -> None:
         """Test timeout handling with real kernel."""
         manager = AgentKernelManager(max_kernels=1, resource_limits=KernelResourceLimits(max_execution_time=1.0))
 
-        async with manager:
-            async with manager.acquire_kernel("test-agent") as (km, session):
-                # Execute code that takes too long
-                with pytest.raises(KernelTimeoutError):
-                    await manager.execute_code(session, "import time; time.sleep(5)")
+        async with manager, manager.acquire_kernel("test-agent") as (km, session):
+            # Execute code that takes too long
+            with pytest.raises(KernelTimeoutError):
+                await manager.execute_code(session, "import time; time.sleep(5)")

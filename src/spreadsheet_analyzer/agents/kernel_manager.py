@@ -275,11 +275,13 @@ State Persistence:
 """
 
 import asyncio
+import json
 import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from jupyter_client import AsyncKernelManager
@@ -619,6 +621,19 @@ class KernelPool:
         """
         kernel.release()
         self._available_event.set()
+
+
+# New helper class for JSON serialization of non-serializable objects
+class CustomJSONEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder to handle non-serializable objects by converting them to strings.
+    This prevents serialization errors during file persistence of checkpoints.
+    """
+
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, set | tuple):
+            return list(obj)
+        return str(obj)  # Fallback: convert to string representation
 
 
 class AgentKernelManager:
@@ -1180,7 +1195,7 @@ class AgentKernelManager:
             "status": "running" if kernel_manager.is_alive() else "dead",
         }
 
-    def save_checkpoint(self, session: KernelSession) -> dict[str, Any]:
+    def save_checkpoint(self, session: KernelSession, file_path: str | None = None) -> dict[str, Any]:
         """
         Save a checkpoint of the session state.
 
@@ -1190,29 +1205,71 @@ class AgentKernelManager:
         - Migrating sessions between systems
         - Debugging and analysis
 
+        If file_path is provided, the checkpoint is serialized to JSON and saved to disk.
+
         Args:
             session: The session to checkpoint
+            file_path: Optional path to save the checkpoint as a JSON file
 
         Returns:
             Dictionary containing checkpoint data
+
+        Raises:
+            IOError: If file writing fails
+            ValueError: If serialization fails (mitigated by custom encoder)
         """
         session.checkpoint()
-        return session.checkpoint_data or {}
+        data = session.checkpoint_data or {}
+        if file_path:
+            try:
+                file_path_obj = Path(file_path)
+                file_path_obj.parent.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+                with file_path_obj.open("w", encoding="utf-8") as f:
+                    json.dump(data, f, cls=CustomJSONEncoder, indent=4)
+                logger.info("Checkpoint saved to file", file_path=file_path, session_id=session.session_id)
+            except (OSError, TypeError) as e:
+                raise OSError(f"Failed to save checkpoint to {file_path}: {e}") from e
+        return data
 
-    def restore_checkpoint(self, session: KernelSession, checkpoint_data: dict[str, Any]) -> None:
+    def restore_checkpoint(
+        self, session: KernelSession, checkpoint_data: dict[str, Any] | None = None, file_path: str | None = None
+    ) -> None:
         """
         Restore session state from checkpoint.
 
         This restores the execution history and other session data from
-        a previously saved checkpoint.
+        a previously saved checkpoint. If checkpoint_data is not provided and
+        file_path is given, it loads from the JSON file.
 
         Args:
             session: The session to restore
-            checkpoint_data: The checkpoint data to restore from
+            checkpoint_data: The checkpoint data to restore from (in-memory)
+            file_path: Optional path to load the checkpoint from a JSON file
+
+        Raises:
+            IOError: If file reading fails
+            ValueError: If JSON is invalid or data is malformed
         """
+        if checkpoint_data is None and file_path:
+            try:
+                file_path_obj = Path(file_path)
+                with file_path_obj.open(encoding="utf-8") as f:
+                    checkpoint_data = json.load(f)
+                logger.info("Checkpoint loaded from file", file_path=file_path, session_id=session.session_id)
+            except (OSError, json.JSONDecodeError) as e:
+                raise OSError(f"Failed to load checkpoint from {file_path}: {e}") from e
+
+        if checkpoint_data is None:
+            raise ValueError("No checkpoint data or file_path provided")
+
         # Restore execution history
         if "execution_history" in checkpoint_data:
             session.execution_history = checkpoint_data["execution_history"]
+
+        # Restore other fields if present
+        if "checkpoint_time" in checkpoint_data:
+            session.last_checkpoint = checkpoint_data["checkpoint_time"]
+        session.checkpoint_data = checkpoint_data
 
     async def _evict_idle_kernels(self) -> None:
         """
