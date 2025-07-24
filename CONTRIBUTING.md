@@ -453,23 +453,28 @@ updated_analysis = replace(analysis, formula="=SUM(A1:A10)")
 
 Follow conventional commits format:
 
-```
-feat: add support for pivot table analysis
+- `feat:` New features
+- `fix:` Bug fixes
+- `docs:` Documentation changes
+- `refactor:` Code refactoring
+- `test:` Test additions/modifications
+- `chore:` Maintenance tasks
 
-- Implement pivot table detection algorithm
-- Add tests for complex pivot scenarios
-- Update documentation with examples
-
-Closes #123
-```
+**IMPORTANT**: Never include the "ü§ñ Generated with Claude Code" signature or any Claude-related signatures in commit messages.
 
 ### Pull Request Process
 
-1. **Create focused PRs** - One feature/fix per PR
-1. **Write descriptive PR descriptions** - Include motivation and approach
-1. **Ensure all tests pass** - Including new tests for your changes
-1. **Update documentation** - Keep docs in sync with code
-1. **Request review** - Tag appropriate reviewers
+**IMPORTANT**: All pull requests MUST use the PR template located at `.github/pull_request_template.md`.
+
+When creating a PR:
+
+1. Fill out ALL sections of the template completely
+1. Check all applicable boxes in the checklists
+1. Provide detailed testing evidence
+1. Include performance metrics if applicable
+1. List specific areas for reviewer focus
+
+The PR template ensures consistent quality, proper testing, and thorough documentation of changes.
 
 ### PR Checklist
 
