@@ -1,0 +1,501 @@
+Item_ID,Item_Name,Category,Quantity_On_Hand,Unit_Price,Total_Value,Supplier,Last_Restocked,Status,Reorder_Point,Max_Stock_Level
+INV-0001,Product 1,Clothing,530,368.56,195336.32,Supplier B,2025-04-22,In Stock,36,681
+INV-0002,Product 2,Sports,765,245.28,187641.09,Supplier A,2025-02-10,In Stock,43,466
+INV-0003,Product 3,Books,710,121.87,86524.63,Supplier C,2024-10-17,In Stock,27,678
+INV-0004,Product 4,Electronics,666,300.78,200321.49,Supplier D,2024-12-29,In Stock,46,441
+INV-0005,Product 5,Sports,629,405.74,255207.41,Supplier D,2025-01-13,In Stock,15,243
+INV-0006,Product 6,Electronics,301,294.32,88591.14,,2025-05-25,In Stock,44,546
+INV-0007,Product 7,Home & Garden,603,250.1,150810.61,Supplier C,2025-04-03,In Stock,50,271
+INV-0008,Product 8,Clothing,923,491.38,453542.06,Supplier C,2025-06-12,In Stock,49,322
+INV-0009,Product 9,Home & Garden,73,31.52,2301.26,Supplier D,2025-03-21,In Stock,17,684
+INV-0010,Product 10,Home & Garden,68,308.45,20974.65,Supplier C,2025-03-26,In Stock,24,749
+INV-0011,Product 11,Sports,41,353.05,14474.95,Supplier A,2024-08-31,In Stock,49,593
+INV-0012,Product 12,Clothing,945,261.9,247494.42,Supplier B,2025-05-20,In Stock,23,801
+INV-0013,Product 13,Home & Garden,137,66.39,9095.34,Supplier C,2025-02-01,In Stock,45,410
+INV-0014,Product 14,Clothing,752,226.6,170406.53,Supplier A,2025-02-27,In Stock,48,501
+INV-0015,Product 15,Books,626,496.3,310680.96,Supplier A,2025-01-05,In Stock,42,860
+INV-0016,Product 16,Sports,808,160.45,129647.0,Supplier D,2024-11-03,In Stock,18,764
+INV-0017,Product 17,Clothing,469,105.04,49264.36,Supplier B,2025-04-05,In Stock,41,166
+INV-0018,Product 18,Clothing,463,476.52,220629.29,Supplier C,2024-12-01,In Stock,34,210
+INV-0019,Product 19,Home & Garden,506,349.95,177072.74,Supplier C,2025-02-22,In Stock,13,329
+INV-0020,Product 20,Clothing,692,149.37,103364.71,Supplier D,2024-11-27,In Stock,46,763
+INV-0021,Product 21,Sports,816,491.71,401231.77,Supplier B,2025-01-06,In Stock,20,353
+INV-0022,Product 22,Sports,688,367.92,253127.97,Supplier B,2025-01-26,In Stock,24,183
+INV-0023,Product 23,Home & Garden,325,419.49,136333.26,Supplier B,2024-12-10,In Stock,34,210
+INV-0024,Product 24,Books,382,434.49,165976.19,Supplier B,2025-03-25,In Stock,45,164
+INV-0025,Product 25,Sports,648,249.69,161796.95,Supplier A,2025-03-19,Discontinued,41,413
+INV-0026,Product 26,Clothing,366,201.03,73577.66,Supplier C,2025-06-28,In Stock,41,415
+INV-0027,Product 27,Sports,986,372.29,367075.54,Supplier C,2025-03-03,In Stock,30,130
+INV-0028,Product 28,Home & Garden,345,94.81,32710.35,Supplier D,2025-01-19,In Stock,27,337
+INV-0029,Product 29,Clothing,390,215.35,83988.36,Supplier D,2025-02-02,In Stock,20,635
+INV-0030,Product 30,Clothing,221,445.76,98512.84,Supplier D,2025-05-02,In Stock,42,543
+INV-0031,Product 31,Home & Garden,449,367.89,165181.5,Supplier D,2024-11-05,In Stock,44,571
+INV-0032,Product 32,Books,656,95.7,62777.65,Supplier B,2025-04-12,In Stock,44,284
+INV-0033,Product 33,Books,80,9.76,780.69,Supplier C,2024-10-05,In Stock,49,828
+INV-0034,Product 34,Electronics,339,377.06,127823.85,Supplier D,2024-12-11,In Stock,33,418
+INV-0035,Product 35,Sports,23,492.67,11331.46,Supplier C,2025-03-15,In Stock,21,342
+INV-0036,Product 36,Sports,928,83.82,77786.84,Supplier B,2025-02-27,In Stock,29,148
+INV-0037,Product 37,Sports,983,154.29,151668.91,Supplier D,2025-01-18,In Stock,34,539
+INV-0038,Product 38,Books,593,433.95,257334.5,Supplier B,2024-07-28,In Stock,23,214
+INV-0039,Product 39,Home & Garden,289,163.8,47337.93,Supplier A,2024-08-20,In Stock,41,873
+INV-0040,Product 40,Sports,406,263.14,106836.34,Supplier C,2024-09-05,In Stock,33,174
+INV-0041,Product 41,Books,673,65.41,44023.48,Supplier B,2025-07-10,In Stock,15,756
+INV-0042,Product 42,Books,431,348.59,150240.99,Supplier D,2024-09-01,In Stock,27,219
+INV-0043,Product 43,Clothing,568,243.37,138232.82,Supplier C,2025-03-22,In Stock,19,459
+INV-0044,Product 44,Sports,445,319.67,142252.54,Supplier C,2024-10-14,In Stock,48,287
+INV-0045,Product 45,Home & Garden,460,9.81,4512.77,Supplier A,2025-01-04,In Stock,16,339
+INV-0046,Product 46,Clothing,168,51.31,8620.42,Supplier A,2024-11-24,In Stock,22,167
+INV-0047,Product 47,Electronics,696,146.64,102060.29,Supplier A,2025-06-17,In Stock,28,742
+INV-0048,Product 48,Clothing,612,101.69,62232.94,Supplier C,2024-08-16,In Stock,42,962
+INV-0049,Product 49,Sports,85,12.84,1091.61,,2025-01-08,Discontinued,26,309
+INV-0050,Product 50,Books,691,264.98,183099.57,Supplier D,2025-06-03,In Stock,43,675
+INV-0051,Product 51,Clothing,208,378.24,78674.32,Supplier A,2025-03-18,In Stock,38,689
+INV-0052,Product 52,Books,772,294.29,227193.35,Supplier D,2025-04-16,In Stock,28,578
+INV-0053,Product 53,Clothing,252,392.43,98891.38,Supplier D,2024-10-07,In Stock,13,260
+INV-0054,Product 54,Home & Garden,35,364.35,12752.3,Supplier A,2024-10-28,In Stock,14,560
+INV-0055,Product 55,Electronics,511,395.08,201884.38,Supplier C,2024-10-09,In Stock,40,322
+INV-0056,Product 56,Books,148,221.73,32816.01,Supplier C,2025-02-01,In Stock,31,357
+INV-0057,Product 57,Home & Garden,120,163.28,19593.54,Supplier B,2025-01-30,Discontinued,26,593
+INV-0058,Product 58,Home & Garden,609,132.53,80712.32,Supplier B,2025-03-10,In Stock,32,619
+INV-0059,Product 59,Home & Garden,96,359.39,34501.9,Supplier D,2025-01-14,In Stock,16,141
+INV-0060,Product 60,Clothing,158,368.33,58196.51,Supplier B,2024-08-08,In Stock,16,329
+INV-0061,Product 61,Home & Garden,354,40.11,14199.91,Supplier D,2024-09-24,In Stock,27,266
+INV-0062,Product 62,Home & Garden,344,139.32,47925.8,Supplier A,2024-11-09,In Stock,14,788
+INV-0063,Product 63,Home & Garden,797,466.72,371973.92,Supplier A,2025-02-04,In Stock,23,294
+INV-0064,Product 64,Electronics,674,281.37,189641.88,Supplier C,2025-05-27,Discontinued,15,659
+INV-0065,Product 65,Electronics,876,312.56,273802.29,Supplier B,2024-10-25,In Stock,11,928
+INV-0066,Product 66,Clothing,702,487.61,342299.29,Supplier B,2025-04-19,In Stock,32,998
+INV-0067,Product 67,Home & Garden,383,359.11,137539.24,Supplier A,2025-03-25,In Stock,46,765
+INV-0068,Product 68,Electronics,902,345.04,311222.56,Supplier B,2025-01-17,In Stock,26,265
+INV-0069,Product 69,Electronics,139,6.1,847.8,Supplier C,2024-08-14,In Stock,46,360
+INV-0070,Product 70,Electronics,24,193.25,4637.89,Supplier B,2024-10-29,In Stock,41,378
+INV-0071,Product 71,Sports,220,460.32,101270.88,Supplier A,2024-10-05,In Stock,38,941
+INV-0072,Product 72,Electronics,613,27.1,16611.92,Supplier C,2025-05-06,In Stock,44,226
+INV-0073,Product 73,Electronics,545,222.65,121343.4,Supplier B,2024-12-28,In Stock,31,653
+INV-0074,Product 74,Electronics,45,400.02,18000.88,Supplier A,2025-02-14,In Stock,38,708
+INV-0075,Product 75,Books,561,336.36,188697.31,Supplier D,2025-07-14,In Stock,12,487
+INV-0076,Product 76,Books,73,402.29,29367.08,Supplier B,2024-12-19,In Stock,25,209
+INV-0077,Product 77,Electronics,387,102.25,39569.53,Supplier A,2025-05-13,In Stock,12,591
+INV-0078,Product 78,Clothing,814,269.99,219773.56,Supplier D,2025-03-06,In Stock,36,226
+INV-0079,Product 79,Books,126,404.68,50989.85,Supplier A,2025-01-14,In Stock,33,168
+INV-0080,Product 80,Electronics,732,477.2,349310.97,Supplier A,2024-10-18,In Stock,26,532
+INV-0081,Product 81,Electronics,790,57.25,45228.18,Supplier B,2024-11-24,In Stock,40,176
+INV-0082,Product 82,Clothing,92,148.47,13659.13,Supplier A,2025-02-23,In Stock,27,346
+INV-0083,Product 83,Electronics,932,213.71,199178.2,Supplier B,2024-09-03,In Stock,31,900
+INV-0084,Product 84,Clothing,40,118.5,4739.8,Supplier C,2025-07-15,Discontinued,16,655
+INV-0085,Product 85,Home & Garden,773,309.89,239544.52,Supplier D,2024-08-28,In Stock,42,362
+INV-0086,Product 86,Home & Garden,777,491.42,381836.4,Supplier D,2025-07-19,In Stock,28,516
+INV-0087,Product 87,Home & Garden,898,413.49,371317.02,Supplier A,2025-04-24,In Stock,23,475
+INV-0088,Product 88,Electronics,767,421.13,323008.76,Supplier B,2024-08-07,In Stock,11,560
+INV-0089,Product 89,Home & Garden,417,97.94,40840.93,Supplier B,2025-03-28,In Stock,27,436
+INV-0090,Product 90,Clothing,664,445.0,295480.24,Supplier A,2025-04-24,In Stock,13,415
+INV-0091,Product 91,Home & Garden,794,310.57,246590.42,Supplier C,2025-03-12,In Stock,45,566
+INV-0092,Product 92,Electronics,343,318.62,109285.7,Supplier C,2025-05-21,In Stock,24,994
+INV-0093,Product 93,Home & Garden,859,463.08,397782.69,Supplier C,2025-06-01,In Stock,13,676
+INV-0094,Product 94,Home & Garden,258,153.73,39661.95,Supplier B,2024-10-25,In Stock,42,435
+INV-0095,Product 95,Home & Garden,334,288.48,96353.47,Supplier D,2024-08-31,In Stock,14,418
+INV-0096,Product 96,Electronics,-963,40.43,-38937.94,Supplier D,2024-11-09,In Stock,26,761
+INV-0097,Product 97,Home & Garden,162,233.68,37856.83,Supplier B,2025-04-11,In Stock,20,873
+INV-0098,Product 98,Home & Garden,1,319.03,319.03,Supplier C,2025-01-07,Low Stock,14,677
+INV-0099,Product 99,Books,736,365.53,269031.36,Supplier C,2024-11-18,In Stock,46,340
+INV-0100,Product 100,Books,645,220.54,142250.3,Supplier A,2025-06-14,In Stock,12,272
+INV-0101,Product 101,Sports,141,81.2,11449.66,Supplier C,2024-09-17,In Stock,48,436
+INV-0102,Product 102,Electronics,110,72.34,7957.41,Supplier D,2024-12-18,In Stock,19,111
+INV-0103,Product 103,Clothing,400,272.99,109195.37,Supplier B,2024-11-22,In Stock,49,200
+INV-0104,Product 104,Home & Garden,219,419.18,91801.05,Supplier D,2025-07-02,In Stock,33,150
+INV-0105,Product 105,Books,585,58.85,34426.39,Supplier A,2025-05-15,In Stock,16,452
+INV-0106,Product 106,Sports,212,370.77,78603.23,Supplier B,2024-09-15,In Stock,29,632
+INV-0107,Product 107,Sports,504,360.1,181491.16,Supplier B,2024-12-11,In Stock,35,711
+INV-0108,Product 108,Electronics,907,46.46,42138.02,Supplier D,2024-09-26,In Stock,42,773
+INV-0109,Product 109,Books,890,77.2,68706.08,Supplier A,2025-02-15,In Stock,34,355
+INV-0110,Product 110,Books,48,133.39,6402.74,Supplier C,2024-10-08,In Stock,46,765
+INV-0111,Product 111,Books,180,27.55,4958.35,Supplier D,2025-07-08,In Stock,32,671
+INV-0112,Product 112,Home & Garden,874,43.98,38442.77,Supplier C,2025-02-25,In Stock,29,1000
+INV-0113,Product 113,Clothing,28,438.72,12284.07,Supplier D,2024-10-01,In Stock,22,396
+INV-0114,Product 114,Sports,352,97.05,34161.76,Supplier C,2024-09-03,In Stock,34,759
+INV-0115,Product 115,Electronics,836,336.73,281510.24,Supplier B,2025-03-03,In Stock,40,690
+INV-0116,Product 116,Books,277,337.46,93476.56,Supplier C,2025-07-11,In Stock,15,412
+INV-0117,Product 117,Sports,684,221.97,151825.21,Supplier B,2024-07-31,In Stock,25,941
+INV-0118,Product 118,Home & Garden,-184,183.81,-33820.7,Supplier A,2024-09-08,In Stock,35,841
+INV-0119,Product 119,Home & Garden,566,321.76,182118.95,Supplier B,2025-05-03,In Stock,32,468
+INV-0120,Product 120,Home & Garden,416,391.24,162755.2,Supplier C,2025-03-06,In Stock,14,480
+INV-0121,Product 121,Electronics,766,377.12,288872.96,Supplier A,2024-09-25,In Stock,50,245
+INV-0122,Product 122,Clothing,736,22.79,16774.02,Supplier B,2025-06-13,In Stock,37,866
+INV-0123,Product 123,Home & Garden,941,319.25,300417.94,Supplier C,2024-11-26,In Stock,32,824
+INV-0124,Product 124,Sports,780,392.85,306421.82,Supplier B,2025-06-02,In Stock,32,730
+INV-0125,Product 125,Sports,782,397.08,310513.76,Supplier C,2025-05-06,In Stock,40,552
+INV-0126,Product 126,Electronics,944,420.3,396761.8,Supplier A,2024-08-06,In Stock,43,861
+INV-0127,Product 127,Home & Garden,762,62.95,47969.82,Supplier B,2025-06-22,In Stock,38,728
+INV-0128,Product 128,Electronics,255,219.55,55986.07,Supplier C,2025-05-18,In Stock,11,119
+INV-0129,Product 129,Home & Garden,292,429.91,125532.29,Supplier D,2025-06-13,In Stock,29,749
+INV-0130,Product 130,Books,316,81.02,25602.29,Supplier B,2025-02-07,In Stock,11,769
+INV-0131,Product 131,Books,977,64.86,63364.93,Supplier B,2025-02-18,In Stock,28,971
+INV-0132,Product 132,Sports,577,408.28,235576.15,Supplier B,2025-02-16,In Stock,14,141
+INV-0133,Product 133,Books,83,129.87,10779.03,Supplier C,2024-12-18,In Stock,23,425
+INV-0134,Product 134,Sports,599,193.19,115723.33,Supplier D,2025-04-13,In Stock,49,248
+INV-0135,Product 135,Sports,179,78.83,14111.36,Supplier D,2025-05-03,In Stock,48,807
+INV-0136,Product 136,Books,752,62.37,46904.99,Supplier D,2024-09-27,In Stock,18,759
+INV-0137,Product 137,Books,16,62.11,993.71,Supplier D,2024-11-14,Low Stock,14,204
+INV-0138,Product 138,Books,317,98.14,31109.49,Supplier B,2025-07-20,In Stock,26,653
+INV-0139,Product 139,Clothing,313,161.35,50503.91,Supplier C,2025-05-20,In Stock,40,345
+INV-0140,Product 140,Sports,114,375.4,42795.95,Supplier C,2025-01-09,In Stock,10,965
+INV-0141,Product 141,Books,-343,80.24,-27521.44,Supplier A,2024-11-05,In Stock,31,663
+INV-0142,Product 142,Books,917,411.12,376994.31,Supplier D,2025-02-07,In Stock,38,745
+INV-0143,Product 143,Sports,64,109.99,7039.26,Supplier D,2025-06-18,In Stock,22,919
+INV-0144,Product 144,Sports,67,131.69,8823.18,Supplier C,2024-10-27,In Stock,49,641
+INV-0145,Product 145,Home & Garden,483,326.59,157743.38,Supplier A,2024-09-21,In Stock,45,554
+INV-0146,Product 146,Electronics,320,398.47,127510.0,Supplier D,2025-01-24,In Stock,43,812
+INV-0147,Product 147,Electronics,114,84.97,9686.19,Supplier D,2024-10-16,In Stock,47,751
+INV-0148,Product 148,Sports,376,14.65,5508.51,Supplier D,2025-04-21,In Stock,37,756
+INV-0149,Product 149,Clothing,825,203.47,167859.52,Supplier C,2025-06-07,In Stock,46,282
+INV-0150,Product 150,Electronics,565,344.79,194806.61,Supplier B,2025-05-19,In Stock,17,205
+INV-0151,Product 151,Clothing,260,134.67,35015.04,Supplier C,2025-01-21,In Stock,42,259
+INV-0152,Product 152,Home & Garden,118,242.01,28556.9,Supplier A,2025-01-12,In Stock,49,478
+INV-0153,Product 153,Electronics,658,206.0,135545.09,Supplier A,2024-12-13,In Stock,26,585
+INV-0154,Product 154,Sports,952,30.1,28652.67,Supplier D,2025-02-13,In Stock,19,397
+INV-0155,Product 155,Electronics,322,229.15,73786.98,,2025-02-23,In Stock,37,734
+INV-0156,Product 156,Electronics,412,436.15,179692.1,Supplier C,2024-11-09,In Stock,36,964
+INV-0157,Product 157,Home & Garden,378,75.82,28660.51,Supplier D,2024-08-13,In Stock,32,145
+INV-0158,Product 158,Sports,3,181.85,545.56,Supplier A,2024-09-19,Low Stock,18,417
+INV-0159,Product 159,Electronics,126,50.47,6358.66,Supplier A,2025-01-05,Discontinued,26,545
+INV-0160,Product 160,Books,888,314.22,279031.72,Supplier B,2024-07-30,In Stock,31,505
+INV-0161,Product 161,Electronics,549,91.06,49990.22,Supplier D,2024-09-23,In Stock,42,630
+INV-0162,Product 162,Electronics,772,103.86,80176.18,Supplier A,2024-12-15,In Stock,22,921
+INV-0163,Product 163,Home & Garden,742,410.3,304444.73,Supplier B,2025-03-13,In Stock,26,406
+INV-0164,Product 164,Electronics,31,192.07,5954.29,Supplier C,2024-08-23,In Stock,40,452
+INV-0165,Product 165,Sports,536,41.74,22372.62,Supplier A,2024-08-15,In Stock,37,942
+INV-0166,Product 166,Sports,600,380.95,228568.1,Supplier D,2025-04-10,Discontinued,12,138
+INV-0167,Product 167,Sports,891,425.13,378793.72,Supplier C,2025-04-19,In Stock,44,780
+INV-0168,Product 168,Books,847,139.89,118490.1,Supplier B,2025-06-12,In Stock,50,674
+INV-0169,Product 169,Home & Garden,819,288.55,236323.13,Supplier A,2024-12-29,In Stock,21,415
+INV-0170,Product 170,Books,829,361.42,299616.96,Supplier C,2025-05-30,In Stock,21,633
+INV-0171,Product 171,Home & Garden,127,473.55,60141.44,Supplier C,2024-11-27,In Stock,10,366
+INV-0172,Product 172,Electronics,64,355.13,22728.03,Supplier B,2025-03-29,In Stock,13,545
+INV-0173,Product 173,Clothing,400,175.24,70097.22,Supplier A,2024-10-18,In Stock,27,473
+INV-0174,Product 174,Clothing,578,40.56,23442.2,Supplier B,2025-01-17,In Stock,23,753
+INV-0175,Product 175,Home & Garden,210,303.53,63741.26,Supplier B,2025-06-02,In Stock,28,618
+INV-0176,Product 176,Home & Garden,914,38.55,35231.28,Supplier C,2024-12-15,In Stock,36,519
+INV-0177,Product 177,Clothing,58,402.08,23320.62,Supplier B,2025-06-10,In Stock,48,665
+INV-0178,Product 178,Clothing,539,185.86,100178.6,Supplier B,2024-10-29,In Stock,43,581
+INV-0179,Product 179,Electronics,811,202.3,164066.85,Supplier A,2025-02-10,In Stock,46,994
+INV-0180,Product 180,Home & Garden,692,162.85,112691.1,Supplier C,2025-01-04,In Stock,44,208
+INV-0181,Product 181,Clothing,437,388.58,169808.81,Supplier C,2024-12-20,In Stock,26,377
+INV-0182,Product 182,Sports,70,307.74,21541.7,Supplier A,2025-01-01,In Stock,21,701
+INV-0183,Product 183,Electronics,934,44.1,41192.81,Supplier B,2024-10-10,In Stock,16,708
+INV-0184,Product 184,Books,400,385.12,154046.11,Supplier A,2025-06-03,In Stock,13,259
+INV-0185,Product 185,Clothing,819,392.05,321092.14,Supplier D,2025-07-20,In Stock,40,119
+INV-0186,Product 186,Books,989,477.47,472219.62,Supplier A,2024-12-17,In Stock,15,234
+INV-0187,Product 187,Home & Garden,470,309.15,145302.17,Supplier C,2025-04-20,In Stock,12,402
+INV-0188,Product 188,Home & Garden,9,97.8,880.17,Supplier D,2024-09-17,Low Stock,37,623
+INV-0189,Product 189,Books,362,117.82,42651.49,Supplier B,2025-01-22,In Stock,21,757
+INV-0190,Product 190,Home & Garden,77,119.29,9185.7,Supplier C,2024-07-25,In Stock,50,911
+INV-0191,Product 191,Sports,65,460.95,29961.98,Supplier A,2025-06-29,In Stock,15,515
+INV-0192,Product 192,Electronics,461,465.15,214434.34,Supplier A,2025-05-06,In Stock,43,944
+INV-0193,Product 193,Books,640,462.64,296090.06,Supplier A,2025-07-19,In Stock,49,860
+INV-0194,Product 194,Books,960,247.31,237416.9,Supplier A,2025-01-15,In Stock,34,178
+INV-0195,Product 195,Books,691,374.99,259116.25,Supplier C,2024-07-24,In Stock,40,825
+INV-0196,Product 196,Books,899,196.14,176333.56,Supplier A,2025-02-01,In Stock,14,404
+INV-0197,Product 197,Clothing,47,431.86,20297.48,Supplier C,2025-04-07,In Stock,37,991
+INV-0198,Product 198,Clothing,119,146.82,17471.52,Supplier B,2024-12-21,In Stock,40,977
+INV-0199,Product 199,Home & Garden,985,270.29,266233.93,Supplier C,2024-09-29,In Stock,38,611
+INV-0200,Product 200,Home & Garden,433,233.74,101209.35,Supplier C,2025-01-01,In Stock,36,306
+INV-0201,Product 201,Sports,89,200.77,17868.97,Supplier C,2024-08-21,In Stock,47,279
+INV-0202,Product 202,Sports,92,480.03,44162.38,Supplier A,2024-11-28,In Stock,34,370
+INV-0203,Product 203,Books,582,327.37,190529.5,Supplier B,2024-08-20,In Stock,43,264
+INV-0204,Product 204,Sports,991,37.31,36976.72,Supplier C,2024-08-19,In Stock,28,338
+INV-0205,Product 205,Clothing,10,306.32,3063.17,Supplier D,2025-04-16,Low Stock,19,217
+INV-0206,Product 206,Home & Garden,276,198.54,54797.99,Supplier A,2025-01-19,In Stock,22,435
+INV-0207,Product 207,Home & Garden,136,39.47,5368.42,Supplier C,2024-09-14,In Stock,23,741
+INV-0208,Product 208,Home & Garden,506,45.08,22809.84,Supplier C,2024-12-03,In Stock,15,409
+INV-0209,Product 209,Electronics,715,492.0,351782.16,Supplier C,2024-10-18,In Stock,28,632
+INV-0210,Product 210,Electronics,457,415.62,189940.26,Supplier C,2025-06-09,In Stock,37,321
+INV-0211,Product 211,Clothing,762,232.62,177258.31,Supplier C,2025-02-19,In Stock,40,690
+INV-0212,Product 212,Sports,109,396.02,43165.7,Supplier A,2025-01-08,In Stock,41,568
+INV-0213,Product 213,Clothing,682,166.64,113646.75,Supplier D,2025-02-06,In Stock,47,691
+INV-0214,Product 214,Sports,212,143.69,30462.42,Supplier B,2024-08-14,Discontinued,36,995
+INV-0215,Product 215,Home & Garden,886,366.01,324281.74,Supplier B,2024-09-21,In Stock,27,329
+INV-0216,Product 216,Sports,524,491.86,257733.29,Supplier C,2024-08-25,In Stock,35,670
+INV-0217,Product 217,Books,8,418.74,3349.89,Supplier A,2025-01-26,Low Stock,33,594
+INV-0218,Product 218,Sports,588,128.7,75674.03,Supplier D,2024-08-27,In Stock,39,476
+INV-0219,Product 219,Sports,780,165.69,129237.72,Supplier C,2025-04-22,In Stock,33,741
+INV-0220,Product 220,Sports,372,217.58,80939.15,Supplier C,2025-05-28,In Stock,21,838
+INV-0221,Product 221,Electronics,619,312.76,193597.02,Supplier C,2025-02-04,In Stock,49,110
+INV-0222,Product 222,Electronics,178,99.2,17657.74,Supplier A,2024-10-14,In Stock,19,958
+INV-0223,Product 223,Books,795,66.66,52994.79,Supplier B,2024-10-13,In Stock,18,863
+INV-0224,Product 224,Books,190,283.75,53912.8,Supplier A,2025-03-12,In Stock,13,131
+INV-0225,Product 225,Home & Garden,744,107.19,79747.5,Supplier A,2025-07-17,In Stock,23,294
+INV-0226,Product 226,Books,726,214.83,155968.34,Supplier B,2025-02-11,In Stock,47,740
+INV-0227,Product 227,Sports,662,144.51,95664.74,Supplier D,2024-12-15,In Stock,11,456
+INV-0228,Product 228,Sports,475,69.89,33198.37,Supplier A,2024-12-27,In Stock,14,987
+INV-0229,Product 229,Home & Garden,367,93.68,34381.32,Supplier C,2024-12-09,In Stock,26,163
+INV-0230,Product 230,Sports,347,461.82,160252.17,Supplier C,2024-11-02,In Stock,28,607
+INV-0231,Product 231,Home & Garden,459,377.94,173475.92,Supplier A,2025-01-11,In Stock,38,858
+INV-0232,Product 232,Electronics,309,212.3,65600.59,Supplier D,2024-10-27,In Stock,33,142
+INV-0233,Product 233,Books,971,106.96,103859.61,Supplier A,2024-08-26,In Stock,11,149
+INV-0234,Product 234,Books,330,7.39,2437.44,Supplier A,2024-12-12,In Stock,32,187
+INV-0235,Product 235,Books,904,250.77,226700.35,Supplier C,2024-09-21,In Stock,41,707
+INV-0236,Product 236,Clothing,434,373.79,162223.6,Supplier A,2024-08-03,In Stock,13,393
+INV-0237,Product 237,Clothing,371,472.19,175182.5,Supplier D,2024-12-15,Discontinued,39,492
+INV-0238,Product 238,Books,200,190.03,38005.44,Supplier B,2025-06-11,In Stock,35,535
+INV-0239,Product 239,Books,648,42.55,27572.57,Supplier C,2024-09-17,In Stock,46,645
+INV-0240,Product 240,Electronics,259,458.81,118832.74,Supplier A,2024-10-17,In Stock,14,637
+INV-0241,Product 241,Electronics,59,215.91,12738.85,Supplier A,2024-12-18,In Stock,42,929
+INV-0242,Product 242,Electronics,373,59.43,22166.48,Supplier A,2025-02-12,In Stock,31,924
+INV-0243,Product 243,Sports,641,310.4,198965.81,Supplier A,2025-03-20,Discontinued,13,845
+INV-0244,Product 244,Sports,346,422.8,146289.11,Supplier C,2025-05-20,In Stock,40,333
+INV-0245,Product 245,Clothing,758,173.92,131834.55,Supplier A,2024-11-25,In Stock,28,249
+INV-0246,Product 246,Home & Garden,-263,302.88,-79658.43,Supplier A,2024-07-30,In Stock,34,247
+INV-0247,Product 247,Electronics,150,373.92,56088.75,Supplier D,2025-05-08,In Stock,28,607
+INV-0248,Product 248,Sports,798,265.13,211571.05,Supplier C,2024-11-01,Discontinued,11,169
+INV-0249,Product 249,Home & Garden,612,498.4,305022.33,Supplier C,2024-08-14,In Stock,45,369
+INV-0250,Product 250,Books,209,314.48,65725.66,Supplier A,2024-09-04,In Stock,35,488
+INV-0251,Product 251,Home & Garden,165,209.2,34518.23,Supplier C,2025-03-04,In Stock,44,811
+INV-0252,Product 252,Electronics,619,210.94,130571.51,Supplier B,2024-08-09,In Stock,33,580
+INV-0253,Product 253,Clothing,816,439.07,358277.73,Supplier A,2024-08-20,In Stock,19,891
+INV-0254,Product 254,Home & Garden,810,60.08,48666.28,Supplier B,2025-05-29,In Stock,41,331
+INV-0255,Product 255,Sports,-173,304.73,-52718.39,Supplier B,2024-08-18,In Stock,45,238
+INV-0256,Product 256,Electronics,598,7.32,4378.95,Supplier B,2024-11-06,In Stock,36,544
+INV-0257,Product 257,Sports,723,448.17,324025.22,Supplier A,2024-10-13,In Stock,16,205
+INV-0258,Product 258,Books,906,325.64,295029.03,Supplier C,2025-01-02,In Stock,49,525
+INV-0259,Product 259,Books,418,476.42,199141.57,Supplier B,2025-04-08,In Stock,41,826
+INV-0260,Product 260,Books,866,217.19,188085.16,Supplier A,2025-01-27,Discontinued,14,492
+INV-0261,Product 261,Clothing,891,211.21,188188.13,Supplier C,2024-08-03,In Stock,50,830
+INV-0262,Product 262,Clothing,967,272.53,263538.53,Supplier D,2024-07-27,In Stock,24,519
+INV-0263,Product 263,Electronics,820,173.02,141876.6,Supplier C,2025-05-30,Discontinued,30,261
+INV-0264,Product 264,Sports,540,208.41,112540.74,Supplier B,2024-11-02,In Stock,34,728
+INV-0265,Product 265,Electronics,659,420.44,277073.25,Supplier B,2025-04-25,In Stock,39,785
+INV-0266,Product 266,Electronics,493,326.77,161095.65,Supplier C,2025-05-31,In Stock,10,716
+INV-0267,Product 267,Sports,752,44.6,33540.93,Supplier B,2025-03-08,In Stock,47,544
+INV-0268,Product 268,Clothing,637,157.28,100186.05,Supplier C,2024-12-06,In Stock,12,229
+INV-0269,Product 269,Clothing,822,37.41,30750.59,Supplier D,2025-06-16,In Stock,14,126
+INV-0270,Product 270,Clothing,894,11.29,10091.8,Supplier B,2024-10-11,In Stock,24,172
+INV-0271,Product 271,Home & Garden,31,168.83,5233.88,Supplier D,2025-04-26,In Stock,24,570
+INV-0272,Product 272,Clothing,242,252.45,61092.75,Supplier A,2024-09-30,In Stock,35,947
+INV-0273,Product 273,Books,895,84.4,75541.16,Supplier C,2025-03-19,In Stock,38,749
+INV-0274,Product 274,Sports,91,221.08,20118.68,Supplier C,2024-09-28,In Stock,10,945
+INV-0275,Product 275,Sports,883,446.87,394586.29,Supplier D,2025-04-24,In Stock,35,643
+INV-0276,Product 276,Home & Garden,172,281.89,48484.48,Supplier C,2025-04-02,In Stock,43,989
+INV-0277,Product 277,Sports,305,176.55,53847.11,Supplier A,2025-02-14,In Stock,49,484
+INV-0278,Product 278,Clothing,333,245.4,81716.96,Supplier D,2024-09-24,In Stock,23,287
+INV-0279,Product 279,Books,645,447.67,288744.26,Supplier C,2024-12-26,In Stock,42,851
+INV-0280,Product 280,Sports,263,367.2,96573.17,Supplier A,2025-07-13,In Stock,35,522
+INV-0281,Product 281,Home & Garden,95,127.67,12128.37,Supplier B,2024-08-21,In Stock,36,173
+INV-0282,Product 282,Books,466,185.39,86391.11,Supplier C,2025-04-06,In Stock,12,564
+INV-0283,Product 283,Clothing,328,482.6,158293.68,Supplier C,2024-12-10,In Stock,40,264
+INV-0284,Product 284,Books,106,359.93,38152.32,Supplier A,2024-11-18,In Stock,36,818
+INV-0285,Product 285,Home & Garden,328,456.99,149893.76,Supplier C,2024-09-15,Discontinued,31,870
+INV-0286,Product 286,Electronics,922,286.12,263799.96,Supplier B,2024-09-07,In Stock,49,562
+INV-0287,Product 287,Home & Garden,899,292.84,263265.77,Supplier C,2025-01-30,In Stock,13,978
+INV-0288,Product 288,Electronics,782,280.22,219132.38,Supplier B,2024-12-19,In Stock,36,259
+INV-0289,Product 289,Books,63,172.15,10845.3,Supplier A,2024-08-22,In Stock,45,722
+INV-0290,Product 290,Electronics,302,59.74,18042.13,Supplier B,2025-05-26,In Stock,20,513
+INV-0291,Product 291,Sports,54,256.65,13858.87,Supplier B,2024-10-08,In Stock,16,177
+INV-0292,Product 292,Books,258,362.15,93434.01,,2025-05-19,In Stock,48,287
+INV-0293,Product 293,Sports,851,142.2,121010.5,Supplier A,2025-02-26,In Stock,34,687
+INV-0294,Product 294,Clothing,862,297.02,256027.26,Supplier A,2024-09-17,In Stock,18,374
+INV-0295,Product 295,Electronics,42,137.8,5787.47,Supplier D,2025-04-17,In Stock,12,293
+INV-0296,Product 296,Sports,450,221.11,99499.56,Supplier A,2025-07-17,In Stock,40,764
+INV-0297,Product 297,Electronics,796,409.74,326152.31,Supplier C,2024-08-24,In Stock,28,232
+INV-0298,Product 298,Clothing,653,440.57,287694.82,Supplier D,2025-06-22,In Stock,12,649
+INV-0299,Product 299,Books,352,199.4,70190.24,Supplier D,2025-06-25,In Stock,48,104
+INV-0300,Product 300,Books,125,434.46,54307.57,Supplier D,2025-07-09,In Stock,25,915
+INV-0301,Product 301,Home & Garden,903,408.4,368789.71,Supplier C,2024-12-27,Discontinued,47,186
+INV-0302,Product 302,Sports,974,138.22,134630.34,Supplier C,2025-04-29,In Stock,35,101
+INV-0303,Product 303,Books,895,18.86,16877.39,Supplier B,2025-02-16,In Stock,48,686
+INV-0304,Product 304,Home & Garden,909,137.13,124652.92,Supplier C,2025-02-03,In Stock,29,681
+INV-0305,Product 305,Home & Garden,534,399.72,213452.34,Supplier D,2025-06-20,In Stock,43,133
+INV-0306,Product 306,Sports,349,272.71,95177.32,Supplier A,2024-08-23,In Stock,14,328
+INV-0307,Product 307,Home & Garden,174,209.13,36388.52,Supplier C,2025-04-17,In Stock,12,619
+INV-0308,Product 308,Clothing,784,53.23,41735.61,Supplier C,2025-01-02,In Stock,35,978
+INV-0309,Product 309,Sports,135,403.35,54452.39,Supplier C,2024-11-12,In Stock,35,912
+INV-0310,Product 310,Books,108,96.04,10372.74,Supplier A,2024-08-25,In Stock,15,983
+INV-0311,Product 311,Sports,792,77.91,61706.03,Supplier A,2025-02-28,In Stock,48,928
+INV-0312,Product 312,Electronics,303,316.28,95833.33,Supplier C,2025-04-21,In Stock,39,100
+INV-0313,Product 313,Electronics,664,355.39,235975.83,Supplier D,2025-03-16,In Stock,36,370
+INV-0314,Product 314,Books,703,111.2,78174.59,Supplier A,2025-06-26,In Stock,23,778
+INV-0315,Product 315,Books,789,108.76,85809.58,Supplier B,2025-06-05,In Stock,22,364
+INV-0316,Product 316,Books,566,60.12,34026.68,Supplier A,2024-08-21,In Stock,16,274
+INV-0317,Product 317,Clothing,402,8.16,3280.77,Supplier A,2024-10-09,In Stock,43,587
+INV-0318,Product 318,Sports,718,166.31,119409.43,Supplier A,2025-03-25,In Stock,47,860
+INV-0319,Product 319,Books,5,165.23,826.14,Supplier D,2025-01-09,Low Stock,14,153
+INV-0320,Product 320,Books,762,115.65,88126.22,,2024-08-19,Discontinued,11,769
+INV-0321,Product 321,Books,621,242.46,150568.42,Supplier C,2024-09-07,In Stock,29,126
+INV-0322,Product 322,Home & Garden,639,260.85,166686.12,Supplier C,2024-11-05,In Stock,47,506
+INV-0323,Product 323,Books,159,208.49,33149.49,Supplier A,2025-03-10,In Stock,23,775
+INV-0324,Product 324,Sports,866,57.73,49990.68,Supplier B,2024-10-20,In Stock,19,660
+INV-0325,Product 325,Sports,304,363.88,110619.42,Supplier C,2024-11-16,In Stock,40,361
+INV-0326,Product 326,Sports,942,16.54,15577.31,Supplier D,2024-11-12,In Stock,31,684
+INV-0327,Product 327,Sports,433,261.01,113017.85,Supplier A,2025-06-12,In Stock,26,442
+INV-0328,Product 328,Clothing,134,154.16,20657.52,Supplier C,2024-11-09,In Stock,33,931
+INV-0329,Product 329,Books,175,329.81,57716.45,Supplier B,2025-02-01,In Stock,26,268
+INV-0330,Product 330,Sports,686,202.69,139047.67,Supplier C,2024-07-31,In Stock,50,125
+INV-0331,Product 331,Books,207,392.11,81166.97,Supplier D,2024-08-08,In Stock,18,566
+INV-0332,Product 332,Electronics,194,227.11,44059.85,Supplier B,2024-10-29,In Stock,35,331
+INV-0333,Product 333,Electronics,431,357.9,154253.36,Supplier D,2024-08-31,In Stock,21,371
+INV-0334,Product 334,Books,239,177.51,42425.21,Supplier D,2025-01-31,In Stock,39,915
+INV-0335,Product 335,Clothing,31,466.44,14459.51,Supplier B,2024-11-29,In Stock,37,314
+INV-0336,Product 336,Home & Garden,749,238.44,178591.7,Supplier A,2024-11-03,In Stock,23,864
+INV-0337,Product 337,Home & Garden,350,105.08,36779.52,Supplier C,2025-02-10,In Stock,23,475
+INV-0338,Product 338,Electronics,595,434.94,258787.14,Supplier C,2024-10-24,In Stock,41,653
+INV-0339,Product 339,Sports,386,405.24,156423.79,Supplier B,2025-03-11,In Stock,15,536
+INV-0340,Product 340,Clothing,139,189.68,26366.07,Supplier A,2024-12-14,In Stock,35,305
+INV-0341,Product 341,Books,621,491.18,305022.56,Supplier A,2024-07-24,Discontinued,16,894
+INV-0342,Product 342,Home & Garden,336,336.88,113191.54,Supplier A,2024-12-11,In Stock,30,839
+INV-0343,Product 343,Electronics,495,108.78,53845.16,Supplier C,2024-09-30,In Stock,21,110
+INV-0344,Product 344,Clothing,780,256.71,200236.94,Supplier B,2025-07-06,In Stock,47,146
+INV-0345,Product 345,Electronics,69,445.92,30768.8,Supplier A,2024-12-03,In Stock,16,475
+INV-0346,Product 346,Clothing,975,226.06,220409.73,Supplier C,2025-01-01,In Stock,21,294
+INV-0347,Product 347,Home & Garden,69,467.76,32275.13,Supplier C,2025-02-02,In Stock,41,617
+INV-0348,Product 348,Clothing,708,73.88,52305.82,Supplier A,2024-10-13,In Stock,45,388
+INV-0349,Product 349,Home & Garden,218,184.45,40209.2,Supplier A,2025-01-20,In Stock,30,780
+INV-0350,Product 350,Clothing,868,336.35,291953.81,Supplier B,2024-12-29,In Stock,13,685
+INV-0351,Product 351,Home & Garden,587,498.92,292863.7,Supplier B,2024-10-15,In Stock,34,800
+INV-0352,Product 352,Clothing,222,103.99,23086.29,Supplier C,2025-02-17,In Stock,33,984
+INV-0353,Product 353,Home & Garden,894,34.79,31102.53,Supplier C,2024-09-20,In Stock,46,259
+INV-0354,Product 354,Home & Garden,334,274.48,91675.7,Supplier D,2024-09-18,In Stock,13,614
+INV-0355,Product 355,Sports,839,279.76,234718.08,Supplier C,2024-12-31,In Stock,25,888
+INV-0356,Product 356,Sports,945,396.74,374922.06,Supplier D,2024-12-23,In Stock,43,708
+INV-0357,Product 357,Clothing,238,108.98,25937.34,Supplier A,2025-02-17,In Stock,34,524
+INV-0358,Product 358,Sports,995,405.01,402988.99,Supplier D,2025-05-19,In Stock,16,472
+INV-0359,Product 359,Clothing,233,93.46,21776.56,Supplier A,2025-03-23,In Stock,13,664
+INV-0360,Product 360,Clothing,253,397.98,100687.96,Supplier B,2024-12-07,In Stock,29,670
+INV-0361,Product 361,Electronics,152,470.36,71494.53,Supplier A,2025-07-17,In Stock,24,589
+INV-0362,Product 362,Electronics,426,204.87,87273.24,Supplier C,2024-09-05,Discontinued,44,227
+INV-0363,Product 363,Home & Garden,662,360.86,238890.72,Supplier B,2024-11-28,In Stock,46,945
+INV-0364,Product 364,Clothing,767,408.81,313558.76,Supplier A,2025-05-28,In Stock,24,551
+INV-0365,Product 365,Sports,972,34.79,33816.49,Supplier A,2025-06-13,In Stock,10,100
+INV-0366,Product 366,Books,104,499.09,51905.8,Supplier C,2024-09-27,Discontinued,47,346
+INV-0367,Product 367,Sports,971,161.58,156897.78,Supplier C,2024-12-21,In Stock,15,618
+INV-0368,Product 368,Clothing,465,321.36,149432.93,Supplier A,2024-12-07,In Stock,49,185
+INV-0369,Product 369,Books,669,17.58,11764.23,Supplier D,2025-05-26,In Stock,32,338
+INV-0370,Product 370,Clothing,263,381.54,100345.72,Supplier B,2025-04-17,Discontinued,11,908
+INV-0371,Product 371,Books,983,344.24,338383.43,Supplier C,2024-07-25,In Stock,31,889
+INV-0372,Product 372,Electronics,315,351.89,110844.1,Supplier C,2024-09-21,In Stock,35,393
+INV-0373,Product 373,Books,52,329.74,17146.24,Supplier B,2025-07-10,In Stock,44,331
+INV-0374,Product 374,Books,305,414.17,126322.37,Supplier D,2024-12-22,In Stock,13,494
+INV-0375,Product 375,Electronics,975,202.96,197885.69,Supplier D,2025-05-08,In Stock,43,575
+INV-0376,Product 376,Sports,459,18.08,8296.84,Supplier A,2024-07-30,In Stock,26,623
+INV-0377,Product 377,Home & Garden,590,181.92,107333.37,Supplier D,2025-01-19,In Stock,26,547
+INV-0378,Product 378,Electronics,123,289.85,35651.39,Supplier B,2025-01-12,In Stock,28,273
+INV-0379,Product 379,Sports,489,294.62,144067.98,Supplier A,2024-10-13,In Stock,19,155
+INV-0380,Product 380,Home & Garden,383,257.29,98542.8,Supplier B,2024-10-13,In Stock,41,978
+INV-0381,Product 381,Books,861,83.52,71907.91,Supplier A,2025-01-29,In Stock,27,743
+INV-0382,Product 382,Home & Garden,380,400.95,152359.94,Supplier C,2024-11-18,In Stock,39,188
+INV-0383,Product 383,Home & Garden,811,157.22,127505.3,Supplier D,2025-01-21,In Stock,20,159
+INV-0384,Product 384,Home & Garden,-599,304.44,-182360.29,Supplier B,2024-12-18,In Stock,47,441
+INV-0385,Product 385,Home & Garden,524,407.86,213720.1,Supplier A,2024-08-13,Discontinued,30,639
+INV-0386,Product 386,Clothing,407,148.88,60595.09,Supplier B,2025-01-08,In Stock,30,849
+INV-0387,Product 387,Clothing,715,233.69,167091.19,Supplier C,2025-03-07,In Stock,13,628
+INV-0388,Product 388,Sports,926,114.04,105602.23,Supplier C,2024-09-20,In Stock,21,152
+INV-0389,Product 389,Books,339,266.61,90379.22,Supplier C,2024-12-17,In Stock,44,561
+INV-0390,Product 390,Home & Garden,439,354.99,155840.93,Supplier D,2025-05-27,In Stock,12,558
+INV-0391,Product 391,Sports,973,478.69,465765.56,,2025-03-11,In Stock,22,164
+INV-0392,Product 392,Clothing,970,395.98,384096.8,Supplier B,2025-06-16,In Stock,49,572
+INV-0393,Product 393,Home & Garden,195,146.94,28653.12,Supplier D,2024-12-31,In Stock,19,563
+INV-0394,Product 394,Clothing,272,166.7,45341.05,,2025-05-18,In Stock,36,989
+INV-0395,Product 395,Electronics,931,216.98,202004.49,Supplier D,2024-08-11,In Stock,32,990
+INV-0396,Product 396,Sports,761,176.41,134246.43,Supplier C,2025-05-04,In Stock,50,351
+INV-0397,Product 397,Home & Garden,591,145.33,85887.49,Supplier A,2024-12-20,In Stock,19,825
+INV-0398,Product 398,Clothing,721,328.75,237031.92,Supplier A,2025-03-07,In Stock,35,153
+INV-0399,Product 399,Home & Garden,336,244.38,82112.8,Supplier D,2025-07-20,Discontinued,34,712
+INV-0400,Product 400,Electronics,573,328.14,188024.82,Supplier D,2024-09-01,In Stock,25,408
+INV-0401,Product 401,Books,577,433.26,249992.92,Supplier D,2025-06-13,In Stock,18,152
+INV-0402,Product 402,Home & Garden,465,201.81,93841.71,Supplier B,2024-11-14,In Stock,12,247
+INV-0403,Product 403,Books,713,254.1,181170.79,Supplier A,2024-11-19,In Stock,45,626
+INV-0404,Product 404,Electronics,185,426.68,78936.03,Supplier A,2024-11-11,In Stock,19,635
+INV-0405,Product 405,Clothing,938,310.96,291675.99,Supplier D,2025-03-28,In Stock,15,972
+INV-0406,Product 406,Clothing,98,425.4,41689.31,Supplier A,2025-04-02,In Stock,29,875
+INV-0407,Product 407,Home & Garden,168,159.38,26776.56,Supplier B,2025-02-14,In Stock,21,808
+INV-0408,Product 408,Clothing,512,328.99,168445.43,Supplier B,2024-10-29,In Stock,38,106
+INV-0409,Product 409,Clothing,17,228.22,3879.82,,2025-07-22,Low Stock,32,359
+INV-0410,Product 410,Home & Garden,633,273.21,172942.87,Supplier D,2024-10-03,In Stock,16,883
+INV-0411,Product 411,Home & Garden,808,379.69,306788.04,,2025-04-06,In Stock,45,983
+INV-0412,Product 412,Electronics,187,174.16,32568.41,Supplier B,2024-11-21,In Stock,46,916
+INV-0413,Product 413,Sports,477,406.15,193735.56,Supplier D,2024-10-30,Discontinued,48,935
+INV-0414,Product 414,Books,215,20.44,4393.99,Supplier D,2024-10-25,In Stock,49,563
+INV-0415,Product 415,Clothing,698,306.68,214059.68,Supplier A,2024-09-29,In Stock,33,645
+INV-0416,Product 416,Clothing,814,266.99,217327.17,Supplier A,2024-07-31,In Stock,48,663
+INV-0417,Product 417,Home & Garden,225,204.17,45938.35,Supplier C,2024-11-21,In Stock,37,909
+INV-0418,Product 418,Electronics,450,69.01,31054.13,Supplier B,2025-04-27,In Stock,28,564
+INV-0419,Product 419,Books,943,411.05,387617.58,Supplier D,2025-05-22,In Stock,30,295
+INV-0420,Product 420,Sports,994,199.07,197877.07,Supplier B,2025-07-11,In Stock,28,384
+INV-0421,Product 421,Electronics,351,349.04,122512.17,Supplier B,2024-12-04,In Stock,15,961
+INV-0422,Product 422,Clothing,233,310.53,72353.14,Supplier C,2024-11-10,In Stock,33,890
+INV-0423,Product 423,Sports,577,59.35,34242.92,Supplier A,2024-12-17,In Stock,20,951
+INV-0424,Product 424,Electronics,524,137.73,72169.24,Supplier D,2024-11-04,In Stock,42,760
+INV-0425,Product 425,Home & Garden,986,475.87,469202.95,Supplier A,2025-05-08,In Stock,21,363
+INV-0426,Product 426,Sports,460,105.13,48361.12,Supplier B,2025-03-03,In Stock,44,759
+INV-0427,Product 427,Electronics,994,147.15,146270.87,Supplier B,2025-04-18,In Stock,21,140
+INV-0428,Product 428,Clothing,897,93.14,83542.6,Supplier B,2024-09-12,In Stock,39,226
+INV-0429,Product 429,Home & Garden,660,28.37,18727.26,Supplier B,2025-06-23,In Stock,45,818
+INV-0430,Product 430,Sports,182,213.21,38803.64,Supplier B,2025-04-13,In Stock,28,960
+INV-0431,Product 431,Sports,159,222.54,35383.47,Supplier A,2025-01-16,In Stock,14,284
+INV-0432,Product 432,Home & Garden,469,220.85,103578.56,Supplier A,2024-10-13,In Stock,34,305
+INV-0433,Product 433,Home & Garden,732,221.1,161845.24,Supplier D,2024-08-08,In Stock,28,688
+INV-0434,Product 434,Books,346,58.66,20296.47,Supplier C,2025-07-16,Discontinued,46,834
+INV-0435,Product 435,Books,592,42.49,25155.53,Supplier D,2024-11-02,In Stock,44,209
+INV-0436,Product 436,Books,962,96.24,92581.55,Supplier D,2024-12-25,In Stock,25,839
+INV-0437,Product 437,Electronics,326,422.95,137881.93,Supplier D,2024-09-28,In Stock,23,840
+INV-0438,Product 438,Books,990,53.09,52557.29,Supplier B,2025-06-17,In Stock,19,781
+INV-0439,Product 439,Home & Garden,-42,295.9,-12427.81,Supplier A,2025-01-02,Discontinued,30,477
+INV-0440,Product 440,Books,751,426.59,320369.57,Supplier C,2024-10-07,In Stock,20,897
+INV-0441,Product 441,Sports,233,387.29,90239.38,Supplier B,2024-11-14,In Stock,25,531
+INV-0442,Product 442,Electronics,421,255.8,107692.79,Supplier C,2024-12-27,In Stock,41,131
+INV-0443,Product 443,Sports,42,213.75,8977.31,Supplier D,2024-09-29,In Stock,40,284
+INV-0444,Product 444,Books,180,22.37,4026.15,Supplier C,2025-02-18,In Stock,19,469
+INV-0445,Product 445,Home & Garden,688,53.79,37009.05,Supplier B,2025-01-13,In Stock,25,486
+INV-0446,Product 446,Electronics,252,156.97,39556.78,Supplier A,2025-02-10,In Stock,50,790
+INV-0447,Product 447,Sports,954,93.73,89418.91,Supplier A,2024-09-02,In Stock,19,838
+INV-0448,Product 448,Clothing,553,330.92,182998.2,Supplier D,2025-01-14,In Stock,13,524
+INV-0449,Product 449,Books,833,194.81,162274.31,Supplier C,2024-07-26,In Stock,38,552
+INV-0450,Product 450,Books,980,16.03,15706.26,Supplier B,2024-12-08,In Stock,45,277
+INV-0451,Product 451,Books,692,366.05,253304.68,Supplier D,2024-12-05,In Stock,41,102
+INV-0452,Product 452,Electronics,203,268.62,54529.95,Supplier C,2024-11-05,In Stock,42,174
+INV-0453,Product 453,Sports,636,439.9,279776.06,Supplier B,2025-03-29,Discontinued,45,550
+INV-0454,Product 454,Electronics,894,357.49,319596.09,Supplier D,2025-03-20,In Stock,27,411
+INV-0455,Product 455,Clothing,127,87.38,11097.46,Supplier C,2025-04-09,In Stock,49,244
+INV-0456,Product 456,Electronics,778,48.56,37776.6,Supplier C,2025-01-05,In Stock,45,265
+INV-0457,Product 457,Sports,214,354.86,75939.18,Supplier C,2025-01-29,In Stock,45,584
+INV-0458,Product 458,Home & Garden,55,382.57,21041.25,Supplier A,2025-01-22,In Stock,22,980
+INV-0459,Product 459,Books,900,415.74,374162.13,Supplier C,2024-09-06,In Stock,33,892
+INV-0460,Product 460,Books,70,157.04,10992.78,Supplier D,2024-08-06,In Stock,32,308
+INV-0461,Product 461,Electronics,152,131.22,19945.51,Supplier D,2025-06-30,In Stock,32,502
+INV-0462,Product 462,Books,468,13.97,6537.02,Supplier C,2024-12-15,In Stock,10,936
+INV-0463,Product 463,Books,620,133.93,83035.56,Supplier A,2025-05-05,In Stock,18,505
+INV-0464,Product 464,Books,895,174.75,156402.83,Supplier C,2025-01-22,In Stock,18,698
+INV-0465,Product 465,Sports,395,104.07,41109.46,Supplier A,2025-02-05,In Stock,33,181
+INV-0466,Product 466,Clothing,834,293.05,244399.61,Supplier D,2025-02-24,In Stock,26,766
+INV-0467,Product 467,Sports,252,93.29,23508.36,Supplier C,2025-03-30,In Stock,11,300
+INV-0468,Product 468,Books,420,444.29,186601.43,Supplier B,2024-08-12,In Stock,43,641
+INV-0469,Product 469,Books,709,476.25,337660.59,Supplier A,2025-02-28,In Stock,36,448
+INV-0470,Product 470,Electronics,877,435.85,382236.63,Supplier D,2024-09-17,In Stock,40,997
+INV-0471,Product 471,Electronics,696,300.99,209487.77,Supplier C,2024-11-09,In Stock,24,506
+INV-0472,Product 472,Sports,701,127.98,89711.39,Supplier D,2025-07-16,In Stock,20,616
+INV-0473,Product 473,Clothing,197,404.45,79676.73,Supplier C,2025-06-17,In Stock,14,682
+INV-0474,Product 474,Books,854,241.71,206420.87,Supplier D,2024-09-19,In Stock,25,416
+INV-0475,Product 475,Clothing,624,295.8,184582.13,Supplier A,2025-04-05,In Stock,36,271
+INV-0476,Product 476,Home & Garden,279,328.33,91604.33,Supplier B,2024-11-07,In Stock,27,544
+INV-0477,Product 477,Home & Garden,916,251.67,230532.67,Supplier B,2024-07-26,In Stock,36,403
+INV-0478,Product 478,Books,172,154.55,26582.93,Supplier A,2024-08-18,In Stock,45,759
+INV-0479,Product 479,Books,75,83.67,6275.14,Supplier B,2025-06-16,In Stock,41,117
+INV-0480,Product 480,Books,816,95.11,77608.23,Supplier C,2025-03-23,In Stock,23,334
+INV-0481,Product 481,Clothing,293,308.93,90516.24,Supplier D,2025-02-03,In Stock,36,203
+INV-0482,Product 482,Electronics,233,14.98,3489.18,Supplier D,2025-04-10,In Stock,45,611
+INV-0483,Product 483,Electronics,669,276.5,184977.6,Supplier A,2025-02-10,In Stock,45,785
+INV-0484,Product 484,Home & Garden,173,305.13,52788.24,Supplier C,2025-02-25,In Stock,24,430
+INV-0485,Product 485,Electronics,437,441.99,193150.69,Supplier A,2024-12-07,Discontinued,10,833
+INV-0486,Product 486,Sports,329,206.03,67785.27,Supplier B,2024-09-12,In Stock,43,521
+INV-0487,Product 487,Books,689,146.36,100844.35,Supplier A,2025-01-28,In Stock,47,327
+INV-0488,Product 488,Books,478,171.69,82066.88,Supplier A,2025-06-06,In Stock,13,699
+INV-0489,Product 489,Clothing,369,489.9,180774.03,Supplier D,2025-01-27,In Stock,31,691
+INV-0490,Product 490,Home & Garden,53,18.4,975.1,Supplier A,2024-10-23,In Stock,46,837
+INV-0491,Product 491,Clothing,675,333.07,224823.22,Supplier A,2024-10-01,In Stock,34,276
+INV-0492,Product 492,Electronics,258,33.15,8553.83,Supplier B,2024-09-04,In Stock,41,356
+INV-0493,Product 493,Clothing,597,277.06,165402.65,Supplier D,2025-06-09,In Stock,39,357
+INV-0494,Product 494,Books,436,291.36,127032.06,Supplier A,2025-04-13,In Stock,18,233
+INV-0495,Product 495,Clothing,514,54.69,28111.59,Supplier A,2025-07-01,In Stock,38,418
+INV-0496,Product 496,Sports,898,149.54,134287.71,Supplier D,2025-01-14,In Stock,47,395
+INV-0497,Product 497,Electronics,503,93.07,46812.77,Supplier A,2025-07-07,In Stock,50,925
+INV-0498,Product 498,Clothing,806,457.56,368789.52,Supplier C,2025-06-14,In Stock,10,918
+INV-0499,Product 499,Sports,992,491.49,487555.75,Supplier D,2024-09-27,In Stock,22,640
+INV-0500,Product 500,Sports,265,334.66,88685.98,Supplier B,2025-04-27,In Stock,27,220

@@ -5,7 +5,7 @@ from pathlib import Path
 from spreadsheet_analyzer.pipeline.stages.stage_0_integrity import stage_0_integrity_probe
 
 # Test stage 0
-test_file = Path("test_data/simple_test.xlsx")
+test_file = Path("test_assets/generated/simple_test.xlsx")
 result = stage_0_integrity_probe(test_file)
 
 print(f"Result type: {type(result)}")

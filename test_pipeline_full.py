@@ -15,7 +15,7 @@ def progress_callback(update):
 pipeline.add_progress_observer(progress_callback)
 
 # Run analysis on clean test file
-test_file = Path("test_data/clean_test.xlsx")
+test_file = Path("test_assets/generated/clean_test.xlsx")
 result = pipeline.run(test_file)
 
 print(f"\nSuccess: {result.success}")

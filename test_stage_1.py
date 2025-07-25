@@ -5,7 +5,7 @@ from pathlib import Path
 from spreadsheet_analyzer.pipeline.stages.stage_1_security import stage_1_security_scan
 
 # Test stage 1
-test_file = Path("test_data/simple_test.xlsx")
+test_file = Path("test_assets/generated/simple_test.xlsx")
 result = stage_1_security_scan(test_file)
 
 print(f"Result type: {type(result)}")

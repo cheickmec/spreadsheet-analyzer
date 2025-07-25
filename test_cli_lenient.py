@@ -9,7 +9,7 @@ options = create_lenient_pipeline_options()
 pipeline = DeterministicPipeline(options)
 
 # Run analysis
-test_file = Path("test_data/clean_test.xlsx")
+test_file = Path("test_assets/generated/clean_test.xlsx")
 result = pipeline.run(test_file)
 
 print(f"Success: {result.success}")
