@@ -170,6 +170,21 @@ Important aspects for deploying agents in real-world scenarios.
   - User satisfaction metrics
   - Business impact assessment
 
+### 6. [Jupyter Ecosystem](./jupyter-ecosystem/)
+
+Comprehensive analysis of Jupyter ecosystem packages for notebook-based analysis.
+
+- **[Jupyter Ecosystem Packages](./jupyter-ecosystem/README.md)**
+
+  - Core foundation packages (jupyter_core, jupyter_client, jupyter_protocol)
+  - Notebook format & processing (nbformat, nbclient, nbconvert)
+  - Kernel management (ipykernel, jupyter_kernel_gateway)
+  - Document processing & conversion (jupytext, papermill)
+  - Development & testing (nbdev, nbmake)
+  - Advanced features (jupyter_contrib_nbextensions, voilà)
+  - Integration with Excel analysis workflows
+  - Best practices and future directions
+
 ## Ô£ø‚úÖ Quick Start Guide
 
 1. **For Developers**: Start with [LLM Agent Architectures](./1-llm-agentic-fundamentals/llm-agent-architectures.md) to understand core concepts

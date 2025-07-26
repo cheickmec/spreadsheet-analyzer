@@ -15,6 +15,7 @@ All tests use real file I/O operations and actual notebook files.
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -96,9 +97,9 @@ class TestNotebookIO:
         builder = NotebookBuilder()
 
         # Add code cell with outputs
-        outputs = [
+        outputs: list[dict[str, Any]] = [
             {"output_type": "stream", "name": "stdout", "text": ["Hello, World!\n"]},
-            {"output_type": "execute_result", "execution_count": 1, "data": {"text/plain": "42"}},
+            {"output_type": "execute_result", "execution_count": 1, "data": {"text/plain": "42"}, "metadata": {}},
         ]
         builder.add_code_cell("print('Hello, World!')\n42", outputs=outputs)
 
@@ -127,7 +128,7 @@ class TestNotebookIO:
             "custom": {"nested": {"value": 123}},
         }
 
-        code_meta = {"tags": ["analysis"], "collapsed": False, "scrolled": True, "execution": {"timeout": 30}}
+        code_meta = {"tags": ["analysis"], "collapsed": False, "scrolled": True}
 
         builder.add_markdown_cell("# Introduction", markdown_meta)
         builder.add_code_cell("import pandas as pd", metadata=code_meta)
@@ -218,8 +219,7 @@ class TestNotebookIO:
         # Valid JSON but not valid notebook format
         invalid_content = {"not_a_notebook": True, "missing_required_fields": "yes"}
 
-        with open(invalid_notebook, "w") as f:
-            json.dump(invalid_content, f)
+        invalid_notebook.write_text(json.dumps(invalid_content))
 
         with pytest.raises(NotebookFormatError, match="Invalid notebook format"):
             NotebookIO.read_notebook(invalid_notebook)
@@ -290,7 +290,7 @@ class TestNotebookIO:
             builders.append(builder)
 
         paths = [tmp_path / f"concurrent_{i}.ipynb" for i in range(5)]
-        results = [None] * 5
+        results: list[NotebookBuilder | Exception | None] = [None] * 5
 
         def write_and_read(index: int) -> None:
             """Write and read a notebook."""

@@ -67,7 +67,7 @@ class NotebookIO:
 
         try:
             # Read and validate the notebook
-            with open(file_path, encoding="utf-8") as f:
+            with file_path.open(encoding="utf-8") as f:
                 notebook_dict = json.load(f)
 
             # Validate using nbformat
@@ -90,12 +90,12 @@ class NotebookIO:
                 if cell:
                     builder.add_cell(cell)
 
-            return builder
-
         except json.JSONDecodeError as e:
             raise NotebookFormatError(f"Invalid JSON in notebook file: {e}") from e
         except Exception as e:
             raise NotebookFormatError(f"Error reading notebook: {e}") from e
+        else:
+            return builder
 
     @staticmethod
     def write_notebook(builder: NotebookBuilder, file_path: str | Path, overwrite: bool = False) -> Path:
@@ -118,7 +118,7 @@ class NotebookIO:
         file_path = Path(file_path)
 
         # Ensure .ipynb extension
-        if not file_path.suffix.lower() == ".ipynb":
+        if file_path.suffix.lower() != ".ipynb":
             file_path = file_path.with_suffix(".ipynb")
 
         # Check overwrite policy
@@ -143,13 +143,13 @@ class NotebookIO:
                 raise NotebookFormatError(f"Generated notebook is invalid: {e}") from e
 
             # Write to file
-            with open(file_path, "w", encoding="utf-8") as f:
+            with file_path.open("w", encoding="utf-8") as f:
                 json.dump(notebook_dict, f, indent=2, ensure_ascii=False)
-
-            return file_path
 
         except Exception as e:
             raise NotebookFormatError(f"Error writing notebook: {e}") from e
+        else:
+            return file_path
 
     @staticmethod
     def convert_outputs_to_nbformat(outputs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -175,46 +175,40 @@ class NotebookIO:
             if not output_type:
                 continue
 
-            try:
-                if output_type == "stream":
-                    formatted_output = {
+            if output_type == "stream":
+                formatted_outputs.append(
+                    {
                         "output_type": "stream",
                         "name": output.get("name", "stdout"),
                         "text": NotebookIO._ensure_text_list(output.get("text", "")),
                     }
-
-                elif output_type == "execute_result":
-                    formatted_output = {
+                )
+            elif output_type == "execute_result":
+                formatted_outputs.append(
+                    {
                         "output_type": "execute_result",
                         "execution_count": output.get("execution_count", 1),
                         "data": output.get("data", {}),
                         "metadata": output.get("metadata", {}),
                     }
-
-                elif output_type == "display_data":
-                    formatted_output = {
+                )
+            elif output_type == "display_data":
+                formatted_outputs.append(
+                    {
                         "output_type": "display_data",
                         "data": output.get("data", {}),
                         "metadata": output.get("metadata", {}),
                     }
-
-                elif output_type == "error":
-                    formatted_output = {
+                )
+            elif output_type == "error":
+                formatted_outputs.append(
+                    {
                         "output_type": "error",
                         "ename": output.get("ename", "Error"),
                         "evalue": output.get("evalue", "Unknown error"),
                         "traceback": output.get("traceback", []),
                     }
-
-                else:
-                    # Skip unknown output types
-                    continue
-
-                formatted_outputs.append(formatted_output)
-
-            except Exception:
-                # Skip malformed outputs rather than failing completely
-                continue
+                )
 
         return formatted_outputs
 
@@ -288,7 +282,7 @@ class NotebookIO:
             return None
 
     @staticmethod
-    def _ensure_text_list(text: str | list[str]) -> list[str]:
+    def _ensure_text_list(text: str | list[str] | Any) -> list[str]:
         """
         Ensure text output is in list format as required by nbformat.
 
@@ -329,11 +323,11 @@ class NotebookIO:
                 issues.append(f"Path is not a file: {file_path}")
                 return issues
 
-            if not file_path.suffix.lower() == ".ipynb":
+            if file_path.suffix.lower() != ".ipynb":
                 issues.append(f"File should have .ipynb extension: {file_path}")
 
             # Try to read and validate
-            with open(file_path, encoding="utf-8") as f:
+            with file_path.open(encoding="utf-8") as f:
                 notebook_dict = json.load(f)
 
             # Validate format

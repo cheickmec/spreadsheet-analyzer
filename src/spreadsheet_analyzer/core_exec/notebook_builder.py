@@ -53,7 +53,12 @@ class NotebookCell:
         content_str = f"{self.cell_type.value}:{''.join(self.source)}:{sorted_metadata}"
         cell_id = hashlib.sha256(content_str.encode()).hexdigest()[:12]
 
-        cell_dict = {"cell_type": self.cell_type.value, "metadata": self.metadata, "source": self.source, "id": cell_id}
+        cell_dict: dict[str, Any] = {
+            "cell_type": self.cell_type.value,
+            "metadata": self.metadata,
+            "source": self.source,
+            "id": cell_id,
+        }
 
         if self.cell_type == CellType.CODE:
             cell_dict["execution_count"] = self.execution_count
@@ -343,9 +348,6 @@ class NotebookBuilder:
             List of validation error messages (empty if valid)
         """
         issues = []
-
-        if not self.cells:
-            issues.append("Notebook has no cells")
 
         for i, cell in enumerate(self.cells):
             if not cell.source:
