@@ -8,32 +8,26 @@ This module provides generic, domain-agnostic functionality for:
 - Execution bridging between notebooks and kernels
 """
 
-from .kernel_service import (
-    KernelService, 
-    KernelProfile, 
-    ExecutionResult,
-    KernelTimeoutError,
-    KernelResourceLimitError
-)
-from .notebook_builder import NotebookBuilder, NotebookCell, CellType
-from .notebook_io import NotebookIO
 from .bridge import ExecutionBridge, ExecutionStats
-from .quality import QualityMetrics, QualityInspector, QualityLevel, QualityIssue
+from .kernel_service import ExecutionResult, KernelProfile, KernelResourceLimitError, KernelService, KernelTimeoutError
+from .notebook_builder import CellType, NotebookBuilder, NotebookCell
+from .notebook_io import NotebookIO
+from .quality import QualityInspector, QualityIssue, QualityLevel, QualityMetrics
 
 __all__ = [
-    "KernelService",
-    "KernelProfile", 
+    "CellType",
+    "ExecutionBridge",
     "ExecutionResult",
-    "KernelTimeoutError",
+    "ExecutionStats",
+    "KernelProfile",
     "KernelResourceLimitError",
+    "KernelService",
+    "KernelTimeoutError",
     "NotebookBuilder",
     "NotebookCell",
-    "CellType",
     "NotebookIO",
-    "ExecutionBridge",
-    "ExecutionStats",
-    "QualityMetrics",
     "QualityInspector",
-    "QualityLevel",
     "QualityIssue",
-] 
+    "QualityLevel",
+    "QualityMetrics",
+]
