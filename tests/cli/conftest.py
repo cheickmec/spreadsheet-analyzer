@@ -61,7 +61,7 @@ def collection_manifest():
     manifest_path = collection_dir / "manifest.json"
     if not manifest_path.exists():
         pytest.skip("Collection manifest.json not found.")
-    with open(manifest_path) as f:
+    with manifest_path.open() as f:
         return json.load(f)
 
 
@@ -83,7 +83,7 @@ def temp_output_dir():
 def cli_runner():
     """Fixture that provides a function to run CLI commands."""
 
-    def run_cli(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
+    def run_cli(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
         """
         Run the CLI with the given arguments.
 
@@ -94,13 +94,13 @@ def cli_runner():
         Returns:
             CompletedProcess with results
         """
-        cmd = [sys.executable, "-m", "spreadsheet_analyzer.cli.analyze"] + args
+        cmd = [sys.executable, "-m", "spreadsheet_analyzer.cli.analyze", *args]
 
         # Set environment to use uv properly
         env = os.environ.copy()
 
         return subprocess.run(
-            ["uv", "run"] + cmd,
+            ["uv", "run", *cmd],
             cwd=cwd or Path.cwd(),
             capture_output=True,
             text=True,
@@ -127,7 +127,7 @@ def validate_notebook():
         Returns:
             Dictionary with validation results
         """
-        results = {
+        results: dict[str, Any] = {
             "valid": False,
             "exists": False,
             "readable": False,

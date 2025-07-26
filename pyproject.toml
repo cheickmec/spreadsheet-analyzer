@@ -31,12 +31,12 @@ dependencies = [
     "nbformat>=5.10.4",
     "ydata-profiling>=4.16.1",
     "jupyter>=1.1.1",
+    "pytest>=8.4.1",
 ]
 
 [project.scripts]
 spreadsheet-analyzer = "spreadsheet_analyzer.cli:main"
-analyze-sheet = "spreadsheet_analyzer.cli.analyze_sheet:main"
-analyze-sheet-langchain = "spreadsheet_analyzer.cli.analyze_sheet_langchain:main"
+analyze-spreadsheet = "spreadsheet_analyzer.cli.analyze:main"
 
 [project.entry-points."spreadsheet_analyzer.strategies"]
 hierarchical = "spreadsheet_analyzer.notebook_llm.strategies.hierarchical:HierarchicalStrategy"

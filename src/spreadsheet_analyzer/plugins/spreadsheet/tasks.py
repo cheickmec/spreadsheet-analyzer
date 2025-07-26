@@ -62,6 +62,8 @@ class DataProfilingTask(BaseTask):
                 cell_type=CellType.CODE,
                 source=self._format_source(import_code),
                 metadata={"tags": ["imports", "setup"]},
+                execution_count=None,
+                outputs=[],
             )
         )
 
@@ -69,7 +71,11 @@ class DataProfilingTask(BaseTask):
         load_code = self._generate_load_code(file_path, sheet_name)
         cells.append(
             NotebookCell(
-                cell_type=CellType.CODE, source=self._format_source(load_code), metadata={"tags": ["data_loading"]}
+                cell_type=CellType.CODE,
+                source=self._format_source(load_code),
+                metadata={"tags": ["data_loading"]},
+                execution_count=None,
+                outputs=[],
             )
         )
 
@@ -80,6 +86,8 @@ class DataProfilingTask(BaseTask):
                 cell_type=CellType.CODE,
                 source=self._format_source(profile_code),
                 metadata={"tags": ["profiling", "statistics"]},
+                execution_count=None,
+                outputs=[],
             )
         )
 
@@ -147,7 +155,7 @@ except Exception as e:
         else:
             return f"""
 # Unsupported file format: {file_ext}
-print(f"❌ Unsupported file format: {file_ext}")
+print(f"❌ Unsupported file format: {{file_ext}}")
 df = pd.DataFrame()  # Empty fallback
 """
 
@@ -158,7 +166,7 @@ df = pd.DataFrame()  # Empty fallback
 
 if not df.empty:
     print("=" * 60)
-    print(f"📋 DATA PROFILING REPORT - {sheet_name}")
+    print(f"📋 DATA PROFILING REPORT - {{sheet_name}}")
     print("=" * 60)
 
     # Basic Information
@@ -174,7 +182,7 @@ if not df.empty:
         null_pct = (null_count / len(df)) * 100
         unique_count = df[col].nunique()
 
-        print(f"  {col:<30} | {dtype!s:<12} | Nulls: {null_count:>6} ({null_pct:>5.1f}%) | Unique: {unique_count:>6}")
+        print(f"  {{col:<30}} | {{dtype!s:<12}} | Nulls: {{null_count:>6}} ({{null_pct:>5.1f}}%) | Unique: {{unique_count:>6}}")
 
     # Statistical Summary
     print("\\n📈 STATISTICAL SUMMARY")
@@ -213,11 +221,11 @@ if not df.empty:
 
     # Duplicate rows
     duplicate_count = df.duplicated().sum()
-    print(f"Duplicate rows: {duplicate_count} ({duplicate_count / len(df) * 100:.1f}%)")
+    print(f"Duplicate rows: {{duplicate_count}} ({{duplicate_count / len(df) * 100:.1f}}%)")
 
     # Empty rows
     empty_rows = df.isnull().all(axis=1).sum()
-    print(f"Completely empty rows: {empty_rows}")
+    print(f"Completely empty rows: {{empty_rows}}")
 
     # Potential ID columns
     potential_ids = [col for col in df.columns if df[col].nunique() == len(df) and not df[col].isnull().any()]
@@ -287,7 +295,11 @@ class FormulaAnalysisTask(BaseTask):
         import_code = self._generate_import_code()
         cells.append(
             NotebookCell(
-                cell_type=CellType.CODE, source=self._format_source(import_code), metadata={"tags": ["imports"]}
+                cell_type=CellType.CODE,
+                source=self._format_source(import_code),
+                metadata={"tags": ["imports"]},
+                execution_count=None,
+                outputs=[],
             )
         )
 
@@ -298,6 +310,8 @@ class FormulaAnalysisTask(BaseTask):
                 cell_type=CellType.CODE,
                 source=self._format_source(analysis_code),
                 metadata={"tags": ["formula_analysis", "validation"]},
+                execution_count=None,
+                outputs=[],
             )
         )
 
@@ -400,7 +414,7 @@ try:
             print(f"Complex formulas (>100 chars or >3 nested functions): {{len(complex_formulas)}}")
             print("Examples:")
             for i, formula in enumerate(complex_formulas[:3]):
-                print(f"  {{i+1}}. {{formula[:80]}}..." if len(formula) > 80 else f"  {{i+1}}. {{formula}}")
+                print(f"  {{{{i+1}}}}. {{{{formula[:80]}}}}..." if len(formula) > 80 else f"  {{{{i+1}}}}. {{{{formula}}}}")
         else:
             print("No overly complex formulas detected")
 
@@ -467,6 +481,8 @@ class OutlierDetectionTask(BaseTask):
                 cell_type=CellType.CODE,
                 source=self._format_source(detection_code),
                 metadata={"tags": ["outlier_detection", "statistics"]},
+                execution_count=None,
+                outputs=[],
             )
         )
 

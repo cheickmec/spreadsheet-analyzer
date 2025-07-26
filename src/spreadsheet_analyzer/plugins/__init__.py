@@ -11,10 +11,6 @@ system with domain-specific features:
 The plugin system follows a simple protocol-based approach for maximum flexibility.
 """
 
-from .base import Task, QualityInspector, PluginRegistry
+from .base import PluginRegistry, QualityInspector, Task
 
-__all__ = [
-    "Task",
-    "QualityInspector", 
-    "PluginRegistry"
-] 
+__all__ = ["PluginRegistry", "QualityInspector", "Task"]

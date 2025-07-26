@@ -1,1 +1,1 @@
-"""Test modules for spreadsheet plugin functionality.""" 
+"""Test modules for spreadsheet plugin functionality."""

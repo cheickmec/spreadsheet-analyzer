@@ -13,26 +13,28 @@ Usage:
     register_all_plugins()
 """
 
-from .tasks import DataProfilingTask, FormulaAnalysisTask, OutlierDetectionTask
 from .quality import SpreadsheetQualityInspector
+from .tasks import DataProfilingTask, FormulaAnalysisTask, OutlierDetectionTask
+
 
 # Auto-register plugins
 def register_all_plugins() -> None:
     """Register all spreadsheet plugins with the global registry."""
     from ..base import registry
-    
+
     # Register tasks
     registry.register_task(DataProfilingTask())
     registry.register_task(FormulaAnalysisTask())
     registry.register_task(OutlierDetectionTask())
-    
+
     # Register quality inspector
     registry.register_quality_inspector(SpreadsheetQualityInspector())
 
+
 __all__ = [
     "DataProfilingTask",
-    "FormulaAnalysisTask", 
+    "FormulaAnalysisTask",
     "OutlierDetectionTask",
     "SpreadsheetQualityInspector",
-    "register_all_plugins"
-] 
+    "register_all_plugins",
+]
