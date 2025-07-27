@@ -140,16 +140,29 @@ async def analyze_spreadsheet(
     # Register plugins - this discovers all available tasks
     register_spreadsheet_plugins()
 
-    # Auto-detect sheet name for Excel files if not provided
-    if sheet_name is None and file_path.suffix.lower() in {".xlsx", ".xls"}:
+    # Handle sheet name for Excel files
+    if file_path.suffix.lower() in {".xlsx", ".xls"}:
         try:
             sheets = list_sheets(file_path)
-            sheet_name = sheets[0] if sheets else "Sheet1"
-            if verbose:
-                logger.info(f"Auto-detected sheet: {sheet_name}")
+            if sheet_name is None:
+                # Auto-detect first sheet
+                sheet_name = sheets[0] if sheets else "Sheet1"
+                if verbose:
+                    logger.info(f"Auto-detected sheet: {sheet_name}")
+            else:
+                # Validate user-provided sheet name
+                if sheet_name not in sheets:
+                    available_sheets = ", ".join(f"'{s}'" for s in sheets)
+                    raise ValueError(
+                        f"Sheet '{sheet_name}' not found in {file_path.name}. Available sheets: {available_sheets}"
+                    )
+        except ValueError:
+            # Re-raise ValueError for sheet not found
+            raise
         except Exception as e:
-            logger.warning(f"Could not auto-detect sheets: {e}")
-            sheet_name = "Sheet1"
+            logger.warning(f"Could not list sheets: {e}")
+            if sheet_name is None:
+                sheet_name = "Sheet1"
     elif sheet_name is None:
         # CSV files don't have sheets
         sheet_name = file_path.stem

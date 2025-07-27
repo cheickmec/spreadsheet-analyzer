@@ -148,8 +148,9 @@ async def execute_notebook_cells(notebook: NotebookDocument, state: dict = None)
         for i, cell in enumerate(notebook.cells):
             if cell.cell_type == CellType.CODE:
                 try:
-                    # Execute the code
-                    result = await manager.execute_code(session, cell.source)
+                    # Execute the code (join source lines if it's a list)
+                    source_code = cell.source if isinstance(cell.source, str) else "\n".join(cell.source)
+                    result = await manager.execute_code(session, source_code)
 
                     # Debug: Log the raw result
                     logger.debug(
@@ -1314,7 +1315,7 @@ def create_sheet_notebook(
 excel_path = r"{excel_path}"
 sheet_name = "{sheet_name}"
 df = pd.read_excel(excel_path, sheet_name=sheet_name)
-print(f"Loaded {len(df)} rows and {len(df.columns)} columns")
+print(f"Loaded {{len(df)}} rows and {{len(df.columns)}} columns")
 df.head()""")
 
     # Add deterministic results if available
@@ -1323,7 +1324,7 @@ df.head()""")
         builder.add_code_cell(f"# Deterministic results\n{deterministic_results}")
 
     # Convert to NotebookDocument
-    nb_dict = builder.build()
+    nb_dict = builder.to_dict()
     cells = [
         Cell(
             id=f"cell_{i}",
@@ -1335,7 +1336,22 @@ df.head()""")
         for i, cell in enumerate(nb_dict["cells"])
     ]
 
-    return NotebookDocument(cells=cells, metadata={})
+    import uuid
+
+    return NotebookDocument(
+        id=str(uuid.uuid4()),
+        cells=cells,
+        metadata={},
+        kernel_spec={"name": "python3", "display_name": "Python 3", "language": "python"},
+        language_info={
+            "name": "python",
+            "version": "3.12.0",
+            "mimetype": "text/x-python",
+            "codemirror_mode": {"name": "ipython", "version": 3},
+            "file_extension": ".py",
+            "pygments_lexer": "ipython3",
+        },
+    )
 
 
 def build_observation_from_notebook(notebook: NotebookDocument) -> str:

@@ -133,10 +133,10 @@ sheet_name = "{sheet_name}"
 
 try:
     df = pd.read_excel(file_path, sheet_name=sheet_name)
-    print(f"✅ Successfully loaded {{len(df)}} rows and {{len(df.columns)}} columns from {{sheet_name}}")
-    print(f"📊 Data shape: {{df.shape}}")
+    print(f"✅ Successfully loaded {len(df)} rows and {len(df.columns)} columns from {sheet_name}")
+    print(f"📊 Data shape: {df.shape}")
 except Exception as e:
-    print(f"❌ Error loading data: {{e}}")
+    print(f"❌ Error loading data: {e}")
     df = pd.DataFrame()  # Empty fallback
 """
         elif file_ext == ".csv":
@@ -146,16 +146,16 @@ file_path = r"{file_path}"
 
 try:
     df = pd.read_csv(file_path)
-    print(f"✅ Successfully loaded {{len(df)}} rows and {{len(df.columns)}} columns")
-    print(f"📊 Data shape: {{df.shape}}")
+    print(f"✅ Successfully loaded {len(df)} rows and {len(df.columns)} columns")
+    print(f"📊 Data shape: {df.shape}")
 except Exception as e:
-    print(f"❌ Error loading data: {{e}}")
+    print(f"❌ Error loading data: {e}")
     df = pd.DataFrame()  # Empty fallback
 """
         else:
             return f"""
 # Unsupported file format: {file_ext}
-print(f"❌ Unsupported file format: {{file_ext}}")
+print(f"❌ Unsupported file format: {file_ext}")
 df = pd.DataFrame()  # Empty fallback
 """
 
@@ -166,13 +166,13 @@ df = pd.DataFrame()  # Empty fallback
 
 if not df.empty:
     print("=" * 60)
-    print(f"📋 DATA PROFILING REPORT - {{sheet_name}}")
+    print(f"📋 DATA PROFILING REPORT - {sheet_name}")
     print("=" * 60)
 
     # Basic Information
     print("\\n🔍 BASIC INFORMATION")
-    print(f"Shape: {{df.shape}}")
-    print(f"Memory usage: {{df.memory_usage(deep=True).sum() / 1024**2:.2f}} MB")
+    print(f"Shape: {df.shape}")
+    print(f"Memory usage: {df.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
 
     # Column Information
     print("\\n📊 COLUMN ANALYSIS")
@@ -182,7 +182,7 @@ if not df.empty:
         null_pct = (null_count / len(df)) * 100
         unique_count = df[col].nunique()
 
-        print(f"  {{col:<30}} | {{dtype!s:<12}} | Nulls: {{null_count:>6}} ({{null_pct:>5.1f}}%) | Unique: {{unique_count:>6}}")
+        print(f"  {col:<30} | {dtype!s:<12} | Nulls: {null_count:>6} ({null_pct:>5.1f}%) | Unique: {unique_count:>6}")
 
     # Statistical Summary
     print("\\n📈 STATISTICAL SUMMARY")
@@ -194,11 +194,11 @@ if not df.empty:
 
     # Missing Values Analysis
     print("\\n❓ MISSING VALUES ANALYSIS")
-    missing_summary = pd.DataFrame({{
-        'Column': df.columns,
+    missing_summary = pd.DataFrame({
+            "Column": df.columns,
         'Missing_Count': df.isnull().sum(),
         'Missing_Percentage': (df.isnull().sum() / len(df)) * 100
-    }}).sort_values('Missing_Percentage', ascending=False)
+    }).sort_values('Missing_Percentage', ascending=False)
 
     display(missing_summary[missing_summary['Missing_Count'] > 0])
 
@@ -221,16 +221,16 @@ if not df.empty:
 
     # Duplicate rows
     duplicate_count = df.duplicated().sum()
-    print(f"Duplicate rows: {{duplicate_count}} ({{duplicate_count / len(df) * 100:.1f}}%)")
+    print(f"Duplicate rows: {duplicate_count} ({duplicate_count / len(df) * 100:.1f}%)")
 
     # Empty rows
     empty_rows = df.isnull().all(axis=1).sum()
-    print(f"Completely empty rows: {{empty_rows}}")
+    print(f"Completely empty rows: {empty_rows}")
 
     # Potential ID columns
     potential_ids = [col for col in df.columns if df[col].nunique() == len(df) and not df[col].isnull().any()]
     if potential_ids:
-        print(f"Potential ID columns: {{potential_ids}}")
+        print(f"Potential ID columns: {potential_ids}")
 
 else:
     print("❌ No data available for profiling")
@@ -342,7 +342,7 @@ try:
     worksheet = workbook[sheet_name]
 
     print("=" * 60)
-    print(f"🧮 FORMULA ANALYSIS REPORT - {{sheet_name}}")
+    print(f"🧮 FORMULA ANALYSIS REPORT - {sheet_name}")
     print("=" * 60)
 
     # Extract all formulas
@@ -355,16 +355,16 @@ try:
             if cell.value is not None:
                 if isinstance(cell.value, str) and cell.value.startswith('='):
                     formulas.append(cell.value)
-                    formula_cells.append(f"{{get_column_letter(cell.column)}}{{cell.row}}")
+                    formula_cells.append(f"{get_column_letter(cell.column)}{cell.row}")
                 elif isinstance(cell.value, str) and any(err in str(cell.value) for err in ['#DIV/0!', '#VALUE!', '#REF!', '#N/A', '#NUM!', '#NAME?', '#NULL!']):
-                    error_cells.append({{
-                        'cell': f"{{get_column_letter(cell.column)}}{{cell.row}}",
+                    error_cells.append({
+            "cell": f"{get_column_letter(cell.column)}{cell.row}",
                         'error': cell.value
-                    }})
+                    })
 
     print(f"\\n📊 FORMULA SUMMARY")
-    print(f"Total cells with formulas: {{len(formulas)}}")
-    print(f"Cells with errors: {{len(error_cells)}}")
+    print(f"Total cells with formulas: {len(formulas)}")
+    print(f"Cells with errors: {len(error_cells)}")
 
     if formulas:
         # Analyze formula types
@@ -380,15 +380,15 @@ try:
             function_counts = Counter(formula_functions)
             print("Most common functions:")
             for func, count in function_counts.most_common(10):
-                print(f"  {{func}}: {{count}} times")
+                print(f"  {func}: {count} times")
 
         # Show sample formulas
         print(f"\\n📝 SAMPLE FORMULAS")
         for i, (cell, formula) in enumerate(zip(formula_cells[:5], formulas[:5])):
-            print(f"  {{cell}}: {{formula}}")
+            print(f"  {cell}: {formula}")
 
         if len(formulas) > 5:
-            print(f"  ... and {{len(formulas) - 5}} more")
+            print(f"  ... and {len(formulas) - 5} more")
 
     # Error Analysis
     if error_cells:
@@ -397,11 +397,11 @@ try:
 
         print("Error breakdown:")
         for error_type, count in error_types.items():
-            print(f"  {{error_type}}: {{count}} occurrences")
+            print(f"  {error_type}: {count} occurrences")
 
         print(f"\\nFirst 10 error locations:")
         for error in error_cells[:10]:
-            print(f"  {{error['cell']}}: {{error['error']}}")
+            print(f"  {error["cell"]}: {error["error"]}")
     else:
         print(f"\\n✅ No formula errors detected!")
 
@@ -411,17 +411,17 @@ try:
         complex_formulas = [f for f in formulas if len(f) > 100 or f.count('(') > 3]
 
         if complex_formulas:
-            print(f"Complex formulas (>100 chars or >3 nested functions): {{len(complex_formulas)}}")
+            print(f"Complex formulas (>100 chars or >3 nested functions): {len(complex_formulas)}")
             print("Examples:")
             for i, formula in enumerate(complex_formulas[:3]):
-                print(f"  {{{{i+1}}}}. {{{{formula[:80]}}}}..." if len(formula) > 80 else f"  {{{{i+1}}}}. {{{{formula}}}}")
+                print(f"  {i + 1}. {formula[:80]}..." if len(formula) > 80 else f"  {i + 1}. {formula}")
         else:
             print("No overly complex formulas detected")
 
     workbook.close()
 
 except Exception as e:
-    print(f"❌ Error analyzing formulas: {{e}}")
+    print(f"❌ Error analyzing formulas: {e}")
 """
 
     def _format_source(self, content: str) -> list[str]:
@@ -505,7 +505,7 @@ if 'df' in locals() and not df.empty:
     if len(numeric_cols) == 0:
         print("❌ No numeric columns found for outlier detection")
     else:
-        print(f"\\n📊 Analyzing {{len(numeric_cols)}} numeric columns for outliers...")
+        print(f"\\n📊 Analyzing {len(numeric_cols)} numeric columns for outliers...")
 
         outlier_summary = []
 
@@ -527,7 +527,7 @@ if 'df' in locals() and not df.empty:
             z_scores = np.abs((df[col] - df[col].mean()) / df[col].std())
             zscore_outliers = df[z_scores > 3]
 
-            outlier_summary.append({{
+            outlier_summary.append({
                 'Column': col,
                 'IQR_Outliers': len(iqr_outliers),
                 'ZScore_Outliers': len(zscore_outliers),
@@ -535,20 +535,20 @@ if 'df' in locals() and not df.empty:
                 'Max_Value': df[col].max(),
                 'Mean': df[col].mean(),
                 'Std': df[col].std()
-            }})
+            })
 
             # Print detailed analysis for columns with outliers
             if len(iqr_outliers) > 0 or len(zscore_outliers) > 0:
-                print(f"\\n🚨 OUTLIERS DETECTED in '{{col}}':")
-                print(f"  IQR Method: {{len(iqr_outliers)}} outliers ({{len(iqr_outliers)/len(df)*100:.1f}}%)")
-                print(f"  Z-Score Method: {{len(zscore_outliers)}} outliers ({{len(zscore_outliers)/len(df)*100:.1f}}%)")
-                print(f"  Value range: {{df[col].min():.2f}} to {{df[col].max():.2f}}")
-                print(f"  Expected range (IQR): {{lower_bound:.2f}} to {{upper_bound:.2f}}")
+                print(f"\\n🚨 OUTLIERS DETECTED in '{col}':")
+                print(f"  IQR Method: {len(iqr_outliers)} outliers ({len(iqr_outliers)/len(df)*100:.1f}%)")
+                print(f"  Z-Score Method: {len(zscore_outliers)} outliers ({len(zscore_outliers)/len(df)*100:.1f}%)")
+                print(f"  Value range: {df[col].min():.2f} to {df[col].max():.2f}")
+                print(f"  Expected range (IQR): {lower_bound:.2f} to {upper_bound:.2f}")
 
                 # Show some outlier values
                 if len(iqr_outliers) > 0:
                     outlier_values = iqr_outliers[col].values
-                    print(f"  Sample outlier values: {{outlier_values[:5].tolist()}}")
+                    print(f"  Sample outlier values: {outlier_values[:5].tolist()}")
 
         # Summary table
         if outlier_summary:
@@ -576,7 +576,7 @@ if 'df' in locals() and not df.empty:
 
                 for i, col in enumerate(cols_with_outliers[:len(axes)]):
                     if i < len(axes):
-                        df[col].plot(kind='box', ax=axes[i], title=f'Box Plot: {{col}}')
+                        df[col].plot(kind='box', ax=axes[i], title=f'Box Plot: {col}')
                         axes[i].grid(True, alpha=0.3)
 
                 # Hide empty subplots

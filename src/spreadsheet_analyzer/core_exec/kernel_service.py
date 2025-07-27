@@ -406,7 +406,8 @@ class KernelService:
         all_messages_seen = []  # Track all messages for debugging
 
         # Wait for execution to complete
-        deadline = time.time() + timeout
+        start_time = time.time()
+        deadline = start_time + timeout
 
         # Brief initial delay to allow kernel to start processing
         await asyncio.sleep(0.05)  # Increased from 0.01
@@ -415,8 +416,12 @@ class KernelService:
         first_message_seen = False
         while time.time() < deadline:
             try:
-                # Use shorter timeout for initial messages to catch them quickly
-                timeout_val = 0.05 if not first_message_seen else min(1.0, deadline - time.time())
+                # Use profile-configured timeout for initial messages
+                if not first_message_seen:
+                    # Use the configured initial drain timeout
+                    timeout_val = self.profile.output_drain_timeout_ms / 1000.0
+                else:
+                    timeout_val = min(1.0, deadline - time.time())
                 msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=timeout_val)
                 first_message_seen = True
 
@@ -488,9 +493,8 @@ class KernelService:
 
             except TimeoutError:
                 if not first_message_seen and len(all_messages_seen) == 0:
-                    logger.warning(
-                        f"No messages received at all for msg_id={msg_id} after {time.time() - (deadline - timeout):.2f}s"
-                    )
+                    elapsed = time.time() - start_time
+                    logger.warning(f"No messages received at all for msg_id={msg_id} after {elapsed:.2f}s")
                 if not idle_received:
                     status = "timeout"
                 break

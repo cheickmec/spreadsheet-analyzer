@@ -14,7 +14,7 @@ from spreadsheet_analyzer.plugins.spreadsheet.io.excel_io import list_sheets
 async def main():
     """Run analysis on Business Accounting file."""
     # Path to the Business Accounting file
-    excel_path = Path("test-files/business-accounting/Business Accounting.xlsx")
+    excel_path = Path("test_assets/collection/business-accounting/Business Accounting.xlsx")
 
     if not excel_path.exists():
         print(f"Error: File not found at {excel_path}")
@@ -23,15 +23,11 @@ async def main():
     print(f"Analyzing file: {excel_path}")
 
     # List available sheets
-    try:
-        sheets = await list_sheets(excel_path)
-        print(f"\nAvailable sheets: {sheets}")
-    except Exception as e:
-        print(f"Error listing sheets: {e}")
-        sheets = ["Sheet1"]  # Default fallback
+    sheets = list_sheets(excel_path)
+    print(f"\nAvailable sheets: {sheets}")
 
     # Select the first sheet
-    sheet_name = sheets[0] if sheets else "Sheet1"
+    sheet_name = sheets[0]
     print(f"\nAnalyzing sheet: '{sheet_name}'")
 
     # Run analysis with quality-driven iterations

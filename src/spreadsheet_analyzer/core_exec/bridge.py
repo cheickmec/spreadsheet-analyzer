@@ -13,7 +13,7 @@ No domain-specific logic - pure execution orchestration.
 
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .kernel_service import ExecutionResult, KernelService, KernelTimeoutError
@@ -248,16 +248,16 @@ class ExecutionBridge:
             if self.execution_timeout:
                 # Use custom timeout if provided
                 original_timeout = self.kernel_service.profile.max_execution_time
-                self.kernel_service.profile = self.kernel_service.profile._replace(
-                    max_execution_time=self.execution_timeout
+                self.kernel_service.profile = replace(
+                    self.kernel_service.profile, max_execution_time=self.execution_timeout
                 )
 
                 try:
                     result = await self.kernel_service.execute(session_id, code)
                 finally:
                     # Restore original timeout
-                    self.kernel_service.profile = self.kernel_service.profile._replace(
-                        max_execution_time=original_timeout
+                    self.kernel_service.profile = replace(
+                        self.kernel_service.profile, max_execution_time=original_timeout
                     )
 
                 return result

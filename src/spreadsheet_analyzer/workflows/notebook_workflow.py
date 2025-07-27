@@ -194,16 +194,29 @@ class NotebookWorkflow:
         try:
             # Initialize kernel service if needed
             if self._kernel_service is None:
-                self._kernel_service = KernelService()
+                self._kernel_service = KernelService(config.kernel_profile)
 
             if self._execution_bridge is None:
                 self._execution_bridge = ExecutionBridge(self._kernel_service)
 
             # Execute notebook
-            async with self._kernel_service.create_session(config.kernel_profile) as session_id:
-                result.execution_stats = await self._execution_bridge.execute_notebook(
-                    result.notebook, session_id, timeout=config.execute_timeout
-                )
+            session_id = await self._kernel_service.create_session("default")
+            try:
+                # ExecutionBridge returns the updated notebook, not stats
+                executed_notebook = await self._execution_bridge.execute_notebook(session_id, result.notebook)
+                result.notebook = executed_notebook
+
+                # Extract execution stats from notebook metadata if available
+                notebook_dict = result.notebook.to_dict()
+                if "metadata" in notebook_dict and "execution_stats" in notebook_dict["metadata"]:
+                    stats_data = notebook_dict["metadata"]["execution_stats"]
+                    result.execution_stats = ExecutionStats(
+                        total_cells=stats_data.get("total_cells", 0),
+                        executed_cells=stats_data.get("executed_cells", 0),
+                        skipped_cells=stats_data.get("skipped_cells", 0),
+                        error_cells=stats_data.get("error_cells", 0),
+                        total_duration_seconds=stats_data.get("total_duration_seconds", 0.0),
+                    )
 
                 # Post-process with tasks if they support it
                 context = {
@@ -220,6 +233,10 @@ class NotebookWorkflow:
                             result.notebook.add_cell(cell)
                     except Exception as e:
                         result.warnings.append(f"Task {task.name} postprocess failed: {e!s}")
+            finally:
+                # Clean up session if the service has a close_session method
+                if hasattr(self._kernel_service, "close_session"):
+                    await self._kernel_service.close_session(session_id)
 
         except Exception as e:
             result.errors.append(f"Notebook execution failed: {e!s}")
@@ -232,7 +249,7 @@ class NotebookWorkflow:
                 return
 
             # Load existing notebook
-            result.notebook = self.notebook_io.load_notebook(config.file_path)
+            result.notebook = self.notebook_io.read_notebook(config.file_path)
 
             # Execute it
             await self._execute_notebook(config, result)
@@ -337,7 +354,7 @@ class NotebookWorkflow:
     async def cleanup(self) -> None:
         """Clean up resources."""
         if self._kernel_service:
-            await self._kernel_service.cleanup()
+            await self._kernel_service.shutdown()
 
 
 # Convenience functions for common use cases
