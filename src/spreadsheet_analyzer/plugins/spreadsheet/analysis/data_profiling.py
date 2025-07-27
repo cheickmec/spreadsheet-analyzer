@@ -595,17 +595,17 @@ if 'df' in globals():
 
 async def check_profiling_installed() -> bool:
     """Check if YData-Profiling is installed."""
-    try:
-        import ydata_profiling
+    import importlib.util
 
+    # Check for current name
+    if importlib.util.find_spec("ydata_profiling") is not None:
         return True
-    except ImportError:
-        try:
-            import pandas_profiling  # Legacy name
 
-            return True
-        except ImportError:
-            return False
+    # Check for legacy name
+    if importlib.util.find_spec("pandas_profiling") is not None:
+        return True
+
+    return False
 
 
 def generate_comprehensive_quality_code(
