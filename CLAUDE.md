@@ -54,3 +54,87 @@ Use these standardized comment anchors to provide essential context for future d
 - **CLAUDE-TEST-WORKAROUND**: Testing limitations and their solutions
 - **CLAUDE-SECURITY**: Security considerations and requirements
 - **CLAUDE-PERFORMANCE**: Performance implications and optimization notes
+
+## Code Generation Patterns
+
+### F-String Escaping in Code Generation
+
+When generating Python code that contains f-strings, proper brace escaping is critical. This applies particularly to task-based code generation for notebook cells.
+
+#### Key Principle
+
+- **Single braces `{}`**: For variables available during code generation (function parameters)
+- **Double braces `{{}}`**: For variables that will exist in the generated code
+
+#### Examples
+
+```python
+# CLAUDE-GOTCHA: F-strings within f-strings require careful escaping
+def _generate_load_code(self, file_path: str, sheet_name: str) -> str:
+    """Generate code to load spreadsheet data."""
+    return f"""
+# Load Excel data
+file_path = r"{file_path}"  # ✅ Single braces - file_path is a parameter
+sheet_name = "{sheet_name}"  # ✅ Single braces - sheet_name is a parameter
+
+try:
+    df = pd.read_excel(file_path, sheet_name=sheet_name)
+    # ❌ WRONG: print(f"Loaded {len(df)} rows")  # NameError: 'df' not defined during generation
+    # ✅ RIGHT: Escape braces for runtime variables
+    print(f"Loaded {{len(df)}} rows and {{df.shape[1]}} columns")  
+    print(f"Shape: {{df.shape}}")  # ✅ df will exist when generated code runs
+except Exception as e:
+    print(f"Error: {{e}}")  # ✅ e will exist in the except block
+"""
+```
+
+#### Common Patterns
+
+1. **DataFrame operations in generated code**:
+
+   ```python
+   # In code generation function:
+   return f"""
+   print(f"DataFrame shape: {{df.shape}}")
+   print(f"Columns: {{', '.join(df.columns)}}")
+   print(f"Missing values: {{df.isnull().sum().sum()}}")
+   """
+   ```
+
+1. **Dictionary literals in generated f-strings**:
+
+   ```python
+   # In code generation function:
+   return f"""
+   summary = pd.DataFrame({{
+       'Column': df.columns,
+       'Missing': df.isnull().sum()
+   }})
+   """
+   ```
+
+1. **Loop variables and cell references**:
+
+   ```python
+   # In code generation function:
+   return f"""
+   for row in worksheet.iter_rows():
+       for cell in row:
+           # Use string concatenation or format() for complex expressions
+           cell_ref = f"{{get_column_letter(cell.column)}}{{cell.row}}"
+           print(f"Cell {{cell_ref}}: {{cell.value}}")
+   """
+   ```
+
+#### Debugging Tips
+
+1. **NameError during generation**: Variable needs double braces `{{}}`
+1. **SyntaxError with f-strings**: Check for mismatched braces or quotes
+1. **ValueError: Invalid format specifier**: Complex expressions may need alternative formatting
+
+#### Best Practices
+
+1. Test code generation by running the generation function and inspecting output
+1. Use string concatenation or `.format()` for very complex expressions
+1. Keep generated f-strings simple - extract complex logic to variables first
+1. Add comments in generated code to clarify what executes when

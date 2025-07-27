@@ -110,15 +110,24 @@ class DataProfilingTask(BaseTask):
 # Data profiling imports
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
-# Set up plotting
-plt.style.use('default')
-sns.set_palette("husl")
+# Print to confirm imports loaded
+print("✅ Basic data analysis libraries loaded")
+
+# Import plotting libraries (these can be slow)
+try:
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    plt.style.use('default')
+    sns.set_palette("husl")
+    print("✅ Plotting libraries loaded")
+except ImportError as e:
+    print(f"⚠️  Plotting libraries not available: {e}")
+    plt = None
+    sns = None
 """
 
     def _generate_load_code(self, file_path: str, sheet_name: str) -> str:
@@ -139,7 +148,7 @@ except Exception as e:
     print(f"❌ Error loading data: {{e}}")
     df = pd.DataFrame()  # Empty fallback
 """
-        elif file_ext == ".csv":
+        if file_ext == ".csv":
             return f"""
 # Load CSV data
 file_path = r"{file_path}"
@@ -505,7 +514,7 @@ if 'df' in locals() and not df.empty:
     if len(numeric_cols) == 0:
         print("❌ No numeric columns found for outlier detection")
     else:
-        print(f"\\n📊 Analyzing {{{{len(numeric_cols)}}}} numeric columns for outliers...")
+        print(f"\\n📊 Analyzing {{len(numeric_cols)}} numeric columns for outliers...")
 
         outlier_summary = []
 
@@ -527,7 +536,7 @@ if 'df' in locals() and not df.empty:
             z_scores = np.abs((df[col] - df[col].mean()) / df[col].std())
             zscore_outliers = df[z_scores > 3]
 
-            outlier_summary.append({{
+            outlier_summary.append({
                 'Column': col,
                 'IQR_Outliers': len(iqr_outliers),
                 'ZScore_Outliers': len(zscore_outliers),
@@ -535,7 +544,7 @@ if 'df' in locals() and not df.empty:
                 'Max_Value': df[col].max(),
                 'Mean': df[col].mean(),
                 'Std': df[col].std()
-            }})
+            })
 
             # Print detailed analysis for columns with outliers
             if len(iqr_outliers) > 0 or len(zscore_outliers) > 0:

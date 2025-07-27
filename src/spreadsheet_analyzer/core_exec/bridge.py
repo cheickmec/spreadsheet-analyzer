@@ -262,7 +262,10 @@ class ExecutionBridge:
 
                 return result
             else:
-                return await self.kernel_service.execute(session_id, code)
+                result = await self.kernel_service.execute(session_id, code)
+                # Add small delay to allow kernel to stabilize between executions
+                await asyncio.sleep(0.1)
+                return result
 
         except KernelTimeoutError as e:
             # Convert timeout to execution result

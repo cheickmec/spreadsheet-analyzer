@@ -210,20 +210,45 @@ class KernelService:
         # Wait for channels to be ready
         await asyncio.sleep(0.5)  # Increased from 0.1 to match working example
 
-        # Warm up the kernel with a simple execution
-        warmup_msg_id = client.execute("pass")
-        warmup_deadline = time.time() + 2.0
-        while time.time() < warmup_deadline:
+        # Wait for kernel to be ready
+        logger.debug("Waiting for kernel to be ready...")
+        ready_deadline = time.time() + 5.0
+        kernel_ready = False
+
+        while time.time() < ready_deadline:
             try:
+                # Check if kernel is responsive by waiting for any status message
                 msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=0.1)
-                if (
-                    msg.get("parent_header", {}).get("msg_id") == warmup_msg_id
-                    and msg.get("msg_type") == "status"
-                    and msg.get("content", {}).get("execution_state") == "idle"
-                ):
+                if msg.get("msg_type") == "status" and msg.get("content", {}).get("execution_state") == "idle":
+                    kernel_ready = True
+                    logger.debug("Kernel is ready (idle status received)")
                     break
             except TimeoutError:
+                # No message yet, keep waiting
                 pass
+
+        if not kernel_ready:
+            # Try a simple execution to ensure kernel is ready
+            logger.debug("Performing kernel warmup execution...")
+            warmup_msg_id = client.execute("1+1")
+
+            # Wait for completion
+            warmup_deadline = time.time() + 2.0
+            while time.time() < warmup_deadline:
+                try:
+                    msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=0.1)
+                    if msg.get("parent_header", {}).get("msg_id") == warmup_msg_id:
+                        if msg.get("msg_type") == "status" and msg.get("content", {}).get("execution_state") == "idle":
+                            logger.debug("Kernel warmup completed")
+                            break
+                except TimeoutError:
+                    pass
+
+        # Clear any pending messages after warmup
+        await self._clear_pending_messages(client)
+
+        # Brief stabilization delay
+        await asyncio.sleep(0.1)
 
         # Store session info
         self._sessions[session_id] = kernel_manager
@@ -410,7 +435,7 @@ class KernelService:
         deadline = start_time + timeout
 
         # Brief initial delay to allow kernel to start processing
-        await asyncio.sleep(0.05)  # Increased from 0.01
+        await asyncio.sleep(0.1)  # Increased to give kernel more time
 
         # Phase 1: Collect messages until idle status
         first_message_seen = False
@@ -418,8 +443,8 @@ class KernelService:
             try:
                 # Use profile-configured timeout for initial messages
                 if not first_message_seen:
-                    # Use the configured initial drain timeout
-                    timeout_val = self.profile.output_drain_timeout_ms / 1000.0
+                    # Use a longer timeout for the first message
+                    timeout_val = min(0.5, deadline - time.time())  # 500ms for first message
                 else:
                     timeout_val = min(1.0, deadline - time.time())
                 msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=timeout_val)
@@ -428,12 +453,16 @@ class KernelService:
                 # Debug logging
                 msg_type = msg.get("msg_type", "unknown")
                 parent_msg_id = msg.get("parent_header", {}).get("msg_id", "none")
+                content = msg.get("content", {})
                 all_messages_seen.append(
                     {
                         "msg_type": msg_type,
                         "parent_msg_id": parent_msg_id,
                         "our_msg_id": msg_id,
                         "matches": parent_msg_id == msg_id,
+                        "content_preview": str(content)[:100]
+                        if msg_type not in ["execute_input", "status"]
+                        else msg_type,
                     }
                 )
 
@@ -592,6 +621,9 @@ class KernelService:
                 f"Total messages seen: {len(all_messages_seen)}, "
                 f"Matching messages: {sum(1 for m in all_messages_seen if m['matches'])}"
             )
+            matching_msgs = [m for m in all_messages_seen if m["matches"]]
+            if matching_msgs:
+                logger.warning(f"Matching messages were: {matching_msgs}")
             for i, msg_info in enumerate(all_messages_seen):
                 logger.debug(f"Message {i}: {msg_info}")
 
