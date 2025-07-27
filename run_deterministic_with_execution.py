@@ -41,8 +41,15 @@ async def main():
     tasks = registry.list_tasks()
 
     # Filter for deterministic tasks only
+    print("\n🔍 Checking tasks for deterministic flag:")
+    for task in tasks:
+        has_flag = hasattr(task, "is_deterministic")
+        flag_value = getattr(task, "is_deterministic", None) if has_flag else None
+        print(f"   - {task.name}: has_flag={has_flag}, value={flag_value}")
+
     deterministic_tasks = [task for task in tasks if hasattr(task, "is_deterministic") and task.is_deterministic]
     if not deterministic_tasks:
+        print("   ℹ️  No tasks have is_deterministic flag, using all tasks")
         deterministic_tasks = tasks  # Use all if no explicit deterministic flag
 
     # Get task names

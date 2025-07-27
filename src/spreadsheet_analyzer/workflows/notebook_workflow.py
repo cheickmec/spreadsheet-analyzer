@@ -184,7 +184,11 @@ class NotebookWorkflow:
                     result.notebook.add_markdown_cell(f"---\n\n*End of {task.name}*\n\n---")
 
                 except Exception as e:
+                    import traceback
+
+                    tb = traceback.format_exc()
                     result.warnings.append(f"Task {task.name} failed: {e!s}")
+                    print(f"\n❌ Task {task.name} failed with traceback:\n{tb}")
 
         except Exception as e:
             result.errors.append(f"Notebook building failed: {e!s}")
