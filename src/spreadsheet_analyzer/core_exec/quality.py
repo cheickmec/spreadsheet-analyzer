@@ -280,8 +280,9 @@ class QualityInspector:
             )
 
         # Check for notebook structure patterns
-        if notebook.cells:
-            first_cell = notebook.cells[0]
+        notebook_cells = notebook.to_notebook().cells
+        if notebook_cells:
+            first_cell = notebook_cells[0]
             if first_cell.cell_type != "markdown":
                 issues.append(
                     QualityIssue(
