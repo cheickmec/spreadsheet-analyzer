@@ -16,11 +16,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from queue import Empty
 from typing import Any
 
-import nbformat
 from jupyter_client import AsyncKernelManager
-from nbclient import NotebookClient
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +195,7 @@ class KernelService:
         self._session_last_used[session_id] = time.time()
 
         logger.info(f"Created kernel session {session_id}")
-        return self._kernel_manager.kernel_id
+        return session_id
 
     async def execute(self, session_id: str, code: str) -> ExecutionResult:
         """
@@ -222,31 +221,100 @@ class KernelService:
         start_time = time.time()
 
         try:
-            # Create a temporary notebook with single cell
-            nb = nbformat.v4.new_notebook()
-            nb.cells = [nbformat.v4.new_code_cell(source=code)]
+            # Get the kernel client from the session
+            kernel_client = session["client"]
 
-            # Use nbclient for robust execution
-            client = NotebookClient(
-                nb,
-                timeout=self.profile.max_execution_time,
-                kernel_name=self.profile.name,
-                resources={"metadata": {"session_id": session_id}},
+            # Execute code directly on the kernel
+            msg_id = kernel_client.execute(code)
+
+            # Collect outputs
+            outputs = []
+            execution_count = None
+            error = None
+
+            # Process messages until execution is complete
+            timeout_remaining = self.profile.max_execution_time
+            while True:
+                try:
+                    msg = await kernel_client.get_iopub_msg(timeout=timeout_remaining)
+                    msg_type = msg["header"]["msg_type"]
+                    content = msg["content"]
+
+                    if msg_type == "stream":
+                        outputs.append(
+                            {"type": "stream", "name": content.get("name", "stdout"), "text": content.get("text", "")}
+                        )
+                    elif msg_type == "execute_result":
+                        execution_count = content.get("execution_count", 1)
+                        outputs.append(
+                            {
+                                "type": "execute_result",
+                                "execution_count": execution_count,
+                                "data": content.get("data", {}),
+                                "metadata": content.get("metadata", {}),
+                            }
+                        )
+                    elif msg_type == "display_data":
+                        outputs.append(
+                            {
+                                "type": "display_data",
+                                "data": content.get("data", {}),
+                                "metadata": content.get("metadata", {}),
+                            }
+                        )
+                    elif msg_type == "error":
+                        error = {
+                            "ename": content.get("ename", "Error"),
+                            "evalue": content.get("evalue", ""),
+                            "traceback": content.get("traceback", []),
+                        }
+                    elif msg_type == "status" and content.get("execution_state") == "idle":
+                        # Execution complete
+                        break
+
+                except TimeoutError:
+                    raise KernelTimeoutError(f"Execution timed out after {self.profile.max_execution_time}s")
+
+            # Get execution reply
+            reply = await kernel_client.get_shell_msg(timeout=self.profile.max_execution_time)
+            status = reply["content"]["status"]
+
+            duration = time.time() - start_time
+
+            return ExecutionResult(
+                status="error" if error else status,
+                outputs=outputs,
+                error=error,
+                duration_seconds=duration,
+                execution_count=execution_count or 1,
             )
 
-            # Execute using nbclient's battle-tested logic
-            await client.async_execute()
-
-            # Extract results from the executed cell
-            executed_cell = nb.cells[0]
+        except KernelTimeoutError as e:
             duration = time.time() - start_time
-
-            # Convert nbclient results to our ExecutionResult format
-            return self._convert_nbclient_results(executed_cell, duration)
-
+            logger.error(f"Execution timed out for session {session_id}: {e}")
+            return ExecutionResult(
+                status="error",
+                outputs=[],
+                error={"ename": "TimeoutError", "evalue": str(e), "traceback": []},
+                duration_seconds=duration,
+            )
+        except (TimeoutError, Empty):
+            # Handle both asyncio.TimeoutError and queue.Empty as timeout
+            duration = time.time() - start_time
+            logger.error(f"Execution timed out for session {session_id}")
+            return ExecutionResult(
+                status="error",
+                outputs=[],
+                error={
+                    "ename": "TimeoutError",
+                    "evalue": f"Execution timed out after {self.profile.max_execution_time}s",
+                    "traceback": [],
+                },
+                duration_seconds=duration,
+            )
         except Exception as e:
             duration = time.time() - start_time
-            logger.error(f"Execution failed for session {session_id}: {e}")
+            logger.error(f"Execution failed for session {session_id}: {type(e).__name__}: {e}")
 
             # Return error result
             return ExecutionResult(

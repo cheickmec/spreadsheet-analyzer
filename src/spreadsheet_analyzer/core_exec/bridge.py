@@ -105,11 +105,16 @@ class ExecutionBridge:
 
             try:
                 # Execute the cell
-                result = await self.kernel_service.execute(session_id, cell.source)
+                # Convert list of strings to single string if needed
+                source = cell.source if isinstance(cell.source, str) else "\n".join(cell.source)
+                result = await self.kernel_service.execute(session_id, source)
 
                 # Update cell with execution results
                 cell.execution_count = result.execution_count
-                cell.outputs = result.outputs
+                # Format outputs to nbformat standard
+                from .notebook_io import NotebookIO
+
+                cell.outputs = NotebookIO.convert_outputs_to_nbformat(result.outputs)
 
                 # Auto-persist results if enabled
                 if self.enable_persistence and self.auto_glue_results and result.status == "ok":
@@ -156,11 +161,16 @@ class ExecutionBridge:
 
             try:
                 # Execute the cell
-                result = await self.kernel_service.execute(session_id, cell.source)
+                # Convert list of strings to single string if needed
+                source = cell.source if isinstance(cell.source, str) else "\n".join(cell.source)
+                result = await self.kernel_service.execute(session_id, source)
 
                 # Update cell with execution results
                 cell.execution_count = result.execution_count
-                cell.outputs = result.outputs
+                # Format outputs to nbformat standard
+                from .notebook_io import NotebookIO
+
+                cell.outputs = NotebookIO.convert_outputs_to_nbformat(result.outputs)
 
                 # Auto-persist results if enabled
                 if self.enable_persistence and self.auto_glue_results and result.status == "ok":
@@ -321,11 +331,11 @@ sb.glue('{result_name}', {data_to_persist!r})
         try:
             # Execute code to retrieve the scrapbook data
             retrieve_code = f"""
-import scrapbook as sb
 try:
-    result = sb.read_notebook().scraps.get('{result_name}')
-    if result:
-        print(result.data)
+    # For in-memory execution, we can't use scrapbook's read_notebook
+    # Instead, check if the variable exists in the kernel namespace
+    if '{result_name}' in globals():
+        print(repr({result_name}))
     else:
         print("None")
 except Exception as e:

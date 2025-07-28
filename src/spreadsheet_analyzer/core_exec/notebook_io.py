@@ -177,37 +177,37 @@ class NotebookIO:
 
             if output_type == "stream":
                 formatted_outputs.append(
-                    {
-                        "output_type": "stream",
-                        "name": output.get("name", "stdout"),
-                        "text": NotebookIO._ensure_text_list(output.get("text", "")),
-                    }
+                    nbformat.v4.new_output(
+                        output_type="stream",
+                        name=output.get("name", "stdout"),
+                        text=NotebookIO._ensure_text_list(output.get("text", "")),
+                    )
                 )
             elif output_type == "execute_result":
                 formatted_outputs.append(
-                    {
-                        "output_type": "execute_result",
-                        "execution_count": output.get("execution_count", 1),
-                        "data": output.get("data", {}),
-                        "metadata": output.get("metadata", {}),
-                    }
+                    nbformat.v4.new_output(
+                        output_type="execute_result",
+                        execution_count=output.get("execution_count", 1),
+                        data=output.get("data", {}),
+                        metadata=output.get("metadata", {}),
+                    )
                 )
             elif output_type == "display_data":
                 formatted_outputs.append(
-                    {
-                        "output_type": "display_data",
-                        "data": output.get("data", {}),
-                        "metadata": output.get("metadata", {}),
-                    }
+                    nbformat.v4.new_output(
+                        output_type="display_data",
+                        data=output.get("data", {}),
+                        metadata=output.get("metadata", {}),
+                    )
                 )
             elif output_type == "error":
                 formatted_outputs.append(
-                    {
-                        "output_type": "error",
-                        "ename": output.get("ename", "Error"),
-                        "evalue": output.get("evalue", "Unknown error"),
-                        "traceback": output.get("traceback", []),
-                    }
+                    nbformat.v4.new_output(
+                        output_type="error",
+                        ename=output.get("ename", "Error"),
+                        evalue=output.get("evalue", "Unknown error"),
+                        traceback=output.get("traceback", []),
+                    )
                 )
 
         return formatted_outputs

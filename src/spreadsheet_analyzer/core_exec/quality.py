@@ -137,7 +137,7 @@ class QualityInspector:
         cells_with_errors = 0
         total_lines = 0
 
-        for i, cell in enumerate(notebook.cells):
+        for i, cell in enumerate(notebook.to_notebook().cells):
             cell_content = "".join(cell.source).strip()
             cell_lines = len([line for line in cell.source if line.strip()])
             total_lines += cell_lines

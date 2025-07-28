@@ -10,6 +10,7 @@ This module provides domain-agnostic notebook construction functionality:
 No domain-specific logic - pure notebook construction primitives.
 """
 
+import json
 from typing import Any
 
 import nbformat
@@ -89,9 +90,17 @@ class NotebookBuilder:
         else:
             execution_count = None
 
+        # Convert outputs to nbformat if needed
+        if outputs:
+            from .notebook_io import NotebookIO
+
+            formatted_outputs = NotebookIO.convert_outputs_to_nbformat(outputs)
+        else:
+            formatted_outputs = []
+
         cell = nbformat.v4.new_code_cell(
             source=self._format_source(code),
-            outputs=outputs or [],
+            outputs=formatted_outputs,
             metadata=metadata or {},
             execution_count=execution_count,
         )
@@ -125,52 +134,6 @@ class NotebookBuilder:
         """
         self.notebook.cells.append(cell)
         return self
-
-    def add_notebook_llm_cell(self, cell: Any) -> "NotebookBuilder":
-        """
-        Add a notebook_llm.NotebookCell to the notebook (compatibility method).
-
-        Args:
-            cell: notebook_llm.NotebookCell object
-
-        Returns:
-            Self for method chaining
-        """
-        # Convert notebook_llm cell to nbformat cell
-        nbformat_cell = self._convert_notebook_llm_cell(cell)
-        self.notebook.cells.append(nbformat_cell)
-        return self
-
-    def _convert_notebook_llm_cell(self, cell: Any) -> Any:
-        """
-        Convert a notebook_llm.NotebookCell to nbformat cell.
-
-        Args:
-            cell: notebook_llm.NotebookCell object
-
-        Returns:
-            nbformat cell object
-        """
-        # Check if this is a notebook_llm cell by looking for cell_type attribute
-        if hasattr(cell, "cell_type") and hasattr(cell, "content"):
-            cell_type = cell.cell_type.value if hasattr(cell.cell_type, "value") else str(cell.cell_type)
-            content = cell.content
-
-            if cell_type == "markdown":
-                return nbformat.v4.new_markdown_cell(source=self._format_source(content), metadata=cell.metadata or {})
-            elif cell_type == "code":
-                return nbformat.v4.new_code_cell(
-                    source=self._format_source(content),
-                    outputs=cell.outputs or [],
-                    execution_count=cell.execution_order,
-                    metadata=cell.metadata or {},
-                )
-            else:
-                # For other cell types, treat as raw cell
-                return nbformat.v4.new_raw_cell(source=self._format_source(content), metadata=cell.metadata or {})
-        else:
-            # If it's already an nbformat cell, return as-is
-            return cell
 
     def insert_cell(self, index: int, cell: Any) -> "NotebookBuilder":
         """
@@ -266,6 +229,10 @@ class NotebookBuilder:
 
         return lines
 
+    import json
+
+    # ... (rest of the file)
+
     def to_dict(self) -> dict[str, Any]:
         """
         Convert notebook to dictionary format.
@@ -273,7 +240,7 @@ class NotebookBuilder:
         Returns:
             Dictionary representation of the notebook
         """
-        return nbformat.to_dict(self.notebook)
+        return json.loads(nbformat.writes(self.notebook))
 
     def to_notebook(self) -> Any:
         """
