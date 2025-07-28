@@ -1,0 +1,272 @@
+"""
+Notebook LLM Interface
+
+LangChain tools for notebook operations that can be presented to LLMs.
+"""
+
+from pathlib import Path
+from typing import Any
+
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+from result import Err, Ok
+
+import spreadsheet_analyzer.notebook_session
+from spreadsheet_analyzer.notebook_tools import CellType
+
+
+class ExecuteCodeInput(BaseModel):
+    code: str = Field(description="Python code to execute")
+    cell_id: str | None = Field(description="Optional cell ID for tracking", default=None)
+
+
+class EditAndExecuteInput(BaseModel):
+    cell_id: str = Field(description="Cell ID to edit and execute")
+    new_code: str = Field(description="New code content")
+
+
+class AddCellInput(BaseModel):
+    content: str = Field(description="Cell content")
+    cell_type: str = Field(description="Type of cell: 'code', 'markdown', or 'raw'")
+    position: int | None = Field(description="Position to insert cell (optional)", default=None)
+
+
+class DeleteCellInput(BaseModel):
+    cell_id: str = Field(description="Cell ID to delete")
+
+
+class ReadCellInput(BaseModel):
+    cell_id: str = Field(description="Cell ID to read")
+
+
+class GetStateInput(BaseModel):
+    session_id: str = Field(description="Session ID to get state for")
+
+
+class SaveNotebookInput(BaseModel):
+    session_id: str = Field(description="Session ID to save")
+    file_path: str | None = Field(description="File path to save to (optional)", default=None)
+
+
+# Global session manager
+_session_manager = None
+
+
+def get_session_manager() -> spreadsheet_analyzer.notebook_session.SessionManager:
+    """Get the global session manager."""
+    global _session_manager
+    if _session_manager is None:
+        from spreadsheet_analyzer.core_exec import KernelProfile, KernelService
+
+        kernel_service = KernelService(KernelProfile())
+        _session_manager = spreadsheet_analyzer.notebook_session.SessionManager(kernel_service)
+    return _session_manager
+
+
+@tool
+async def execute_code(input_data: ExecuteCodeInput) -> str:
+    """Execute Python code in a new cell."""
+    try:
+        session_manager = get_session_manager()
+        session = session_manager.get_session("default_session")
+
+        if not session:
+            return "Error: No active session found"
+
+        result = await session.toolkit.execute_code(code=input_data.code, cell_id=input_data.cell_id)
+
+        if isinstance(result, Err):
+            return f"Execution failed: {result.value}"
+
+        # Format the output for the LLM
+        outputs = []
+        for output in result.value.outputs:
+            if output.output_type == "stream":
+                outputs.append(f"[{output.metadata.get('name', 'output')}] {output.content}")
+            elif output.output_type == "execute_result":
+                outputs.append(f"Result: {output.content}")
+
+        return f"✅ Code executed successfully\nCell ID: {result.value.cell_id}\nOutputs:\n" + "\n".join(outputs)
+
+    except Exception as e:
+        return f"Error executing code: {e!s}"
+
+
+@tool
+async def edit_and_execute(input_data: EditAndExecuteInput) -> str:
+    """Edit an existing code cell and execute it immediately."""
+    try:
+        session_manager = get_session_manager()
+        session = session_manager.get_session("default_session")
+
+        if not session:
+            return "Error: No active session found"
+
+        # For now, we'll just execute the new code (edit + execute in one step)
+        result = await session.toolkit.execute_code(code=input_data.new_code, cell_id=input_data.cell_id)
+
+        if isinstance(result, Err):
+            return f"Edit and execute failed: {result.value}"
+
+        # Format the output for the LLM
+        outputs = []
+        for output in result.value.outputs:
+            if output.output_type == "stream":
+                outputs.append(f"[{output.metadata.get('name', 'output')}] {output.content}")
+            elif output.output_type == "execute_result":
+                outputs.append(f"Result: {output.content}")
+
+        return f"✅ Cell edited and executed successfully\nCell ID: {result.value.cell_id}\nOutputs:\n" + "\n".join(
+            outputs
+        )
+
+    except Exception as e:
+        return f"Error editing and executing: {e!s}"
+
+
+@tool
+async def add_cell(input_data: AddCellInput) -> str:
+    """Add a new cell to the notebook (code, markdown, or raw)."""
+    try:
+        session_manager = get_session_manager()
+        session = session_manager.get_session("default_session")
+
+        if not session:
+            return "Error: No active session found"
+
+        # Convert string to CellType enum
+        cell_type_map = {"code": CellType.CODE, "markdown": CellType.MARKDOWN, "raw": CellType.RAW}
+
+        if input_data.cell_type not in cell_type_map:
+            return f"Error: Invalid cell type '{input_data.cell_type}'. Must be 'code', 'markdown', or 'raw'"
+
+        cell_type = cell_type_map[input_data.cell_type]
+
+        # Handle different cell types appropriately
+        if cell_type == CellType.CODE:
+            result = await session.toolkit.execute_code(input_data.content)
+        elif cell_type == CellType.MARKDOWN:
+            result = await session.toolkit.render_markdown(input_data.content)
+        elif cell_type == CellType.RAW:
+            result = await session.toolkit.add_raw_cell(input_data.content)
+
+        if isinstance(result, Err):
+            return f"Failed to add cell: {result.value}"
+
+        cell_type_name = input_data.cell_type.capitalize()
+        return f"✅ {cell_type_name} cell added successfully\nCell ID: {result.value.cell_id}\nContent: {input_data.content[:100]}{'...' if len(input_data.content) > 100 else ''}"
+
+    except Exception as e:
+        return f"Error adding cell: {e!s}"
+
+
+@tool
+async def add_markdown_cell(input_data: AddCellInput) -> str:
+    """Add a markdown cell for documentation and formatting."""
+    try:
+        # Override the cell type to ensure it's markdown
+        input_data.cell_type = "markdown"
+        return await add_cell(input_data)
+    except Exception as e:
+        return f"Error adding markdown cell: {e!s}"
+
+
+@tool
+async def delete_cell(input_data: DeleteCellInput) -> str:
+    """Delete a cell from the notebook."""
+    try:
+        session_manager = get_session_manager()
+        session = session_manager.get_session("default_session")
+
+        if not session:
+            return "Error: No active session found"
+
+        # For now, we'll return a message (actual deletion would need cell tracking)
+        return f"✅ Cell {input_data.cell_id} marked for deletion (cell tracking not yet implemented)"
+
+    except Exception as e:
+        return f"Error deleting cell: {e!s}"
+
+
+@tool
+async def read_cell(input_data: ReadCellInput) -> str:
+    """Read the content and outputs of a specific cell."""
+    try:
+        session_manager = get_session_manager()
+        session = session_manager.get_session("default_session")
+
+        if not session:
+            return "Error: No active session found"
+
+        # For now, we'll return a message (actual cell reading would need cell tracking)
+        return f"Cell {input_data.cell_id} content and outputs (cell tracking not yet implemented)"
+
+    except Exception as e:
+        return f"Error reading cell: {e!s}"
+
+
+@tool
+async def get_notebook_state(input_data: GetStateInput) -> str:
+    """Get the current state of the notebook."""
+    try:
+        session_manager = get_session_manager()
+        session = session_manager.get_session("default_session")
+
+        if not session:
+            return "Error: No active session found"
+
+        state = session.toolkit.get_state()
+        return f"Notebook State:\nSession ID: {state.session_id}\nCells: {len(state.cells)}\nMetadata: {state.metadata}"
+
+    except Exception as e:
+        return f"Error getting notebook state: {e!s}"
+
+
+@tool
+async def save_notebook(input_data: SaveNotebookInput) -> str:
+    """Save the notebook to a file."""
+    try:
+        session_manager = get_session_manager()
+        session = session_manager.get_session("default_session")
+
+        if not session:
+            return "Error: No active session found"
+
+        # Use the toolkit's save method
+        result = session.toolkit.save_notebook(
+            file_path=Path(input_data.file_path) if input_data.file_path else None,
+            overwrite=True,  # Allow overwriting for LLM use
+        )
+
+        if isinstance(result, Ok):
+            return f"✅ Notebook saved successfully to: {result.value}"
+        else:
+            return f"❌ Failed to save notebook: {result.value}"
+
+    except Exception as e:
+        return f"Error saving notebook: {e!s}"
+
+
+def get_notebook_tools() -> list[Any]:
+    """Get all notebook tools for LLM use."""
+    return [
+        execute_code,
+        edit_and_execute,
+        add_cell,
+        add_markdown_cell,
+        delete_cell,
+        read_cell,
+        get_notebook_state,
+        save_notebook,
+    ]
+
+
+def create_notebook_tool_descriptions() -> str:
+    """Create descriptions of all available tools for LLM prompting."""
+    tools = get_notebook_tools()
+    descriptions = []
+
+    for tool in tools:
+        descriptions.append(f"- {tool.name}: {tool.description}")
+
+    return "\n".join(descriptions)
