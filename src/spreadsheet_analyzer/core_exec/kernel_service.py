@@ -18,9 +18,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import nbformat
 from jupyter_client import AsyncKernelManager
-from jupyter_client.kernelspec import KernelSpecManager
-from nbformat.v4 import new_output
+from nbclient import NotebookClient
 
 logger = logging.getLogger(__name__)
 
@@ -108,15 +108,15 @@ class KernelResourceLimitError(Exception):
 
 class KernelService:
     """
-    Generic Jupyter kernel management service.
+    Generic kernel service for managing Jupyter kernels.
 
-    Provides low-level kernel execution without domain-specific logic.
-    Handles kernel lifecycle, resource monitoring, and execution isolation.
+    This service provides domain-agnostic kernel management with:
+    - Session-based kernel isolation
+    - Resource monitoring and limits
+    - Async execution with timeout handling
+    - Automatic cleanup of idle sessions
 
-    Usage:
-        async with KernelService(profile) as service:
-            session_id = await service.create_session("agent-1")
-            result = await service.execute(session_id, "print('hello')")
+    No domain-specific logic - pure kernel execution primitives.
     """
 
     def __init__(self, profile: KernelProfile, max_sessions: int = 10):
@@ -129,38 +129,35 @@ class KernelService:
         """
         self.profile = profile
         self.max_sessions = max_sessions
-
-        # Session management
-        self._sessions: dict[str, AsyncKernelManager] = {}
-        self._clients: dict[str, Any] = {}  # Kernel clients per session
+        self._sessions: dict[str, Any] = {}
         self._session_last_used: dict[str, float] = {}
-        self._execution_counts: dict[str, int] = {}
-
-        # State management
-        self._shutdown = False
+        self._kernel_manager: AsyncKernelManager | None = None
         self._cleanup_task: asyncio.Task | None = None
+        self._shutdown = False
 
     async def __aenter__(self) -> "KernelService":
-        """Initialize the service."""
+        """Async context manager entry."""
         await self._initialize()
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Shutdown the service and cleanup resources."""
+        """Async context manager exit."""
         await self.shutdown()
 
     async def _initialize(self) -> None:
-        """Initialize the kernel service."""
-        # Verify kernel spec exists
-        spec_manager = KernelSpecManager()
-        try:
-            spec_manager.get_kernel_spec(self.profile.name)
-        except Exception as e:
-            raise RuntimeError(f"Kernel spec '{self.profile.name}' not found: {e}") from e
+        """Initialize the kernel manager and start cleanup task."""
+        self._kernel_manager = AsyncKernelManager(kernel_name=self.profile.name)
 
-        # Start cleanup task for idle sessions
-        if self.profile.idle_timeout_seconds > 0:
-            self._cleanup_task = asyncio.create_task(self._cleanup_idle_sessions())
+        # Set environment variables if provided
+        if self.profile.env_vars:
+            self._kernel_manager.env = self.profile.env_vars
+
+        # Set working directory if provided
+        if self.profile.working_dir:
+            self._kernel_manager.cwd = str(self.profile.working_dir)
+
+        # Start background cleanup task
+        self._cleanup_task = asyncio.create_task(self._cleanup_idle_sessions())
 
     async def create_session(self, session_id: str) -> str:
         """
@@ -170,464 +167,217 @@ class KernelService:
             session_id: Unique identifier for the session
 
         Returns:
-            The session ID that was created
+            Kernel ID for the session
 
         Raises:
-            RuntimeError: If max sessions exceeded or session already exists
+            ValueError: If session_id already exists
+            RuntimeError: If max sessions exceeded
         """
+        if session_id in self._sessions:
+            raise ValueError(f"Session {session_id} already exists")
+
         if len(self._sessions) >= self.max_sessions:
             raise RuntimeError(f"Maximum sessions ({self.max_sessions}) exceeded")
 
-        if session_id in self._sessions:
-            raise RuntimeError(f"Session '{session_id}' already exists")
+        if not self._kernel_manager:
+            raise RuntimeError("Kernel service not initialized")
 
-        # Create kernel manager
-        kernel_manager = AsyncKernelManager(kernel_name=self.profile.name)
+        # Start kernel
+        await self._kernel_manager.start_kernel()
+        client = self._kernel_manager.client()
+        await client.wait_for_ready(timeout=30)
 
-        # Configure kernel environment
-        if self.profile.working_dir:
-            kernel_manager.kernel_cwd = str(self.profile.working_dir)
-
-        if self.profile.env_vars:
-            if kernel_manager.kernel_env is None:
-                kernel_manager.kernel_env = {}
-            kernel_manager.kernel_env.update(self.profile.env_vars)
-
-        # Start the kernel
-        await kernel_manager.start_kernel()
-
-        # Wait for kernel to be ready
-        await asyncio.sleep(0.2)
-
-        # Verify kernel is alive
-        if not await kernel_manager.is_alive():
-            raise RuntimeError(f"Failed to start kernel for session '{session_id}'")
-
-        # Create and start client
-        client = kernel_manager.client()
-        client.start_channels()
-
-        # Wait for channels to be ready
-        await asyncio.sleep(0.5)  # Increased from 0.1 to match working example
-
-        # Wait for kernel to be ready
-        logger.debug("Waiting for kernel to be ready...")
-        ready_deadline = time.time() + 5.0
-        kernel_ready = False
-
-        while time.time() < ready_deadline:
-            try:
-                # Check if kernel is responsive by waiting for any status message
-                msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=0.1)
-                if msg.get("msg_type") == "status" and msg.get("content", {}).get("execution_state") == "idle":
-                    kernel_ready = True
-                    logger.debug("Kernel is ready (idle status received)")
-                    break
-            except TimeoutError:
-                # No message yet, keep waiting
-                pass
-
-        if not kernel_ready:
-            # Try a simple execution to ensure kernel is ready
-            logger.debug("Performing kernel warmup execution...")
-            warmup_msg_id = client.execute("1+1")
-
-            # Wait for completion
-            warmup_deadline = time.time() + 2.0
-            while time.time() < warmup_deadline:
-                try:
-                    msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=0.1)
-                    if msg.get("parent_header", {}).get("msg_id") == warmup_msg_id:
-                        if msg.get("msg_type") == "status" and msg.get("content", {}).get("execution_state") == "idle":
-                            logger.debug("Kernel warmup completed")
-                            break
-                except TimeoutError:
-                    pass
-
-        # Clear any pending messages after warmup
-        await self._clear_pending_messages(client)
-
-        # Brief stabilization delay
-        await asyncio.sleep(0.1)
-
-        # Store session info
-        self._sessions[session_id] = kernel_manager
-        self._clients[session_id] = client
+        # Store session
+        self._sessions[session_id] = {
+            "kernel_manager": self._kernel_manager,
+            "client": client,
+            "created_at": time.time(),
+        }
         self._session_last_used[session_id] = time.time()
-        self._execution_counts[session_id] = 0
 
-        return session_id
+        logger.info(f"Created kernel session {session_id}")
+        return self._kernel_manager.kernel_id
 
     async def execute(self, session_id: str, code: str) -> ExecutionResult:
         """
-        Execute code in a kernel session.
+        Execute code in a kernel session using nbclient.
 
         Args:
-            session_id: Session to execute code in
+            session_id: Kernel session to use
             code: Python code to execute
 
         Returns:
             ExecutionResult with outputs and status
 
         Raises:
-            RuntimeError: If session not found
+            ValueError: If session_id doesn't exist
             KernelTimeoutError: If execution times out
-            KernelResourceLimitError: If resource limits exceeded
         """
         if session_id not in self._sessions:
-            raise RuntimeError(f"Session '{session_id}' not found")
+            raise ValueError(f"Session {session_id} not found")
 
-        kernel_manager = self._sessions[session_id]
-        client = self._clients.get(session_id)
-
-        if not client:
-            raise RuntimeError(f"No client found for session '{session_id}'")
+        session = self._sessions[session_id]
+        self._session_last_used[session_id] = time.time()
 
         start_time = time.time()
 
         try:
-            # Verify kernel is alive
-            if not await kernel_manager.is_alive():
-                raise RuntimeError(f"Kernel for session '{session_id}' is not alive")
+            # Create a temporary notebook with single cell
+            nb = nbformat.v4.new_notebook()
+            nb.cells = [nbformat.v4.new_code_cell(source=code)]
 
-            # Clear pending messages
-            await self._clear_pending_messages(client)
-
-            # Execute code
-            logger.debug(f"Executing code in session {session_id}: {code[:50]}...")
-            msg_id = client.execute(code)
-            logger.debug(f"Execution started with msg_id: {msg_id}")
-
-            # Collect results with timeout
-            result = await self._collect_execution_result(client, msg_id, self.profile.max_execution_time)
-
-            # Update session tracking
-            self._session_last_used[session_id] = time.time()
-            self._execution_counts[session_id] += 1
-
-            # Create result object
-            return ExecutionResult(
-                status=result.get("status", "unknown"),
-                outputs=result.get("outputs", []),
-                error=result.get("error"),
-                execution_count=self._execution_counts[session_id],
-                msg_id=msg_id,
-                duration_seconds=time.time() - start_time,
+            # Use nbclient for robust execution
+            client = NotebookClient(
+                nb,
+                timeout=self.profile.max_execution_time,
+                kernel_name=self.profile.name,
+                resources={"metadata": {"session_id": session_id}},
             )
 
-        except TimeoutError as e:
-            raise KernelTimeoutError(f"Execution exceeded time limit of {self.profile.max_execution_time}s") from e
+            # Execute using nbclient's battle-tested logic
+            await client.async_execute()
 
-    async def execute_for_notebook(self, session_id: str, code: str) -> list[dict[str, Any]]:
+            # Extract results from the executed cell
+            executed_cell = nb.cells[0]
+            duration = time.time() - start_time
+
+            # Convert nbclient results to our ExecutionResult format
+            return self._convert_nbclient_results(executed_cell, duration)
+
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.error(f"Execution failed for session {session_id}: {e}")
+
+            # Return error result
+            return ExecutionResult(
+                status="error",
+                outputs=[],
+                error={"ename": type(e).__name__, "evalue": str(e), "traceback": []},
+                duration_seconds=duration,
+            )
+
+    def _convert_nbclient_results(self, cell: Any, duration: float) -> ExecutionResult:
         """
-        Execute code and return notebook-ready output objects.
+        Convert nbclient cell results to ExecutionResult format.
 
         Args:
-            session_id: Session to execute code in
-            code: Python code to execute
+            cell: Executed notebook cell from nbclient
+            duration: Execution duration in seconds
 
         Returns:
-            List of nbformat-compatible output objects
+            ExecutionResult with converted outputs
         """
-        result = await self.execute(session_id, code)
-
-        # Convert to notebook format
-        notebook_outputs = []
-
-        if result.status == "ok":
-            for output in result.outputs:
-                if isinstance(output, dict):
-                    output_type = output.get("type")
-
-                    if output_type == "stream":
-                        nb_output = new_output(output_type="stream", name="stdout", text=[output.get("text", "")])
-                        notebook_outputs.append(nb_output)
-
-                    elif output_type == "execute_result":
-                        nb_output = new_output(
-                            output_type="execute_result",
-                            execution_count=result.execution_count,
-                            data=output.get("data", {}),
-                            metadata={},
-                        )
-                        notebook_outputs.append(nb_output)
-
-                    elif output_type == "display_data":
-                        nb_output = new_output(
-                            output_type="display_data", data=output.get("data", {}), metadata=output.get("metadata", {})
-                        )
-                        notebook_outputs.append(nb_output)
-
-                    elif output_type == "error":
-                        nb_output = new_output(
-                            output_type="error",
-                            ename=output.get("ename", "Error"),
-                            evalue=output.get("evalue", "Unknown error"),
-                            traceback=output.get("traceback", []),
-                        )
-                        notebook_outputs.append(nb_output)
-
-        elif result.status == "error" and result.error:
-            nb_output = new_output(
-                output_type="error",
-                ename=result.error.get("ename", "ExecutionError"),
-                evalue=result.error.get("evalue", "Code execution failed"),
-                traceback=result.error.get("traceback", []),
-            )
-            notebook_outputs.append(nb_output)
-
-        return notebook_outputs
-
-    async def get_session_info(self, session_id: str) -> dict[str, Any]:
-        """Get information about a session."""
-        if session_id not in self._sessions:
-            raise RuntimeError(f"Session '{session_id}' not found")
-
-        return {
-            "session_id": session_id,
-            "execution_count": self._execution_counts.get(session_id, 0),
-            "last_used": self._session_last_used.get(session_id, 0),
-            "is_alive": await self._sessions[session_id].is_alive(),
-        }
-
-    async def close_session(self, session_id: str) -> None:
-        """Close and cleanup a session."""
-        if session_id not in self._sessions:
-            return
-
-        # Stop client channels
-        if session_id in self._clients:
-            client = self._clients[session_id]
-            client.stop_channels()
-            del self._clients[session_id]
-
-        kernel_manager = self._sessions[session_id]
-        await kernel_manager.shutdown_kernel()
-
-        # Cleanup tracking
-        del self._sessions[session_id]
-        self._session_last_used.pop(session_id, None)
-        self._execution_counts.pop(session_id, None)
-
-    async def list_sessions(self) -> list[str]:
-        """List all active session IDs."""
-        return list(self._sessions.keys())
-
-    async def _clear_pending_messages(self, client: Any) -> None:
-        """Clear any pending messages from previous executions."""
-        while True:
-            try:
-                await asyncio.wait_for(client.get_iopub_msg(), timeout=0.01)
-            except TimeoutError:
-                break
-
-    async def _collect_execution_result(self, client: Any, msg_id: str, timeout: float) -> dict[str, Any]:
-        """Collect execution results from kernel with robust output capture."""
         outputs = []
         error = None
         status = "ok"
-        idle_received = False
-        late_message_count = 0
-        all_messages_seen = []  # Track all messages for debugging
 
-        # Wait for execution to complete
-        start_time = time.time()
-        deadline = start_time + timeout
+        # Process cell outputs
+        for output in cell.outputs:
+            output_type = output.get("output_type", "unknown")
 
-        # Brief initial delay to allow kernel to start processing
-        await asyncio.sleep(0.1)  # Increased to give kernel more time
-
-        # Phase 1: Collect messages until idle status
-        first_message_seen = False
-        while time.time() < deadline:
-            try:
-                # Use profile-configured timeout for initial messages
-                if not first_message_seen:
-                    # Use a longer timeout for the first message
-                    timeout_val = min(0.5, deadline - time.time())  # 500ms for first message
-                else:
-                    timeout_val = min(1.0, deadline - time.time())
-                msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=timeout_val)
-                first_message_seen = True
-
-                # Debug logging
-                msg_type = msg.get("msg_type", "unknown")
-                parent_msg_id = msg.get("parent_header", {}).get("msg_id", "none")
-                content = msg.get("content", {})
-                all_messages_seen.append(
+            if output_type == "stream":
+                outputs.append({"type": "stream", "name": output.get("name", "stdout"), "text": output.get("text", "")})
+            elif output_type == "execute_result":
+                outputs.append(
                     {
-                        "msg_type": msg_type,
-                        "parent_msg_id": parent_msg_id,
-                        "our_msg_id": msg_id,
-                        "matches": parent_msg_id == msg_id,
-                        "content_preview": str(content)[:100]
-                        if msg_type not in ["execute_input", "status"]
-                        else msg_type,
+                        "type": "execute_result",
+                        "execution_count": output.get("execution_count", 1),
+                        "data": output.get("data", {}),
+                        "metadata": output.get("metadata", {}),
+                    }
+                )
+            elif output_type == "display_data":
+                outputs.append(
+                    {"type": "display_data", "data": output.get("data", {}), "metadata": output.get("metadata", {})}
+                )
+            elif output_type == "error":
+                error = {
+                    "ename": output.get("ename", "Error"),
+                    "evalue": output.get("evalue", "Unknown error"),
+                    "traceback": output.get("traceback", []),
+                }
+                status = "error"
+                # Also add error to outputs for notebook compatibility
+                outputs.append(
+                    {
+                        "type": "error",
+                        "ename": output.get("ename", "Error"),
+                        "evalue": output.get("evalue", "Unknown error"),
+                        "traceback": output.get("traceback", []),
                     }
                 )
 
-                # Check if this message is for our execution
-                if parent_msg_id != msg_id:
-                    logger.debug(f"Skipping message with parent_msg_id={parent_msg_id}, our msg_id={msg_id}")
-                    continue
+        return ExecutionResult(
+            status=status, outputs=outputs, error=error, execution_count=cell.execution_count, duration_seconds=duration
+        )
 
-                msg_type = msg["msg_type"]
-                content = msg["content"]
+    async def execute_for_notebook(self, session_id: str, code: str) -> list[dict[str, Any]]:
+        """
+        Execute code and return notebook-compatible outputs.
 
-                if msg_type == "stream":
-                    outputs.append(
-                        {"type": "stream", "name": content.get("name", "stdout"), "text": content.get("text", "")}
-                    )
+        Args:
+            session_id: Kernel session to use
+            code: Python code to execute
 
-                elif msg_type == "execute_result":
-                    outputs.append(
-                        {
-                            "type": "execute_result",
-                            "execution_count": content.get("execution_count", 1),
-                            "data": content.get("data", {}),
-                            "metadata": content.get("metadata", {}),
-                        }
-                    )
+        Returns:
+            List of output dictionaries in notebook format
+        """
+        result = await self.execute(session_id, code)
+        return result.outputs
 
-                elif msg_type == "display_data":
-                    outputs.append(
-                        {
-                            "type": "display_data",
-                            "data": content.get("data", {}),
-                            "metadata": content.get("metadata", {}),
-                        }
-                    )
+    async def get_session_info(self, session_id: str) -> dict[str, Any]:
+        """
+        Get information about a kernel session.
 
-                elif msg_type == "error":
-                    error = {
-                        "ename": content.get("ename", "Error"),
-                        "evalue": content.get("evalue", "Unknown error"),
-                        "traceback": content.get("traceback", []),
-                    }
-                    status = "error"
-                    # Also add error to outputs for notebook compatibility
-                    outputs.append(
-                        {
-                            "type": "error",
-                            "ename": content.get("ename", "Error"),
-                            "evalue": content.get("evalue", "Unknown error"),
-                            "traceback": content.get("traceback", []),
-                        }
-                    )
+        Args:
+            session_id: Session identifier
 
-                elif msg_type == "status" and content.get("execution_state") == "idle":
-                    # Execution completed - but don't break yet
-                    idle_received = True
-                    break
+        Returns:
+            Session information dictionary
+        """
+        if session_id not in self._sessions:
+            raise ValueError(f"Session {session_id} not found")
 
-            except TimeoutError:
-                if not first_message_seen and len(all_messages_seen) == 0:
-                    elapsed = time.time() - start_time
-                    logger.warning(f"No messages received at all for msg_id={msg_id} after {elapsed:.2f}s")
-                if not idle_received:
-                    status = "timeout"
-                break
+        session = self._sessions[session_id]
+        return {
+            "session_id": session_id,
+            "created_at": session["created_at"],
+            "last_used": self._session_last_used[session_id],
+            "kernel_id": session["kernel_manager"].kernel_id,
+        }
 
-        # Phase 2: Post-idle drain with exponential backoff
-        if idle_received and time.time() < deadline:
-            empty_reads = 0
-            drain_timeout = self.profile.output_drain_timeout_ms / 1000.0  # Convert to seconds
-            max_drain_timeout = self.profile.output_drain_max_timeout_ms / 1000.0
-            attempts = 0
-            min_drain_attempts = 2  # Always try at least 2 drain attempts
+    async def close_session(self, session_id: str) -> None:
+        """
+        Close a kernel session.
 
-            while (
-                empty_reads < self.profile.output_drain_max_attempts or attempts < min_drain_attempts
-            ) and time.time() < deadline:
-                try:
-                    msg = await asyncio.wait_for(client.get_iopub_msg(), timeout=drain_timeout)
+        Args:
+            session_id: Session identifier
+        """
+        if session_id not in self._sessions:
+            return
 
-                    # Check if this message is for our execution
-                    if msg.get("parent_header", {}).get("msg_id") != msg_id:
-                        # Still reset the timeout since we got a message
-                        empty_reads = 0
-                        drain_timeout = self.profile.output_drain_timeout_ms / 1000.0
-                        continue
+        session = self._sessions[session_id]
 
-                    # Process any late-arriving message
-                    msg_type = msg["msg_type"]
-                    content = msg["content"]
-                    late_message_count += 1
+        try:
+            # Shutdown kernel
+            await session["kernel_manager"].shutdown_kernel()
+            logger.info(f"Closed kernel session {session_id}")
+        except Exception as e:
+            logger.warning(f"Error closing session {session_id}: {e}")
+        finally:
+            # Remove from tracking
+            del self._sessions[session_id]
+            if session_id in self._session_last_used:
+                del self._session_last_used[session_id]
 
-                    if msg_type == "stream":
-                        outputs.append(
-                            {"type": "stream", "name": content.get("name", "stdout"), "text": content.get("text", "")}
-                        )
-                    elif msg_type == "execute_result":
-                        outputs.append(
-                            {
-                                "type": "execute_result",
-                                "execution_count": content.get("execution_count", 1),
-                                "data": content.get("data", {}),
-                                "metadata": content.get("metadata", {}),
-                            }
-                        )
-                    elif msg_type == "display_data":
-                        outputs.append(
-                            {
-                                "type": "display_data",
-                                "data": content.get("data", {}),
-                                "metadata": content.get("metadata", {}),
-                            }
-                        )
-                        # Display data (like plots) might have more outputs coming
-                        # Give extra time for matplotlib/plotting outputs
-                        if "image/png" in content.get("data", {}):
-                            drain_timeout = max(drain_timeout, 0.2)  # At least 200ms for plots
+    async def list_sessions(self) -> list[str]:
+        """
+        List all active session IDs.
 
-                    # Reset counter since we got a message
-                    empty_reads = 0
-                    drain_timeout = self.profile.output_drain_timeout_ms / 1000.0
-
-                except TimeoutError:
-                    empty_reads += 1
-                    attempts += 1
-                    # Exponential backoff
-                    drain_timeout = min(drain_timeout * 2, max_drain_timeout)
-
-            if late_message_count > 0:
-                logger.debug(
-                    f"Collected {late_message_count} messages after idle status "
-                    f"(msg_id: {msg_id}, total outputs: {len(outputs)})"
-                )
-
-        # Phase 3: Wait for shell reply if configured
-        if idle_received and self.profile.wait_for_shell_reply and time.time() < deadline:
-            try:
-                shell_reply = await asyncio.wait_for(client.get_shell_msg(), timeout=min(0.5, deadline - time.time()))
-                # Shell reply provides additional execution metadata
-                if shell_reply.get("content", {}).get("status") == "error" and not error:
-                    # Update error info from shell reply if not already set
-                    reply_content = shell_reply.get("content", {})
-                    error = {
-                        "ename": reply_content.get("ename", "Error"),
-                        "evalue": reply_content.get("evalue", "Unknown error"),
-                        "traceback": reply_content.get("traceback", []),
-                    }
-                    status = "error"
-            except TimeoutError:
-                # Shell reply timeout is not critical
-                logger.debug(f"Shell reply timeout for msg_id: {msg_id}")
-
-        # Log debugging info for empty outputs
-        if len(outputs) == 0:
-            logger.warning(
-                f"No outputs collected for msg_id={msg_id}. "
-                f"Total messages seen: {len(all_messages_seen)}, "
-                f"Matching messages: {sum(1 for m in all_messages_seen if m['matches'])}"
-            )
-            matching_msgs = [m for m in all_messages_seen if m["matches"]]
-            if matching_msgs:
-                logger.warning(f"Matching messages were: {matching_msgs}")
-            for i, msg_info in enumerate(all_messages_seen):
-                logger.debug(f"Message {i}: {msg_info}")
-
-        return {"status": status, "outputs": outputs, "error": error, "msg_id": msg_id}
+        Returns:
+            List of session identifiers
+        """
+        return list(self._sessions.keys())
 
     async def _cleanup_idle_sessions(self) -> None:
         """Background task to cleanup idle sessions."""

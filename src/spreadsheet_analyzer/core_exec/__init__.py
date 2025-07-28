@@ -10,12 +10,11 @@ This module provides generic, domain-agnostic functionality for:
 
 from .bridge import ExecutionBridge, ExecutionStats
 from .kernel_service import ExecutionResult, KernelProfile, KernelResourceLimitError, KernelService, KernelTimeoutError
-from .notebook_builder import CellType, NotebookBuilder, NotebookCell
+from .notebook_builder import NotebookBuilder
 from .notebook_io import NotebookIO
 from .quality import QualityInspector, QualityIssue, QualityLevel, QualityMetrics
 
 __all__ = [
-    "CellType",
     "ExecutionBridge",
     "ExecutionResult",
     "ExecutionStats",
@@ -24,7 +23,6 @@ __all__ = [
     "KernelService",
     "KernelTimeoutError",
     "NotebookBuilder",
-    "NotebookCell",
     "NotebookIO",
     "QualityInspector",
     "QualityIssue",

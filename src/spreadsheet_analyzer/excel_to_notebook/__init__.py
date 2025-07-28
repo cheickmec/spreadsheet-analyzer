@@ -2,9 +2,9 @@
 
 from spreadsheet_analyzer.excel_to_notebook.converter import (
     ExcelToNotebookConverter,
-    NotebookCell,
     NotebookDocument,
 )
+from spreadsheet_analyzer.notebook_llm.protocol.base import NotebookCell
 
 __all__ = [
     "ExcelToNotebookConverter",

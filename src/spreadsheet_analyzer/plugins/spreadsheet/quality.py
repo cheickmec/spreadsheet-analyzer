@@ -13,8 +13,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ...core_exec import CellType, NotebookBuilder
+from ...core_exec import NotebookBuilder
 from ...core_exec.quality import QualityIssue, QualityLevel, QualityMetrics
+from ...notebook_llm.nap.protocols import CellType
 from ..base import BaseQualityInspector
 
 

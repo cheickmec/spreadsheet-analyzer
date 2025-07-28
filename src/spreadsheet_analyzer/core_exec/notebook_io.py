@@ -17,7 +17,7 @@ from typing import Any
 import nbformat
 from nbformat.validator import ValidationError
 
-from .notebook_builder import CellType, NotebookBuilder, NotebookCell
+from .notebook_builder import NotebookBuilder
 
 
 class NotebookFormatError(Exception):
@@ -213,69 +213,51 @@ class NotebookIO:
         return formatted_outputs
 
     @staticmethod
-    def _dict_to_cell(cell_dict: dict[str, Any]) -> NotebookCell | None:
+    def _dict_to_cell(cell_dict: dict[str, Any]) -> Any | None:
         """
-        Convert a dictionary representation to a NotebookCell.
+        Convert a dictionary representation to an nbformat cell.
 
         Args:
             cell_dict: Dictionary representation of a cell
 
         Returns:
-            NotebookCell instance or None if conversion fails
+            nbformat cell instance or None if conversion fails
         """
         try:
             cell_type_str = cell_dict.get("cell_type")
             if not cell_type_str:
                 return None
 
-            # Map string to enum
-            cell_type_map = {"code": CellType.CODE, "markdown": CellType.MARKDOWN, "raw": CellType.RAW}
-
-            cell_type = cell_type_map.get(cell_type_str)
-            if not cell_type:
+            # Validate cell type
+            if cell_type_str not in ["code", "markdown", "raw"]:
                 return None
 
             # Get source (handle both string and list formats)
-            source = cell_dict.get("source", [])
-            if isinstance(source, str):
-                source = source.split("\n")
-                # Convert to proper format (add newlines except last line)
-                formatted_source = []
-                for i, line in enumerate(source):
-                    if i < len(source) - 1:
-                        formatted_source.append(line + "\n")
-                    else:
-                        formatted_source.append(line)
-                source = formatted_source
-            elif isinstance(source, list):
-                source = list(source)  # Make a copy
-            else:
-                source = [""]
+            source = cell_dict.get("source", "")
+            if isinstance(source, list):
+                source = "".join(source)
+            elif not isinstance(source, str):
+                source = ""
 
             # Extract metadata
             metadata = cell_dict.get("metadata", {})
             if not isinstance(metadata, dict):
                 metadata = {}
 
-            # Handle code cell specifics
-            outputs = None
-            execution_count = None
+            # Create appropriate cell type
+            if cell_type_str == "code":
+                cell = nbformat.v4.new_code_cell(
+                    source=source,
+                    metadata=metadata,
+                    outputs=cell_dict.get("outputs", []),
+                    execution_count=cell_dict.get("execution_count"),
+                )
+            elif cell_type_str == "markdown":
+                cell = nbformat.v4.new_markdown_cell(source=source, metadata=metadata)
+            else:  # raw
+                cell = nbformat.v4.new_raw_cell(source=source, metadata=metadata)
 
-            if cell_type == CellType.CODE:
-                outputs = cell_dict.get("outputs", [])
-                if not isinstance(outputs, list):
-                    outputs = []
-
-                execution_count = cell_dict.get("execution_count")
-                if execution_count is not None:
-                    try:
-                        execution_count = int(execution_count)
-                    except (ValueError, TypeError):
-                        execution_count = None
-
-            return NotebookCell(
-                cell_type=cell_type, source=source, metadata=metadata, outputs=outputs, execution_count=execution_count
-            )
+            return cell
 
         except Exception:
             # Return None for malformed cells rather than crashing

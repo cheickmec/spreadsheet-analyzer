@@ -13,7 +13,8 @@ Tasks generate initial cells and can post-process results.
 from pathlib import Path
 from typing import Any
 
-from ...core_exec import CellType, NotebookCell
+from ...notebook_llm.nap.protocols import CellType
+from ...notebook_llm.protocol.base import NotebookCell
 from ..base import BaseTask
 
 

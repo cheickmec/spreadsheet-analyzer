@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from .notebook_builder import CellType, NotebookBuilder
+from .notebook_builder import NotebookBuilder
 
 
 class QualityLevel(Enum):
@@ -156,7 +156,7 @@ class QualityInspector:
                 )
 
             # Analyze code cells
-            if cell.cell_type == CellType.CODE:
+            if cell.cell_type == "code":
                 # Check for outputs
                 if cell.outputs:
                     cells_with_outputs += 1
@@ -282,7 +282,7 @@ class QualityInspector:
         # Check for notebook structure patterns
         if notebook.cells:
             first_cell = notebook.cells[0]
-            if first_cell.cell_type != CellType.MARKDOWN:
+            if first_cell.cell_type != "markdown":
                 issues.append(
                     QualityIssue(
                         category="structure",

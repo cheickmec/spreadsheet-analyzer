@@ -43,13 +43,11 @@ Usage:
 
 # Core execution primitives (domain-agnostic)
 from .core_exec import (
-    CellType,
     ExecutionBridge,
     ExecutionResult,
     KernelProfile,
     KernelService,
     NotebookBuilder,
-    NotebookCell,
     NotebookIO,
     QualityInspector,
     QualityMetrics,
@@ -80,8 +78,6 @@ __all__ = [
     "KernelProfile",
     "ExecutionResult",
     "NotebookBuilder",
-    "NotebookCell",
-    "CellType",
     "NotebookIO",
     "ExecutionBridge",
     "QualityMetrics",
@@ -161,7 +157,7 @@ class CustomAnalysisTask(BaseTask):
         super().__init__("custom_analysis", "My custom analysis")
 
     def build_initial_cells(self, context):
-        # Return list of NotebookCell objects
+        # Return list of nbformat cell objects
         pass
 
 # Register your plugin

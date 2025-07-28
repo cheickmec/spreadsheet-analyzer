@@ -8,8 +8,9 @@ for extending notebook functionality with domain-specific features.
 from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
-from ..core_exec import NotebookBuilder, NotebookCell
+from ..core_exec import NotebookBuilder
 from ..core_exec import QualityMetrics as CoreQualityMetrics
+from ..notebook_llm.protocol.base import NotebookCell
 
 
 class Task(Protocol):

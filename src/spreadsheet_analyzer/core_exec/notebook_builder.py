@@ -10,73 +10,21 @@ This module provides domain-agnostic notebook construction functionality:
 No domain-specific logic - pure notebook construction primitives.
 """
 
-import hashlib
-import json
-from dataclasses import dataclass
-from enum import Enum
 from typing import Any
 
-
-class CellType(Enum):
-    """Supported notebook cell types."""
-
-    CODE = "code"
-    MARKDOWN = "markdown"
-    RAW = "raw"
-
-
-@dataclass
-class NotebookCell:
-    """
-    Represents a single notebook cell with proper typing.
-
-    Args:
-        cell_type: Type of cell (code, markdown, raw)
-        source: Cell content as properly formatted list of lines
-        metadata: Cell metadata dictionary
-        outputs: List of output objects (code cells only)
-        execution_count: Execution counter (code cells only)
-    """
-
-    cell_type: CellType
-    source: list[str]
-    metadata: dict[str, Any]
-    outputs: list[dict[str, Any]] | None = None
-    execution_count: int | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to nbformat dictionary representation."""
-        # Generate deterministic ID based on cell content
-        # This ensures the same content always gets the same ID
-        # Sort metadata keys to ensure consistent ordering
-        sorted_metadata = json.dumps(self.metadata, sort_keys=True) if self.metadata else ""
-        content_str = f"{self.cell_type.value}:{''.join(self.source)}:{sorted_metadata}"
-        cell_id = hashlib.sha256(content_str.encode()).hexdigest()[:12]
-
-        cell_dict: dict[str, Any] = {
-            "cell_type": self.cell_type.value,
-            "metadata": self.metadata,
-            "source": self.source,
-            "id": cell_id,
-        }
-
-        if self.cell_type == CellType.CODE:
-            cell_dict["execution_count"] = self.execution_count
-            cell_dict["outputs"] = self.outputs or []
-
-        return cell_dict
+import nbformat
 
 
 class NotebookBuilder:
     """
     Generic notebook builder for programmatic notebook creation.
 
-    This class provides the core functionality for building Jupyter notebooks
-    without any domain-specific logic. It handles proper source formatting,
-    metadata management, and nbformat compliance.
+    This class provides a convenient facade over nbformat's native functions
+    for building Jupyter notebooks without any domain-specific logic. It handles
+    proper source formatting, metadata management, and nbformat compliance.
 
     Key features:
-    - Battle-tested source formatting from original NotebookBuilder
+    - Direct use of nbformat.v4 factory functions
     - Proper execution count management
     - Metadata validation and handling
     - Generic cell creation without domain assumptions
@@ -85,7 +33,7 @@ class NotebookBuilder:
         builder = NotebookBuilder()
         builder.add_markdown_cell("# Analysis", {"tags": ["header"]})
         builder.add_code_cell("print('hello')")
-        notebook_dict = builder.to_dict()
+        notebook = builder.to_notebook()
     """
 
     def __init__(self, kernel_name: str = "python3", kernel_display_name: str = "Python 3"):
@@ -96,9 +44,9 @@ class NotebookBuilder:
             kernel_name: Kernel spec name (e.g., 'python3', 'julia-1.6')
             kernel_display_name: Human-readable kernel name
         """
-        self.cells: list[NotebookCell] = []
-        self.kernel_name = kernel_name
-        self.kernel_display_name = kernel_display_name
+        self.notebook = nbformat.v4.new_notebook(
+            metadata={"kernelspec": {"name": kernel_name, "display_name": kernel_display_name}}
+        )
         self._execution_count = 0
 
     def add_markdown_cell(self, content: str, metadata: dict[str, Any] | None = None) -> "NotebookBuilder":
@@ -106,14 +54,14 @@ class NotebookBuilder:
         Add a markdown cell to the notebook.
 
         Args:
-            content: Markdown content for the cell
-            metadata: Optional metadata for the cell
+            content: Markdown content
+            metadata: Cell metadata dictionary
 
         Returns:
             Self for method chaining
         """
-        cell = NotebookCell(cell_type=CellType.MARKDOWN, source=self._format_source(content), metadata=metadata or {})
-        self.cells.append(cell)
+        cell = nbformat.v4.new_markdown_cell(source=self._format_source(content), metadata=metadata or {})
+        self.notebook.cells.append(cell)
         return self
 
     def add_code_cell(
@@ -127,25 +75,27 @@ class NotebookBuilder:
         Add a code cell to the notebook.
 
         Args:
-            code: Python code for the cell
-            outputs: Optional list of output objects
-            metadata: Optional metadata for the cell
-            increment_execution_count: Whether to auto-increment execution count
+            code: Python code to execute
+            outputs: List of output objects
+            metadata: Cell metadata dictionary
+            increment_execution_count: Whether to increment execution counter
 
         Returns:
             Self for method chaining
         """
         if increment_execution_count:
             self._execution_count += 1
+            execution_count = self._execution_count
+        else:
+            execution_count = None
 
-        cell = NotebookCell(
-            cell_type=CellType.CODE,
+        cell = nbformat.v4.new_code_cell(
             source=self._format_source(code),
-            metadata=metadata or {},
             outputs=outputs or [],
-            execution_count=self._execution_count,
+            metadata=metadata or {},
+            execution_count=execution_count,
         )
-        self.cells.append(cell)
+        self.notebook.cells.append(cell)
         return self
 
     def add_raw_cell(self, content: str, metadata: dict[str, Any] | None = None) -> "NotebookBuilder":
@@ -153,46 +103,92 @@ class NotebookBuilder:
         Add a raw cell to the notebook.
 
         Args:
-            content: Raw content for the cell
-            metadata: Optional metadata for the cell
+            content: Raw cell content
+            metadata: Cell metadata dictionary
 
         Returns:
             Self for method chaining
         """
-        cell = NotebookCell(cell_type=CellType.RAW, source=self._format_source(content), metadata=metadata or {})
-        self.cells.append(cell)
+        cell = nbformat.v4.new_raw_cell(source=self._format_source(content), metadata=metadata or {})
+        self.notebook.cells.append(cell)
         return self
 
-    def add_cell(self, cell: NotebookCell) -> "NotebookBuilder":
+    def add_cell(self, cell: Any) -> "NotebookBuilder":
         """
-        Add a pre-constructed cell to the notebook.
+        Add an existing nbformat cell to the notebook.
 
         Args:
-            cell: NotebookCell to add
+            cell: nbformat cell object
 
         Returns:
             Self for method chaining
         """
-        self.cells.append(cell)
+        self.notebook.cells.append(cell)
         return self
 
-    def insert_cell(self, index: int, cell: NotebookCell) -> "NotebookBuilder":
+    def add_notebook_llm_cell(self, cell: Any) -> "NotebookBuilder":
         """
-        Insert a cell at a specific position.
+        Add a notebook_llm.NotebookCell to the notebook (compatibility method).
 
         Args:
-            index: Position to insert at
-            cell: NotebookCell to insert
+            cell: notebook_llm.NotebookCell object
 
         Returns:
             Self for method chaining
         """
-        self.cells.insert(index, cell)
+        # Convert notebook_llm cell to nbformat cell
+        nbformat_cell = self._convert_notebook_llm_cell(cell)
+        self.notebook.cells.append(nbformat_cell)
+        return self
+
+    def _convert_notebook_llm_cell(self, cell: Any) -> Any:
+        """
+        Convert a notebook_llm.NotebookCell to nbformat cell.
+
+        Args:
+            cell: notebook_llm.NotebookCell object
+
+        Returns:
+            nbformat cell object
+        """
+        # Check if this is a notebook_llm cell by looking for cell_type attribute
+        if hasattr(cell, "cell_type") and hasattr(cell, "content"):
+            cell_type = cell.cell_type.value if hasattr(cell.cell_type, "value") else str(cell.cell_type)
+            content = cell.content
+
+            if cell_type == "markdown":
+                return nbformat.v4.new_markdown_cell(source=self._format_source(content), metadata=cell.metadata or {})
+            elif cell_type == "code":
+                return nbformat.v4.new_code_cell(
+                    source=self._format_source(content),
+                    outputs=cell.outputs or [],
+                    execution_count=cell.execution_order,
+                    metadata=cell.metadata or {},
+                )
+            else:
+                # For other cell types, treat as raw cell
+                return nbformat.v4.new_raw_cell(source=self._format_source(content), metadata=cell.metadata or {})
+        else:
+            # If it's already an nbformat cell, return as-is
+            return cell
+
+    def insert_cell(self, index: int, cell: Any) -> "NotebookBuilder":
+        """
+        Insert a cell at a specific index.
+
+        Args:
+            index: Position to insert the cell
+            cell: nbformat cell object
+
+        Returns:
+            Self for method chaining
+        """
+        self.notebook.cells.insert(index, cell)
         return self
 
     def remove_cell(self, index: int) -> "NotebookBuilder":
         """
-        Remove a cell by index.
+        Remove a cell at the specified index.
 
         Args:
             index: Index of cell to remove
@@ -200,50 +196,47 @@ class NotebookBuilder:
         Returns:
             Self for method chaining
         """
-        if 0 <= index < len(self.cells):
-            self.cells.pop(index)
+        if 0 <= index < len(self.notebook.cells):
+            del self.notebook.cells[index]
         return self
 
-    def get_cell(self, index: int) -> NotebookCell | None:
+    def get_cell(self, index: int) -> Any | None:
         """
-        Get a cell by index.
+        Get a cell at the specified index.
 
         Args:
             index: Index of cell to retrieve
 
         Returns:
-            NotebookCell or None if index is invalid
+            nbformat cell object or None if index out of range
         """
-        if 0 <= index < len(self.cells):
-            return self.cells[index]
+        if 0 <= index < len(self.notebook.cells):
+            return self.notebook.cells[index]
         return None
 
     def update_execution_count(self, cell_index: int, execution_count: int) -> "NotebookBuilder":
         """
         Update execution count for a specific code cell.
 
-        This is useful when cells are executed out of order or when
-        integrating with external execution systems.
-
         Args:
-            cell_index: Index of the code cell to update
+            cell_index: Index of the code cell
             execution_count: New execution count
 
         Returns:
             Self for method chaining
         """
-        if 0 <= cell_index < len(self.cells):
-            cell = self.cells[cell_index]
-            if cell.cell_type == CellType.CODE:
+        if 0 <= cell_index < len(self.notebook.cells):
+            cell = self.notebook.cells[cell_index]
+            if cell.cell_type == "code":
                 cell.execution_count = execution_count
         return self
 
     def set_execution_count(self, count: int) -> "NotebookBuilder":
         """
-        Set the internal execution counter.
+        Set the next execution count for code cells.
 
         Args:
-            count: New execution count value
+            count: Next execution count to use
 
         Returns:
             Self for method chaining
@@ -253,61 +246,43 @@ class NotebookBuilder:
 
     def _format_source(self, content: str) -> list[str]:
         """
-        Format content as list of lines for Jupyter format.
-
-        This is the battle-tested formatting logic from the original NotebookBuilder.
-        The Jupyter notebook format expects cell source to be a list of strings,
-        where each string represents a line of content. All lines except the last
-        should end with a newline character.
+        Format source content as a list of lines.
 
         Args:
-            content: Raw string content
+            content: Raw content string
 
         Returns:
-            List of formatted lines ready for notebook format
+            List of formatted lines
         """
         if not content:
-            return [""]
+            return []
 
-        lines = content.split("\n")
-        # Add newlines to all lines except the last one
-        formatted = []
-        for i, line in enumerate(lines):
-            if i < len(lines) - 1:
-                formatted.append(line + "\n")
-            else:
-                formatted.append(line)
-        return formatted
+        # Split into lines and ensure proper line endings
+        lines = content.splitlines()
+
+        # Handle trailing newline
+        if content.endswith("\n"):
+            lines.append("")
+
+        return lines
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Convert to Jupyter notebook format dictionary.
+        Convert notebook to dictionary format.
 
         Returns:
-            Dictionary representing a complete Jupyter notebook in nbformat v4
+            Dictionary representation of the notebook
         """
-        # Determine kernel language based on kernel name
-        language = "python"  # Default
-        if "julia" in self.kernel_name.lower():
-            language = "julia"
-        elif "r" in self.kernel_name.lower():
-            language = "r"
-        elif "scala" in self.kernel_name.lower():
-            language = "scala"
+        return nbformat.to_dict(self.notebook)
 
-        return {
-            "cells": [cell.to_dict() for cell in self.cells],
-            "metadata": {
-                "kernelspec": {
-                    "display_name": self.kernel_display_name,
-                    "language": language,
-                    "name": self.kernel_name,
-                },
-                "language_info": {"name": language, "version": "3.12" if language == "python" else "unknown"},
-            },
-            "nbformat": 4,
-            "nbformat_minor": 5,
-        }
+    def to_notebook(self) -> Any:
+        """
+        Get the nbformat notebook object.
+
+        Returns:
+            nbformat notebook object
+        """
+        return self.notebook
 
     def clear(self) -> "NotebookBuilder":
         """
@@ -316,69 +291,61 @@ class NotebookBuilder:
         Returns:
             Self for method chaining
         """
-        self.cells.clear()
+        self.notebook.cells = []
         self._execution_count = 0
         return self
 
     def cell_count(self) -> int:
-        """Get the total number of cells in the notebook."""
-        return len(self.cells)
+        """Get the total number of cells."""
+        return len(self.notebook.cells)
 
     def code_cell_count(self) -> int:
-        """Get the number of code cells in the notebook."""
-        return len([c for c in self.cells if c.cell_type == CellType.CODE])
+        """Get the number of code cells."""
+        return sum(1 for cell in self.notebook.cells if cell.cell_type == "code")
 
     def markdown_cell_count(self) -> int:
-        """Get the number of markdown cells in the notebook."""
-        return len([c for c in self.cells if c.cell_type == CellType.MARKDOWN])
+        """Get the number of markdown cells."""
+        return sum(1 for cell in self.notebook.cells if cell.cell_type == "markdown")
 
     def raw_cell_count(self) -> int:
-        """Get the number of raw cells in the notebook."""
-        return len([c for c in self.cells if c.cell_type == CellType.RAW])
+        """Get the number of raw cells."""
+        return sum(1 for cell in self.notebook.cells if cell.cell_type == "raw")
 
     def get_execution_count(self) -> int:
-        """Get the current execution counter value."""
+        """Get the current execution count."""
         return self._execution_count
 
     def validate(self) -> list[str]:
         """
-        Validate the notebook structure and return any issues.
+        Validate the notebook structure.
 
         Returns:
-            List of validation error messages (empty if valid)
+            List of validation errors (empty if valid)
         """
-        issues = []
+        errors = []
 
-        for i, cell in enumerate(self.cells):
-            if not cell.source:
-                issues.append(f"Cell {i} has empty source")
+        try:
+            nbformat.validate(self.notebook)
+        except Exception as e:
+            errors.append(f"Notebook validation failed: {e}")
 
-            # Allow execution_count=None for unexecuted cells - this is valid in Jupyter
-            # Only check that execution_count exists as an attribute
-            if cell.cell_type == CellType.CODE and not hasattr(cell, "execution_count"):
-                issues.append(f"Code cell {i} missing execution_count attribute")
+        # Check for empty cells
+        for i, cell in enumerate(self.notebook.cells):
+            if not cell.source or (isinstance(cell.source, list) and not any(cell.source)):
+                errors.append(f"Cell {i} is empty")
 
-        return issues
+        return errors
 
     def clone(self) -> "NotebookBuilder":
         """
         Create a deep copy of the notebook builder.
 
         Returns:
-            New NotebookBuilder instance with same content
+            New NotebookBuilder with copied content
         """
-        clone = NotebookBuilder(self.kernel_name, self.kernel_display_name)
+        import copy
 
-        # Deep copy cells
-        for cell in self.cells:
-            clone_cell = NotebookCell(
-                cell_type=cell.cell_type,
-                source=cell.source.copy(),
-                metadata=cell.metadata.copy(),
-                outputs=cell.outputs.copy() if cell.outputs else None,
-                execution_count=cell.execution_count,
-            )
-            clone.cells.append(clone_cell)
-
-        clone._execution_count = self._execution_count
-        return clone
+        new_builder = NotebookBuilder()
+        new_builder.notebook = copy.deepcopy(self.notebook)
+        new_builder._execution_count = self._execution_count
+        return new_builder

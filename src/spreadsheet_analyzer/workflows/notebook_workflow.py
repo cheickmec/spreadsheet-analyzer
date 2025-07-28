@@ -178,7 +178,7 @@ class NotebookWorkflow:
                     # Generate cells
                     cells = task.build_initial_cells(context)
                     for cell in cells:
-                        result.notebook.add_cell(cell)
+                        result.notebook.add_notebook_llm_cell(cell)
 
                     # Add separator comment as markdown cell
                     result.notebook.add_markdown_cell(f"---\n\n*End of {task.name}*\n\n---")
@@ -234,7 +234,7 @@ class NotebookWorkflow:
                     try:
                         additional_cells = task.postprocess(result.notebook, context)
                         for cell in additional_cells:
-                            result.notebook.add_cell(cell)
+                            result.notebook.add_notebook_llm_cell(cell)
                     except Exception as e:
                         result.warnings.append(f"Task {task.name} postprocess failed: {e!s}")
             finally:
