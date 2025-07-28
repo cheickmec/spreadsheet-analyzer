@@ -22,12 +22,14 @@ client.execute()
 ## Package Structure
 
 ### Core Modules
+
 - **[nbclient](./modules/nbclient.md)** - Main package module with core classes
 - **[nbclient.client](./modules/nbclient.client.md)** - NotebookClient implementation
 - **[nbclient.exceptions](./modules/nbclient.exceptions.md)** - Exception classes
 - **[nbclient.util](./modules/nbclient.util.md)** - Utility functions
 
 ### Main Classes
+
 - **[NotebookClient](./classes/NotebookClient.md)** - Primary client for notebook execution
 - **[KernelManager](./classes/KernelManager.md)** - Kernel lifecycle management
 - **[KernelClient](./classes/KernelClient.md)** - Kernel communication interface
@@ -35,11 +37,13 @@ client.execute()
 ## Key Classes
 
 ### Execution Control
+
 - **[NotebookClient](./classes/NotebookClient.md)** - Main execution client
 - **[AsyncNotebookClient](./classes/AsyncNotebookClient.md)** - Asynchronous execution client
 - **[CellExecutor](./classes/CellExecutor.md)** - Individual cell execution
 
 ### Kernel Management
+
 - **[KernelManager](./classes/KernelManager.md)** - Kernel startup and shutdown
 - **[KernelClient](./classes/KernelClient.md)** - Message communication
 - **[KernelSpecManager](./classes/KernelSpecManager.md)** - Kernel specification management
@@ -47,17 +51,20 @@ client.execute()
 ## Core Methods
 
 ### Execution Methods
+
 - **[execute()](./methods/execute.md)** - Execute all cells in notebook
 - **[execute_cell()](./methods/execute_cell.md)** - Execute single cell
 - **[execute_cells()](./methods/execute_cells.md)** - Execute specific cells
 - **[reset_execution_trackers()](./methods/reset_execution_trackers.md)** - Reset execution state
 
 ### Kernel Management
+
 - **[start_new_kernel()](./methods/start_new_kernel.md)** - Start new kernel instance
 - **[shutdown_kernel()](./methods/shutdown_kernel.md)** - Shutdown kernel gracefully
 - **[restart_kernel()](./methods/restart_kernel.md)** - Restart kernel with same spec
 
 ### Configuration
+
 - **[set_kernel_name()](./methods/set_kernel_name.md)** - Set kernel specification
 - **[set_timeout()](./methods/set_timeout.md)** - Set execution timeout
 - **[set_allow_errors()](./methods/set_allow_errors.md)** - Configure error handling
@@ -65,6 +72,7 @@ client.execute()
 ## Common Usage Patterns
 
 ### Basic Execution
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -82,6 +90,7 @@ with open('executed_analysis.ipynb', 'w') as f:
 ```
 
 ### Asynchronous Execution
+
 ```python
 from nbclient import AsyncNotebookClient
 import nbformat
@@ -101,6 +110,7 @@ nb = asyncio.run(execute_notebook())
 ```
 
 ### Selective Cell Execution
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -121,6 +131,7 @@ client.execute_cells(tag='analysis')
 ```
 
 ### Error Handling
+
 ```python
 from nbclient import NotebookClient
 from nbclient.exceptions import CellExecutionError
@@ -139,6 +150,7 @@ except CellExecutionError as e:
 ```
 
 ### Custom Kernel Configuration
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -158,6 +170,7 @@ client.execute()
 ```
 
 ### Integration with papermill
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -185,6 +198,7 @@ with open('final_output.ipynb', 'w') as f:
 ## Configuration Options
 
 ### Execution Parameters
+
 - **timeout**: Maximum execution time per cell (default: 300s)
 - **allow_errors**: Continue execution on cell errors (default: False)
 - **record_timing**: Record execution timing (default: False)
@@ -192,12 +206,14 @@ with open('final_output.ipynb', 'w') as f:
 - **resources**: Additional kernel resources
 
 ### Kernel Parameters
+
 - **kernel_spec**: Kernel specification object
 - **kernel_name**: Kernel name string
 - **extra_arguments**: Additional kernel arguments
 - **env**: Environment variables for kernel
 
 ### Output Parameters
+
 - **output_path**: Path for output notebook
 - **output_format**: Output format specification
 - **metadata**: Additional notebook metadata
@@ -205,12 +221,14 @@ with open('final_output.ipynb', 'w') as f:
 ## Error Handling
 
 ### Exception Types
+
 - **CellExecutionError**: Individual cell execution failure
 - **KernelError**: Kernel communication or startup error
 - **TimeoutError**: Cell execution timeout
 - **NotebookError**: General notebook processing error
 
 ### Error Recovery
+
 ```python
 from nbclient import NotebookClient
 from nbclient.exceptions import CellExecutionError, KernelError
@@ -239,6 +257,7 @@ def execute_with_recovery(notebook_path, max_retries=3):
 ## Performance Optimization
 
 ### Parallel Execution
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -258,6 +277,7 @@ def execute_notebook_parallel(notebook_paths):
 ```
 
 ### Memory Management
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -273,6 +293,7 @@ client.execute()
 ```
 
 ### Caching Results
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -308,6 +329,7 @@ def execute_with_cache(notebook_path, cache_dir='.nbclient_cache'):
 ## Integration Examples
 
 ### With pandas for data analysis
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -327,6 +349,7 @@ client.execute()
 ```
 
 ### With matplotlib for visualization
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -349,6 +372,7 @@ client.execute()
 ```
 
 ### With scrapbook for data persistence
+
 ```python
 from nbclient import NotebookClient
 import nbformat
@@ -377,6 +401,6 @@ data = loaded_nb.scraps.get("my_data")
 - [GitHub Repository](https://github.com/jupyter/nbclient)
 - [Jupyter Project](https://jupyter.org/)
 
----
+______________________________________________________________________
 
-*This documentation covers nbclient version 0.8.x. For older versions, see the [legacy documentation](./legacy/).* 
+*This documentation covers nbclient version 0.8.x. For older versions, see the [legacy documentation](./legacy/).*

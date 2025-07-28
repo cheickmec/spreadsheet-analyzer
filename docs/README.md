@@ -48,6 +48,7 @@ Comprehensive API documentation for all Jupyter ecosystem packages used in Excel
 - **[jupyter_core](./api-reference/jupyter-core/)** - Core infrastructure for paths, configuration, and subcommand discovery
 
 Each package includes:
+
 - 📖 **Complete API Reference**: All classes, methods, functions, and parameters
 - 🔧 **Usage Examples**: Practical code samples and integration patterns
 - ⚡ **Performance Guidelines**: Optimization strategies and best practices

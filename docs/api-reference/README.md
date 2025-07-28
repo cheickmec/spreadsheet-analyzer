@@ -9,32 +9,38 @@ This directory contains comprehensive API documentation for all Jupyter ecosyste
 ### Core Jupyter Packages
 
 #### **Foundation Layer**
+
 - **[jupyter_core](./jupyter-core/)** - Core infrastructure for paths, configuration, and subcommand discovery
 - **[jupyter_client](./jupyter-client/)** - Kernel communication protocol and client implementation
 - **[jupyter_protocol](./jupyter-protocol/)** - Messaging protocol specification
 
 #### **Notebook Format & Processing**
+
 - **[nbformat](./nbformat/)** - Reading, writing, and validating `.ipynb` files
 - **[nbclient](./nbclient/)** - Executing notebooks programmatically
 - **[nbconvert](./nbconvert/)** - Converting notebooks to other formats
 
 #### **Kernel Management**
+
 - **[jupyter_kernel_gateway](./jupyter-kernel-gateway/)** - HTTP API for kernel management
 - **[jupyter_kernel_spec](./jupyter-kernel-spec/)** - Kernel specification management
 
 ### Extended Ecosystem
 
 #### **Notebook Enhancement**
+
 - **[papermill](./papermill/)** - Parameterized notebook execution
 - **[scrapbook](./scrapbook/)** - Data persistence and cross-notebook communication
 - **[jupytext](./jupytext/)** - Notebook format conversion and synchronization
 
 #### **Documentation & Publishing**
+
 - **[papyri](./papyri/)** - Documentation generation and cross-linking
 - **[jupyter_book](./jupyter-book/)** - Creating publication-quality books from notebooks
 - **[jupyter_contrib_nbextensions](./jupyter-contrib-nbextensions/)** - Community-contributed extensions
 
 #### **Development & Testing**
+
 - **[jupyter_server](./jupyter-server/)** - Server-side Jupyter functionality
 - **[jupyter_lsp](./jupyter-lsp/)** - Language Server Protocol support
 - **[jupyter_packaging](./jupyter-packaging/)** - Packaging utilities for Jupyter extensions
@@ -44,6 +50,7 @@ This directory contains comprehensive API documentation for all Jupyter ecosyste
 Each package documentation follows a standardized format:
 
 ### File Structure
+
 ```
 package-name/
 ├── README.md              # Package overview and quick start
@@ -66,7 +73,7 @@ package-name/
 
 Each API endpoint follows this structure:
 
-```markdown
+````markdown
 # Function/Class Name
 
 ## Description
@@ -75,30 +82,37 @@ Brief description of the function/class purpose.
 ## Signature
 ```python
 function_name(param1: type, param2: type = default) -> return_type
-```
+````
 
 ## Parameters
+
 - **param1** (`type`): Description of parameter
 - **param2** (`type`, optional): Description of optional parameter
 
 ## Returns
+
 - **return_type**: Description of return value
 
 ## Raises
+
 - **ExceptionType**: When and why this exception is raised
 
 ## Examples
+
 ```python
 # Basic usage example
 result = function_name(value1, value2)
 ```
 
 ## Notes
+
 Additional implementation details, performance considerations, etc.
 
 ## See Also
+
 - Related functions or classes
 - External documentation links
+
 ```
 
 ## Integration with Research Documentation
@@ -147,3 +161,4 @@ When adding new package documentation:
 ---
 
 *This API reference is maintained as part of the spreadsheet analyzer project to ensure comprehensive documentation of all Jupyter ecosystem dependencies.* 
+```

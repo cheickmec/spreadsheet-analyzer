@@ -22,11 +22,13 @@ fig = nb.scraps.get("my_plot")
 ## Package Structure
 
 ### Core Modules
+
 - **[scrapbook](./modules/scrapbook.md)** - Main package module with core functions
 - **[scrapbook.models](./modules/scrapbook.models.md)** - Data models for scraps and notebooks
 - **[scrapbook.encoders](./modules/scrapbook.encoders.md)** - Data encoding and serialization
 
 ### Data Structures
+
 - **[Scrapbook](./classes/Scrapbook.md)** - Main scrapbook container class
 - **[Scrap](./classes/Scrap.md)** - Individual data scrap with metadata
 - **[Notebook](./classes/Notebook.md)** - Enhanced notebook with scrapbook functionality
@@ -34,16 +36,19 @@ fig = nb.scraps.get("my_plot")
 ## Key Functions
 
 ### Data Persistence
+
 - **[glue()](./functions/glue.md)** - Save data to the current notebook
 - **[read_notebook()](./functions/read_notebook.md)** - Read notebook with scrapbook data
 - **[display()](./functions/display.md)** - Display scrapbook data in notebook
 
 ### Data Retrieval
+
 - **[get()](./functions/get.md)** - Retrieve data from scrapbook
 - **[get_scrap()](./functions/get_scrap.md)** - Get scrap with metadata
 - **[scraps](./functions/scraps.md)** - Access all scraps in notebook
 
 ### Utility Functions
+
 - **[reglue()](./functions/reglue.md)** - Update existing scrap data
 - **[clear()](./functions/clear.md)** - Clear all scraps from notebook
 - **[list_scraps()](./functions/list_scraps.md)** - List all available scraps
@@ -51,6 +56,7 @@ fig = nb.scraps.get("my_plot")
 ## Data Types Support
 
 ### Supported Types
+
 - **Pandas DataFrames**: Full support with metadata preservation
 - **Matplotlib Figures**: Automatic serialization and display
 - **NumPy Arrays**: Efficient serialization
@@ -59,6 +65,7 @@ fig = nb.scraps.get("my_plot")
 - **Files**: Path references and binary data
 
 ### Custom Encoders
+
 ```python
 import scrapbook as sb
 from my_encoder import CustomEncoder
@@ -73,6 +80,7 @@ sb.glue("my_data", custom_object, encoder='custom')
 ## Common Patterns
 
 ### Basic Data Sharing
+
 ```python
 import scrapbook as sb
 import pandas as pd
@@ -90,6 +98,7 @@ sb.glue("data_info", {
 ```
 
 ### Figure and Plot Persistence
+
 ```python
 import scrapbook as sb
 import matplotlib.pyplot as plt
@@ -104,6 +113,7 @@ sb.glue("my_plot", fig, display=True)
 ```
 
 ### Cross-Notebook Workflows
+
 ```python
 import scrapbook as sb
 
@@ -117,6 +127,7 @@ sb.glue("analysis_results", results)
 ```
 
 ### Batch Processing
+
 ```python
 import scrapbook as sb
 import glob
@@ -134,6 +145,7 @@ for notebook_path in glob.glob("*.ipynb"):
 ## Integration with Other Packages
 
 ### With papermill
+
 ```python
 import scrapbook as sb
 import papermill as pm
@@ -151,6 +163,7 @@ results = nb.scraps.get("results")
 ```
 
 ### With nbformat
+
 ```python
 import scrapbook as sb
 import nbformat as nbf
@@ -168,6 +181,7 @@ loaded_nb = sb.read_notebook('test.ipynb')
 ```
 
 ### With pandas
+
 ```python
 import scrapbook as sb
 import pandas as pd
@@ -187,12 +201,14 @@ assert isinstance(retrieved_df, pd.DataFrame)
 ## Error Handling
 
 ### Common Exceptions
+
 - **ScrapbookException**: Base exception for scrapbook errors
 - **ScrapNotFoundError**: When requested scrap doesn't exist
 - **EncoderError**: When data encoding/decoding fails
 - **ValidationError**: When scrap data is invalid
 
 ### Best Practices
+
 ```python
 import scrapbook as sb
 
@@ -211,11 +227,13 @@ except sb.EncoderError as e:
 ## Performance Considerations
 
 ### Memory Usage
+
 - Large DataFrames are stored efficiently
 - Figures are serialized to reduce memory footprint
 - Consider using `display=False` for large datasets
 
 ### Storage Optimization
+
 ```python
 import scrapbook as sb
 
@@ -227,6 +245,7 @@ sb.glue("large_data", large_object, compress=True)
 ```
 
 ### Batch Operations
+
 ```python
 import scrapbook as sb
 
@@ -238,6 +257,7 @@ all_data = [nb.scraps.get("data") for nb in notebooks]
 ## Configuration
 
 ### Global Settings
+
 ```python
 import scrapbook as sb
 
@@ -252,6 +272,7 @@ sb.config.debug = True
 ```
 
 ### Environment Variables
+
 - `SCRAPBOOK_DEFAULT_ENCODER`: Set default encoder
 - `SCRAPBOOK_COMPRESS_THRESHOLD`: Set compression threshold
 - `SCRAPBOOK_DEBUG`: Enable debug mode
@@ -262,6 +283,6 @@ sb.config.debug = True
 - [GitHub Repository](https://github.com/nteract/scrapbook)
 - [nteract Project](https://nteract.io/)
 
----
+______________________________________________________________________
 
-*This documentation covers scrapbook version 0.5.x. For older versions, see the [legacy documentation](./legacy/).* 
+*This documentation covers scrapbook version 0.5.x. For older versions, see the [legacy documentation](./legacy/).*

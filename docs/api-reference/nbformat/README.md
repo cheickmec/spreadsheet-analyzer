@@ -24,12 +24,14 @@ nb = nbformat.v4.new_notebook()
 ## Package Structure
 
 ### Core Modules
+
 - **[nbformat](./modules/nbformat.md)** - Main package module with core functions
 - **[nbformat.v4](./modules/nbformat.v4.md)** - Version 4 notebook format utilities
 - **[nbformat.v3](./modules/nbformat.v3.md)** - Version 3 notebook format utilities (legacy)
 - **[nbformat.validator](./modules/nbformat.validator.md)** - Notebook validation utilities
 
 ### Data Structures
+
 - **[NotebookNode](./classes/NotebookNode.md)** - Main notebook container class
 - **[Cell](./classes/Cell.md)** - Base cell class
 - **[CodeCell](./classes/CodeCell.md)** - Code cell implementation
@@ -39,18 +41,21 @@ nb = nbformat.v4.new_notebook()
 ## Key Functions
 
 ### Reading and Writing
+
 - **[read()](./functions/read.md)** - Read notebook from file or string
 - **[write()](./functions/write.md)** - Write notebook to file
 - **[parse()](./functions/parse.md)** - Parse notebook JSON string
 - **[mimetype2notebook()](./functions/mimetype2notebook.md)** - Convert MIME type to notebook
 
 ### Notebook Creation
+
 - **[new_notebook()](./functions/new_notebook.md)** - Create new notebook
 - **[new_code_cell()](./functions/new_code_cell.md)** - Create new code cell
 - **[new_markdown_cell()](./functions/new_markdown_cell.md)** - Create new markdown cell
 - **[new_raw_cell()](./functions/new_raw_cell.md)** - Create new raw cell
 
 ### Validation
+
 - **[validate()](./functions/validate.md)** - Validate notebook structure
 - **[validate_one()](./functions/validate_one.md)** - Validate single cell
 - **[is_type()](./functions/is_type.md)** - Check if object is of specific type
@@ -58,11 +63,13 @@ nb = nbformat.v4.new_notebook()
 ## Version Support
 
 ### Version 4 (Current)
+
 - Full support for all modern notebook features
 - Recommended for new notebooks
 - Supports metadata, attachments, and rich outputs
 
 ### Version 3 (Legacy)
+
 - Backward compatibility for older notebooks
 - Limited feature set
 - Automatic conversion to v4 when reading
@@ -70,6 +77,7 @@ nb = nbformat.v4.new_notebook()
 ## Common Patterns
 
 ### Creating a Notebook Programmatically
+
 ```python
 import nbformat as nbf
 
@@ -89,6 +97,7 @@ nbf.write(nb, 'analysis.ipynb')
 ```
 
 ### Reading and Modifying
+
 ```python
 import nbformat as nbf
 
@@ -106,6 +115,7 @@ with open('modified_notebook.ipynb', 'w') as f:
 ```
 
 ### Validation
+
 ```python
 import nbformat as nbf
 
@@ -120,6 +130,7 @@ except nbf.ValidationError as e:
 ## Integration with Other Packages
 
 ### With nbclient
+
 ```python
 import nbformat as nbf
 from nbclient import NotebookClient
@@ -133,6 +144,7 @@ client.execute()
 ```
 
 ### With papermill
+
 ```python
 import nbformat as nbf
 import papermill as pm
@@ -151,11 +163,13 @@ pm.execute_notebook(nb, 'output.ipynb', parameters={'input_file': 'data.csv'})
 ## Error Handling
 
 ### Common Exceptions
+
 - **ValidationError**: Invalid notebook structure
 - **NotJSONError**: Invalid JSON format
 - **VersionError**: Unsupported notebook version
 
 ### Best Practices
+
 ```python
 import nbformat as nbf
 
@@ -183,6 +197,6 @@ except Exception as e:
 - [Jupyter Notebook Format Specification](https://nbformat.readthedocs.io/en/latest/format_description.html)
 - [GitHub Repository](https://github.com/jupyter/nbformat)
 
----
+______________________________________________________________________
 
-*This documentation covers nbformat version 5.x. For older versions, see the [legacy documentation](./legacy/).* 
+*This documentation covers nbformat version 5.x. For older versions, see the [legacy documentation](./legacy/).*

@@ -15,7 +15,7 @@ nbformat.read(fp, as_version=None, as_version_minor=None, **kwargs) -> NotebookN
 - **fp** (`Union[str, Path, TextIO, BinaryIO]`): File path, file-like object, or string containing notebook content
 - **as_version** (`int`, optional): Version to convert the notebook to (default: auto-detect)
 - **as_version_minor** (`int`, optional): Minor version number (default: auto-detect)
-- ****kwargs**: Additional arguments passed to `json.loads()` or `json.load()`
+- \*\***kwargs**: Additional arguments passed to `json.loads()` or `json.load()`
 
 ## Returns
 
@@ -92,8 +92,8 @@ nb = nbformat.read('notebook.ipynb', parse_float=Decimal)
 The function automatically detects the notebook version from the `nbformat` field in the JSON. If `as_version` is not specified, it will:
 
 1. Read the version from the notebook metadata
-2. Convert to the latest supported version if needed
-3. Validate the notebook structure
+1. Convert to the latest supported version if needed
+1. Validate the notebook structure
 
 ### File Format Support
 
@@ -123,4 +123,4 @@ For large notebooks, consider using file objects instead of loading the entire c
 ## Related Documentation
 
 - [Jupyter Notebook Format Specification](https://nbformat.readthedocs.io/en/latest/format_description.html)
-- [Version Migration Guide](https://nbformat.readthedocs.io/en/latest/migrate.html) 
+- [Version Migration Guide](https://nbformat.readthedocs.io/en/latest/migrate.html)
