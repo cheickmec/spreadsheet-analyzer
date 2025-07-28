@@ -99,12 +99,6 @@ repos:
           - mdformat-tables
           - mdformat-footnote
 
-  # Jupyter notebook cleaning (if you use notebooks)
-  - repo: https://github.com/srstevenson/nb-clean
-    rev: 4.0.1
-    hooks:
-      - id: nb-clean
-        args: ['--remove-empty-cells']
 
   # Commit message linting with commitizen
   - repo: https://github.com/commitizen-tools/commitizen

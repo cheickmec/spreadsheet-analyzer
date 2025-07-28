@@ -13,7 +13,7 @@ from spreadsheet_analyzer.notebook_llm.orchestration.base import (
     WorkflowStatus,
     WorkflowStep,
 )
-from spreadsheet_analyzer.typing import Success
+from spreadsheet_analyzer.type_definitions import Success
 
 
 class TestWorkflowStatus:

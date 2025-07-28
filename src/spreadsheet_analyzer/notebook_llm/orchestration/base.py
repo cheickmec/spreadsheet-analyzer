@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
-from spreadsheet_analyzer.typing import Failure, Result, Success
+from spreadsheet_analyzer.type_definitions import Failure, Result, Success
 
 
 class WorkflowStatus(Enum):

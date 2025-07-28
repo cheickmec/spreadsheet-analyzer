@@ -30,7 +30,7 @@ from spreadsheet_analyzer.notebook_llm.strategies.base import (
     ResponseFormat,
 )
 from spreadsheet_analyzer.notebook_llm.strategies.registry import StrategyRegistry
-from spreadsheet_analyzer.typing import Failure, Result, Success
+from spreadsheet_analyzer.type_definitions import Failure, Result, Success
 
 logger = logging.getLogger(__name__)
 
