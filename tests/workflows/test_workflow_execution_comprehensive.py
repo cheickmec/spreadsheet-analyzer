@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 # Enable debug logging
 logging.basicConfig(level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s")
@@ -15,8 +15,8 @@ logging.basicConfig(level=logging.DEBUG, format="%(name)s - %(levelname)s - %(me
 from src.spreadsheet_analyzer.workflows.notebook_workflow import NotebookWorkflow, WorkflowConfig, WorkflowMode
 
 
-async def test_workflow_debug():
-    """Debug notebook workflow execution."""
+async def test_workflow_execution():
+    """Test comprehensive notebook workflow execution with result validation."""
     config = WorkflowConfig(
         file_path="test_assets/collection/business-accounting/Business Accounting.xlsx",
         sheet_name="Yiriden Transactions 2025",

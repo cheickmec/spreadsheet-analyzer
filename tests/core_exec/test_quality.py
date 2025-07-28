@@ -14,7 +14,6 @@ All tests use real NotebookBuilder instances for authentic quality assessment.
 """
 
 from spreadsheet_analyzer.core_exec.notebook_builder import (
-    CellType,
     NotebookBuilder,
 )
 from spreadsheet_analyzer.core_exec.quality import (
@@ -545,8 +544,8 @@ Based on the analysis, we recommend:
         assert metrics.overall_level in [QualityLevel.GOOD, QualityLevel.EXCELLENT]
 
         # Should have balanced content
-        markdown_cells = len([cell for cell in notebook.cells if cell.cell_type == CellType.MARKDOWN])
-        code_cells = len([cell for cell in notebook.cells if cell.cell_type == CellType.CODE])
+        markdown_cells = len([cell for cell in notebook.notebook.cells if cell.cell_type == "markdown"])
+        code_cells = len([cell for cell in notebook.notebook.cells if cell.cell_type == "code"])
 
         assert markdown_cells >= 5  # Good documentation
         assert code_cells >= 4  # Substantial analysis
