@@ -83,16 +83,18 @@ class NotebookToolkit:
 
             # Process outputs from the execution result
             for output in execution_result.outputs:
-                output_type = output.get("output_type", "stream")
-                content = output.get("data", {}).get("text/plain", "") or output.get("text", "")
+                output_type = output.get("type", "stream")  # KernelService uses "type", not "output_type"
 
                 if output_type == "stream":
+                    content = output.get("text", "")  # Stream outputs have "text" field
                     outputs.append(
                         CellOutput(
                             output_type="stream", content=content, metadata={"name": output.get("name", "stdout")}
                         )
                     )
                 elif output_type == "execute_result":
+                    # Execute results have data with text/plain representation
+                    content = output.get("data", {}).get("text/plain", "")
                     outputs.append(
                         CellOutput(
                             output_type="execute_result",
@@ -100,7 +102,18 @@ class NotebookToolkit:
                             metadata={"execution_count": self._next_execution_count()},
                         )
                     )
+                elif output_type == "display_data":
+                    # Display data also has data with text/plain representation
+                    content = output.get("data", {}).get("text/plain", "")
+                    outputs.append(
+                        CellOutput(
+                            output_type="display_data",
+                            content=content,
+                            metadata=output.get("metadata", {}),
+                        )
+                    )
                 elif output_type == "error":
+                    content = "\n".join(output.get("traceback", []))
                     outputs.append(
                         CellOutput(
                             output_type="error",
@@ -125,7 +138,7 @@ class NotebookToolkit:
             # Add to notebook builder for persistence
             self._notebook_builder.add_code_cell(
                 code=code,
-                outputs=[{"output_type": out.output_type, "content": out.content, **out.metadata} for out in outputs],
+                outputs=execution_result.outputs,  # Use raw outputs directly for proper nbformat conversion
                 metadata={"cell_id": cell_id},
             )
 

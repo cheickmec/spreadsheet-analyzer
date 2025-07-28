@@ -2,183 +2,228 @@
 """
 Notebook Tools CLI
 
-Interactive notebook analysis using LLM function calling with the notebook tools interface.
+Automated Excel analysis using LLM function calling with the notebook tools interface.
 """
 
 import argparse
 import asyncio
+import logging
 import os
 import sys
+from pathlib import Path
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from structlog import get_logger
 
-from spreadsheet_analyzer.notebook_llm_interface import create_notebook_tool_descriptions, get_notebook_tools
+from spreadsheet_analyzer.notebook_llm_interface import (
+    get_notebook_tools,
+)
 from spreadsheet_analyzer.notebook_session import notebook_session
 
 logger = get_logger(__name__)
 
 
 class NotebookCLI:
-    """CLI interface for notebook tools with LLM integration."""
+    """CLI interface for automated Excel analysis with LLM integration."""
 
-    def __init__(self, model_name: str, api_key: str | None = None):
-        """Initialize the CLI with LLM configuration."""
-        self.model_name = model_name
-        self.api_key = api_key
-        self.llm = self._create_llm()
-        self.tools = get_notebook_tools()
-        self.tool_descriptions = create_notebook_tool_descriptions()
+    def __init__(self):
+        self.parser = self._create_parser()
 
-    def _create_llm(self):
-        """Create the LLM instance based on model name."""
-        if self.model_name.startswith("claude"):
-            if not self.api_key:
-                self.api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not self.api_key:
-                raise ValueError("ANTHROPIC_API_KEY environment variable required for Claude models")
-            return ChatAnthropic(model=self.model_name, anthropic_api_key=self.api_key, temperature=0.1)
-        elif self.model_name.startswith("gpt"):
-            if not self.api_key:
-                self.api_key = os.getenv("OPENAI_API_KEY")
-            if not self.api_key:
-                raise ValueError("OPENAI_API_KEY environment variable required for GPT models")
-            return ChatOpenAI(model=self.model_name, openai_api_key=self.api_key, temperature=0.1)
-        else:
-            raise ValueError(f"Unsupported model: {self.model_name}")
+    def _create_parser(self):
+        parser = argparse.ArgumentParser(description="Automated Excel analysis using LLM function calling.")
+        parser.add_argument("excel_file", type=Path, help="Path to the Excel file to analyze.")
+        parser.add_argument(
+            "--model",
+            type=str,
+            default="claude-3-sonnet-20240229",
+            help="LLM model to use (e.g., 'claude-3-sonnet-20240229', 'gpt-4').",
+        )
+        parser.add_argument(
+            "--api-key",
+            type=str,
+            default=None,
+            help="API key for the LLM. Defaults to environment variable (ANTHROPIC_API_KEY or OPENAI_API_KEY).",
+        )
+        parser.add_argument(
+            "--session-id",
+            type=str,
+            default=None,
+            help="Unique ID for the notebook session. Defaults to a name derived from the Excel file.",
+        )
+        parser.add_argument(
+            "--notebook-path",
+            type=Path,
+            default=None,
+            help="Path to save/load the notebook. Defaults to notebook_{session_id}.ipynb.",
+        )
+        parser.add_argument(
+            "--max-rounds",
+            type=int,
+            default=5,
+            help="Maximum number of analysis rounds (i.e., LLM calls).",
+        )
+        parser.add_argument("--verbose", action="store_true", help="Enable verbose logging.")
+        return parser
 
-    async def start_session(self):
-        """Start a notebook session."""
-        async with notebook_session("default_session") as session:
-            logger.info("Notebook session started", session_id=session.session_id)
-            return session
+    async def run_analysis(self, args):
+        """Run the automated analysis loop."""
+        llm = None
 
-    def create_system_prompt(self) -> str:
-        """Create the system prompt for the LLM."""
-        return f"""You are an AI assistant that can interact with Jupyter notebooks programmatically.
+        # Try primary model first
+        try:
+            if "claude" in args.model.lower():
+                if args.api_key:
+                    os.environ["ANTHROPIC_API_KEY"] = args.api_key
+                llm = ChatAnthropic(model_name=args.model)
+            elif "gpt" in args.model.lower():
+                if args.api_key:
+                    os.environ["OPENAI_API_KEY"] = args.api_key
+                llm = ChatOpenAI(model_name=args.model)
+            else:
+                logger.error(f"Unsupported primary model: {args.model}")
+                return
+        except Exception as e:
+            logger.warning(f"Failed to initialize primary model {args.model}: {e}")
+            llm = None
 
-You have access to the following tools for notebook manipulation:
-
-{self.tool_descriptions}
-
-Guidelines:
-1. Always use the appropriate tool for the task
-2. For code execution, use `execute_code` for new code or `edit_and_execute` to modify existing cells
-3. Use `add_markdown_cell` for documentation and explanations
-4. Check the notebook state with `get_notebook_state` when needed
-5. Save your work with `save_notebook` when appropriate
-6. Be conversational and explain what you're doing
-7. If code fails, try to fix it and re-execute
-
-You can analyze spreadsheets, create visualizations, perform data analysis, and document your findings.
-"""
-
-    async def interactive_loop(self):
-        """Run the interactive CLI loop."""
-        print("🤖 Notebook Tools CLI")
-        print(f"📊 Model: {self.model_name}")
-        print("💡 Type 'quit' or 'exit' to end the session")
-        print("=" * 50)
-
-        # Start the notebook session
-        await self.start_session()
-
-        # Create the system message
-        system_message = SystemMessage(content=self.create_system_prompt())
-
-        while True:
+        # If primary model failed, try fallback
+        if llm is None:
             try:
-                # Get user input
-                user_input = input("\n🔍 What would you like to do? ").strip()
+                logger.info("Trying fallback model: gpt-4")
+                llm = ChatOpenAI(model_name="gpt-4")
+            except Exception as fallback_e:
+                logger.error(f"Failed to initialize fallback model gpt-4: {fallback_e}")
+                return
 
-                if user_input.lower() in ["quit", "exit", "q"]:
-                    print("👋 Goodbye!")
-                    break
+        tools = get_notebook_tools()
+        llm_with_tools = llm.bind_tools(tools)
 
-                if not user_input:
-                    continue
+        session_id = args.session_id or f"{args.excel_file.stem}_analysis_session"
 
-                # Create the user message
-                user_message = HumanMessage(content=user_input)
+        # Resolve the excel file path to be absolute
+        excel_path = args.excel_file.resolve()
+        notebook_path = args.notebook_path or excel_path.parent / f"{excel_path.stem}_analysis.ipynb"
 
-                # Get LLM response with tool calling
-                response = await self.llm.ainvoke([system_message, user_message], tools=self.tools)
+        logger.info(f"Starting notebook session with model: {type(llm).__name__}")
+        logger.info(f"Session ID: {session_id}")
+        logger.info(f"Notebook Path: {notebook_path}")
+        logger.info(f"Max rounds: {args.max_rounds}")
 
-                # Handle tool calls if any
+        async with notebook_session(session_id, notebook_path) as session:
+            # Register the session with the global session manager so tools can access it
+            from spreadsheet_analyzer.notebook_llm_interface import get_session_manager
+
+            session_manager = get_session_manager()
+            session_manager._sessions["default_session"] = session
+
+            initial_prompt = (
+                "You are an expert data analyst. Your goal is to conduct a thorough analysis of the provided Excel file. "
+                f"The file is located at: '{args.excel_file.resolve()}'.\n\n"
+                "Follow these steps:\n"
+                "1. Load the data from the Excel file into a pandas DataFrame. Use the tools provided.\n"
+                "2. Explore the data to understand its structure, columns, and data types.\n"
+                "3. Identify patterns, trends, and insights in the data.\n"
+                "4. Create visualizations if appropriate.\n"
+                "5. Summarize your findings and provide actionable insights.\n\n"
+                "Start by loading the data and showing its basic information."
+            )
+
+            messages = [
+                SystemMessage(
+                    "You are an AI assistant that can interact with a Jupyter notebook to analyze data. "
+                    "Use the provided tools to execute code, manage cells, and explore the data thoroughly. "
+                    "Always use the tools to perform actions rather than just describing what you would do."
+                ),
+                HumanMessage(content=initial_prompt),
+            ]
+
+            for round_num in range(1, args.max_rounds + 1):
+                logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
+
+                if args.verbose:
+                    logger.info("Sending messages to LLM:", messages=messages)
+
+                try:
+                    response = await llm_with_tools.ainvoke(messages)
+                except Exception as api_error:
+                    logger.warning(f"Primary model API call failed: {api_error}")
+
+                    # Try fallback if we haven't already
+                    if not isinstance(llm, ChatOpenAI):
+                        try:
+                            logger.info("Switching to fallback model: gpt-4")
+                            llm = ChatOpenAI(model_name="gpt-4")
+                            llm_with_tools = llm.bind_tools(tools)
+                            response = await llm_with_tools.ainvoke(messages)
+                        except Exception as fallback_error:
+                            logger.error(f"Fallback model also failed: {fallback_error}")
+                            break
+                    else:
+                        logger.error(f"API call failed: {api_error}")
+                        break
+
+                if args.verbose:
+                    logger.info("Received response from LLM:", response=response)
+
+                # Process tool calls
+                tool_output_messages = []
                 if response.tool_calls:
-                    print(f"\n🔧 Executing {len(response.tool_calls)} tool(s)...")
+                    # Add the AI response with tool calls to the conversation first
+                    messages.append(response)
 
                     for tool_call in response.tool_calls:
-                        tool_name = tool_call["name"]
-                        tool_args = tool_call["args"]
+                        tool_name = tool_call.get("name")
+                        tool_args = tool_call.get("args")
+                        logger.info(f"LLM called tool: {tool_name}", args=tool_args)
 
-                        print(f"  📝 {tool_name}: {tool_args}")
-
-                        # Find and execute the tool
-                        tool_func = next((t for t in self.tools if t.name == tool_name), None)
+                        # Dynamically call the tool function
+                        tool_func = next((t for t in tools if t.name == tool_name), None)
                         if tool_func:
-                            try:
-                                result = await tool_func.ainvoke(tool_args)
-                                print(f"  ✅ Result: {result}")
-                            except Exception as e:
-                                print(f"  ❌ Error: {e!s}")
+                            tool_output = await tool_func.ainvoke(tool_args)
+                            logger.info(f"Tool output: {tool_output}")
+                            tool_output_messages.append(
+                                ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
+                            )
                         else:
-                            print(f"  ❌ Tool '{tool_name}' not found")
+                            logger.warning(f"LLM tried to call unknown tool: {tool_name}")
 
-                # Show the LLM's response
-                if response.content:
-                    print(f"\n🤖 {response.content}")
+                    # Add tool results to conversation
+                    messages.extend(tool_output_messages)
 
-            except KeyboardInterrupt:
-                print("\n👋 Interrupted by user. Goodbye!")
-                break
-            except Exception as e:
-                print(f"\n❌ Error: {e!s}")
-                logger.error("CLI error", error=str(e), exc_info=True)
+                elif response.content:
+                    logger.info(f"LLM response: {response.content}")
+                    # If no tool calls, the LLM is done
+                    break
+                else:
+                    logger.warning("LLM response was empty.")
+                    break
 
+            # Ensure notebook is saved at the end
+            logger.info("Analysis complete. Saving notebook...")
+            save_result = session.toolkit.save_notebook(notebook_path, overwrite=True)
+            if save_result.is_ok():
+                logger.info(f"✅ Notebook saved successfully to: {save_result.ok_value}")
+            else:
+                logger.error(f"❌ Failed to save notebook: {save_result.err_value}")
 
-async def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Interactive notebook analysis with LLM function calling",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python -m spreadsheet_analyzer.notebook_cli --model claude-3-sonnet-20240229
-  python -m spreadsheet_analyzer.notebook_cli --model gpt-4 --api-key sk-...
-        """,
-    )
+            logger.info("Analysis session completed.")
 
-    parser.add_argument(
-        "--model", default="claude-3-sonnet-20240229", help="LLM model to use (default: claude-3-sonnet-20240229)"
-    )
+    def run(self):
+        """Parse arguments and run the analysis."""
+        args = self.parser.parse_args()
+        # Setup basic logging
+        log_level = logging.INFO if args.verbose else logging.WARNING
+        logging.basicConfig(level=log_level, stream=sys.stdout)
 
-    parser.add_argument("--api-key", help="API key for the LLM (will use environment variables if not provided)")
+        # Give a more specific logger name
+        global logger
+        logger = get_logger(f"notebook_cli.{args.model}")
 
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
-
-    args = parser.parse_args()
-
-    # Configure logging
-    if args.verbose:
-        import logging
-
-        logging.basicConfig(level=logging.INFO)
-
-    try:
-        # Create and run the CLI
-        cli = NotebookCLI(args.model, args.api_key)
-        await cli.interactive_loop()
-
-    except KeyboardInterrupt:
-        print("\n👋 Interrupted by user. Goodbye!")
-    except Exception as e:
-        print(f"❌ Fatal error: {e!s}")
-        logger.error("Fatal CLI error", error=str(e), exc_info=True)
-        sys.exit(1)
+        asyncio.run(self.run_analysis(args))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    cli = NotebookCLI()
+    cli.run()

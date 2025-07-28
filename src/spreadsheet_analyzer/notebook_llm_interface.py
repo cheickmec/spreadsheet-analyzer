@@ -56,10 +56,7 @@ def get_session_manager() -> spreadsheet_analyzer.notebook_session.SessionManage
     """Get the global session manager."""
     global _session_manager
     if _session_manager is None:
-        from spreadsheet_analyzer.core_exec import KernelProfile, KernelService
-
-        kernel_service = KernelService(KernelProfile())
-        _session_manager = spreadsheet_analyzer.notebook_session.SessionManager(kernel_service)
+        _session_manager = spreadsheet_analyzer.notebook_session.SessionManager()
     return _session_manager
 
 
@@ -68,11 +65,12 @@ async def execute_code(input_data: ExecuteCodeInput) -> str:
     """Execute Python code in a new cell."""
     try:
         session_manager = get_session_manager()
-        session = session_manager.get_session("default_session")
+        session_result = await session_manager.get_session("default_session")
 
-        if not session:
-            return "Error: No active session found"
+        if session_result.is_err():
+            return f"Error: {session_result.err_value}"
 
+        session = session_result.ok_value
         result = await session.toolkit.execute_code(code=input_data.code, cell_id=input_data.cell_id)
 
         if isinstance(result, Err):
@@ -97,11 +95,12 @@ async def edit_and_execute(input_data: EditAndExecuteInput) -> str:
     """Edit an existing code cell and execute it immediately."""
     try:
         session_manager = get_session_manager()
-        session = session_manager.get_session("default_session")
+        session_result = await session_manager.get_session("default_session")
 
-        if not session:
-            return "Error: No active session found"
+        if session_result.is_err():
+            return f"Error: {session_result.err_value}"
 
+        session = session_result.ok_value
         # For now, we'll just execute the new code (edit + execute in one step)
         result = await session.toolkit.execute_code(code=input_data.new_code, cell_id=input_data.cell_id)
 
@@ -129,10 +128,12 @@ async def add_cell(input_data: AddCellInput) -> str:
     """Add a new cell to the notebook (code, markdown, or raw)."""
     try:
         session_manager = get_session_manager()
-        session = session_manager.get_session("default_session")
+        session_result = await session_manager.get_session("default_session")
 
-        if not session:
-            return "Error: No active session found"
+        if session_result.is_err():
+            return f"Error: {session_result.err_value}"
+
+        session = session_result.ok_value
 
         # Convert string to CellType enum
         cell_type_map = {"code": CellType.CODE, "markdown": CellType.MARKDOWN, "raw": CellType.RAW}
@@ -176,13 +177,19 @@ async def delete_cell(input_data: DeleteCellInput) -> str:
     """Delete a cell from the notebook."""
     try:
         session_manager = get_session_manager()
-        session = session_manager.get_session("default_session")
+        session_result = await session_manager.get_session("default_session")
 
-        if not session:
-            return "Error: No active session found"
+        if session_result.is_err():
+            return f"Error: {session_result.err_value}"
 
-        # For now, we'll return a message (actual deletion would need cell tracking)
-        return f"✅ Cell {input_data.cell_id} marked for deletion (cell tracking not yet implemented)"
+        session = session_result.ok_value
+
+        result = await session.toolkit.delete_cell(input_data.cell_id)
+
+        if isinstance(result, Err):
+            return f"Failed to delete cell: {result.value}"
+
+        return f"✅ Cell {input_data.cell_id} deleted successfully"
 
     except Exception as e:
         return f"Error deleting cell: {e!s}"
@@ -193,13 +200,27 @@ async def read_cell(input_data: ReadCellInput) -> str:
     """Read the content and outputs of a specific cell."""
     try:
         session_manager = get_session_manager()
-        session = session_manager.get_session("default_session")
+        session_result = await session_manager.get_session("default_session")
 
-        if not session:
-            return "Error: No active session found"
+        if session_result.is_err():
+            return f"Error: {session_result.err_value}"
 
-        # For now, we'll return a message (actual cell reading would need cell tracking)
-        return f"Cell {input_data.cell_id} content and outputs (cell tracking not yet implemented)"
+        session = session_result.ok_value
+
+        result = await session.toolkit.get_cell(input_data.cell_id)
+
+        if isinstance(result, Err):
+            return f"Failed to read cell: {result.value}"
+
+        cell = result.value
+        outputs = []
+        for output in cell.outputs:
+            outputs.append(f"[{output.output_type}] {output.content}")
+
+        return (
+            f"Cell ID: {cell.cell_id}\nType: {cell.cell_type.value}\nContent: {cell.content}\nOutputs:\n"
+            + "\n".join(outputs)
+        )
 
     except Exception as e:
         return f"Error reading cell: {e!s}"
@@ -210,13 +231,26 @@ async def get_notebook_state(input_data: GetStateInput) -> str:
     """Get the current state of the notebook."""
     try:
         session_manager = get_session_manager()
-        session = session_manager.get_session("default_session")
+        session_result = await session_manager.get_session(input_data.session_id)
 
-        if not session:
-            return "Error: No active session found"
+        if session_result.is_err():
+            return f"Error: {session_result.err_value}"
 
-        state = session.toolkit.get_state()
-        return f"Notebook State:\nSession ID: {state.session_id}\nCells: {len(state.cells)}\nMetadata: {state.metadata}"
+        session = session_result.ok_value
+
+        state = await session.toolkit.get_notebook_state()
+
+        if isinstance(state, Err):
+            return f"Failed to get notebook state: {state.value}"
+
+        # Format the state information
+        cells_info = []
+        for i, cell in enumerate(state.value.cells):
+            cells_info.append(
+                f"{i + 1}. [{cell.cell_type.value}] {cell.cell_id}: {cell.content[:50]}{'...' if len(cell.content) > 50 else ''}"
+            )
+
+        return f"Notebook State:\nTotal cells: {len(state.value.cells)}\nCells:\n" + "\n".join(cells_info)
 
     except Exception as e:
         return f"Error getting notebook state: {e!s}"
@@ -227,21 +261,21 @@ async def save_notebook(input_data: SaveNotebookInput) -> str:
     """Save the notebook to a file."""
     try:
         session_manager = get_session_manager()
-        session = session_manager.get_session("default_session")
+        session_result = await session_manager.get_session(input_data.session_id)
 
-        if not session:
-            return "Error: No active session found"
+        if session_result.is_err():
+            return f"Error: {session_result.err_value}"
 
-        # Use the toolkit's save method
-        result = session.toolkit.save_notebook(
-            file_path=Path(input_data.file_path) if input_data.file_path else None,
-            overwrite=True,  # Allow overwriting for LLM use
-        )
+        session = session_result.ok_value
 
-        if isinstance(result, Ok):
-            return f"✅ Notebook saved successfully to: {result.value}"
+        file_path = Path(input_data.file_path) if input_data.file_path else None
+
+        save_result = session.toolkit.save_notebook(file_path, overwrite=True)
+
+        if isinstance(save_result, Ok):
+            return f"✅ Notebook saved successfully to: {save_result.ok_value}"
         else:
-            return f"❌ Failed to save notebook: {result.value}"
+            return f"❌ Failed to save notebook: {save_result.err_value}"
 
     except Exception as e:
         return f"Error saving notebook: {e!s}"
