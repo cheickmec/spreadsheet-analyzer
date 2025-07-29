@@ -270,6 +270,7 @@ class NotebookCLI:
         logger.info("Running deterministic pipeline analysis...")
         pipeline_result = None
         query_interface = None
+        formula_cache_path = None
 
         try:
             # Run the pipeline with progress tracking
@@ -279,8 +280,23 @@ class NotebookCLI:
             if pipeline_result.success:
                 logger.info(f"✅ Pipeline analysis completed in {pipeline_result.execution_time:.2f} seconds")
 
-                # Create query interface if formula analysis succeeded
+                # Save formula analysis to pickle cache if available
                 if pipeline_result.formulas:
+                    import pickle
+
+                    cache_dir = Path(".pipeline_cache")
+                    cache_dir.mkdir(exist_ok=True)
+
+                    # Create a unique filename based on the Excel file
+                    cache_filename = f"{excel_path.stem}_formula_analysis.pkl"
+                    formula_cache_path = cache_dir / cache_filename
+
+                    with open(formula_cache_path, "wb") as f:
+                        pickle.dump(pipeline_result.formulas, f)
+
+                    logger.info(f"Saved formula analysis to cache: {formula_cache_path}")
+
+                    # Create query interface
                     query_interface = create_enhanced_query_interface(pipeline_result.formulas)
                     logger.info("Created enhanced query interface for formula analysis")
             else:
@@ -401,6 +417,112 @@ except Exception as e:
             else:
                 logger.error(f"❌ Failed to execute data loading cell: {result.err_value}")
 
+            # Add query interface loading cell if formula cache exists
+            if formula_cache_path and formula_cache_path.exists():
+                logger.info("Adding query interface loading cell...")
+
+                # Calculate relative path for the cache file
+                try:
+                    repo_root = Path.cwd()
+                    relative_cache_path = formula_cache_path.relative_to(repo_root)
+                    cache_path_str = f'"{relative_cache_path}"'
+                except ValueError:
+                    # If cache is outside repo, use absolute path
+                    cache_path_str = f'r"{formula_cache_path}"'
+
+                query_interface_code = f'''import pickle
+from pathlib import Path
+from spreadsheet_analyzer.graph_db.query_interface import create_enhanced_query_interface
+
+# Load the formula analysis from pipeline cache
+cache_file = Path({cache_path_str})
+if cache_file.exists():
+    with open(cache_file, 'rb') as f:
+        formula_analysis = pickle.load(f)
+
+    # Create query interface
+    query_interface = create_enhanced_query_interface(formula_analysis)
+    print("✅ Graph query interface loaded successfully")
+    print(f"   Total formulas: {{len(formula_analysis.dependency_graph):,}}")
+    print(f"   Max dependency depth: {{formula_analysis.max_dependency_depth}}")
+
+    # Define convenience functions for easier use
+    def get_cell_dependencies(sheet, cell_ref):
+        """Get complete dependency information for a specific cell."""
+        result = query_interface.get_cell_dependencies(sheet, cell_ref)
+        print(f"\\nCell {{sheet}}!{{cell_ref}}:")
+        print(f"  Has formula: {{result.has_formula}}")
+        if result.formula:
+            print(f"  Formula: {{result.formula}}")
+        if result.direct_dependencies:
+            print(f"  Direct dependencies: {{', '.join(result.direct_dependencies[:5])}}")
+            if len(result.direct_dependencies) > 5:
+                print(f"    ...and {{len(result.direct_dependencies) - 5}} more")
+        if result.direct_dependents:
+            print(f"  Cells that depend on this: {{', '.join(result.direct_dependents[:5])}}")
+            if len(result.direct_dependents) > 5:
+                print(f"    ...and {{len(result.direct_dependents) - 5}} more")
+        return result
+
+    def find_cells_affecting_range(sheet, start_cell, end_cell):
+        """Find all cells that affect any cell within the specified range."""
+        result = query_interface.find_cells_affecting_range(sheet, start_cell, end_cell)
+        print(f"\\nCells affecting range {{sheet}}!{{start_cell}}:{{end_cell}}:")
+        for cell, deps in list(result.items())[:5]:
+            print(f"  {{cell}} depends on: {{', '.join(deps[:3])}}")
+            if len(deps) > 3:
+                print(f"    ...and {{len(deps) - 3}} more")
+        if len(result) > 5:
+            print(f"  ...and {{len(result) - 5}} more cells")
+        return result
+
+    def get_formula_statistics():
+        """Get comprehensive statistics about formulas in the workbook."""
+        stats = query_interface.get_formula_statistics_with_ranges()
+        print("\\nFormula Statistics:")
+        print(f"  Total formulas: {{stats['total_formulas']:,}}")
+        print(f"  Formulas with dependencies: {{stats['formulas_with_dependencies']:,}}")
+        print(f"  Unique cells referenced: {{stats['unique_cells_referenced']:,}}")
+        print(f"  Max dependency depth: {{stats['max_dependency_depth']}} levels")
+        print(f"  Circular references: {{stats['circular_reference_chains']}}")
+        print(f"  Formula complexity score: {{stats['complexity_score']}}/100")
+        return stats
+
+    def find_empty_cells_in_formula_ranges(sheet):
+        """Find empty cells that are part of formula ranges."""
+        result = query_interface.find_empty_cells_in_formula_ranges(sheet)
+        print(f"\\nEmpty cells in formula ranges for sheet '{{sheet}}':")
+        if result:
+            print(f"  Found {{len(result)}} empty cells")
+            # Group by rows for display
+            rows = {{}}
+            for cell in list(result)[:20]:
+                row_num = ''.join(filter(str.isdigit, cell))
+                if row_num not in rows:
+                    rows[row_num] = []
+                rows[row_num].append(cell)
+            for row, cells in list(rows.items())[:5]:
+                print(f"  Row {{row}}: {{', '.join(cells)}}")
+            if len(result) > 20:
+                print(f"  ...and {{len(result) - 20}} more")
+        else:
+            print("  No empty cells found in formula ranges")
+        return result
+
+    # Display available sheets for reference
+    if hasattr(formula_analysis, 'sheets_with_formulas') and formula_analysis.sheets_with_formulas:
+        print(f"\\nSheets with formulas: {{', '.join(formula_analysis.sheets_with_formulas)}}")
+else:
+    print("⚠️ Formula analysis cache not found at {{cache_file}}")
+    query_interface = None
+'''
+
+                result = await toolkit.execute_code(query_interface_code)
+                if result.is_ok():
+                    logger.info(f"✅ Query interface loading cell executed: {result.ok_value.cell_id}")
+                else:
+                    logger.error(f"❌ Failed to execute query interface loading cell: {result.err_value}")
+
             # Add graph query interface tools if formula analysis succeeded
             if query_interface and pipeline_result and pipeline_result.formulas:
                 logger.info("Adding graph query interface tools...")
@@ -437,20 +559,125 @@ These tools are available through the tool-calling interface. Each query will be
 
                 logger.info("Graph query tools are available via tool-calling interface")
 
-            # Skip LLM interaction for now
-            logger.info("Skipping LLM interaction (commented out)")
+            # Mock LLM interaction for testing
+            logger.info("Starting mock LLM interaction...")
 
-            # initial_prompt = (
-            #     "You are an expert data analyst. Your goal is to conduct a thorough analysis of the provided Excel file. "
-            #     f"The file is located at: '{args.excel_file.resolve()}'.\n\n"
-            #     "Follow these steps:\n"
-            #     "1. Load the data from the Excel file into a pandas DataFrame. Use the tools provided.\n"
-            #     "2. Explore the data to understand its structure, columns, and data types.\n"
-            #     "3. Identify patterns, trends, and insights in the data.\n"
-            #     "4. Create visualizations if appropriate.\n"
-            #     "5. Summarize your findings and provide actionable insights.\n\n"
-            #     "Start by loading the data and showing its basic information."
-            # )
+            # Import tools for mock LLM
+            from spreadsheet_analyzer.notebook_llm_interface import get_notebook_tools
+
+            # Get execute_code tool for running Python code
+            tools = get_notebook_tools()
+            execute_code_tool = next((t for t in tools if t.name == "execute_code"), None)
+
+            if not execute_code_tool:
+                logger.error("Execute code tool not found")
+            else:
+                # Mock LLM rounds using direct Python code
+                for round_num in range(1, min(4, args.max_rounds + 1)):  # Limit to 3 rounds for mock
+                    logger.info(f"Mock LLM round {round_num}")
+
+                    if round_num == 1:
+                        # Round 1: Execute some basic analysis code
+                        logger.info("Mock LLM: Let me analyze the data structure")
+
+                        analysis_code = """# Basic data analysis
+print("=== Data Analysis ===")
+print(f"Total rows: {df.shape[0] if 'df' in locals() else 'N/A'}")
+print(f"Total columns: {df.shape[1] if 'df' in locals() else 'N/A'}")
+
+# Check for missing values
+if 'df' in locals():
+    missing_values = df.isnull().sum()
+    print("\\nMissing values per column:")
+    for col, count in missing_values.items():
+        if count > 0:
+            print(f"  - {col}: {count} missing values")
+"""
+
+                        try:
+                            result = await execute_code_tool.ainvoke({"input_data": {"code": analysis_code}})
+                            logger.info(f"Code execution result: {result[:100]}...")
+                        except Exception as e:
+                            logger.error(f"Error executing code: {e}")
+
+                    elif round_num == 2 and formula_cache_path and formula_cache_path.exists():
+                        # Round 2: Query formula statistics using direct Python calls
+                        logger.info("Mock LLM: Now let me check the formula structure using the query interface")
+
+                        formula_query_code = """# Query formula statistics
+if 'query_interface' in globals() and query_interface:
+    print("=== Formula Analysis ===")
+
+    # Get overall statistics
+    stats = get_formula_statistics()
+
+    # Find cells affecting a specific range
+    if 'df' in locals() and not df.empty:
+        # Use the first sheet from the Excel file
+        sheet_name = list(pd.ExcelFile(excel_path).sheet_names)[0]
+        print(f"\\nAnalyzing dependencies in sheet: {sheet_name}")
+
+        # Check cells affecting the first 10 rows
+        affecting_cells = find_cells_affecting_range(sheet_name, "A1", "E10")
+
+        # Look for a cell with dependencies
+        for col in ['B', 'C', 'D', 'E', 'F']:
+            for row in range(2, 7):
+                cell_ref = f"{col}{row}"
+                deps = get_cell_dependencies(sheet_name, cell_ref)
+                if deps.has_formula:
+                    break
+            if deps.has_formula:
+                break
+else:
+    print("Query interface not available")
+"""
+
+                        try:
+                            result = await execute_code_tool.ainvoke({"input_data": {"code": formula_query_code}})
+                            logger.info(f"Formula query result: {result[:200]}...")
+                        except Exception as e:
+                            logger.error(f"Error executing formula queries: {e}")
+
+                    elif round_num == 3 and formula_cache_path and formula_cache_path.exists():
+                        # Round 3: More detailed analysis
+                        logger.info("Mock LLM: Let me examine empty cells and specific dependencies")
+
+                        detailed_analysis_code = """# Detailed formula analysis
+if 'query_interface' in globals() and query_interface:
+    print("=== Detailed Formula Analysis ===")
+
+    # Check for empty cells in formula ranges
+    if 'df' in locals() and not df.empty:
+        sheet_name = list(pd.ExcelFile(excel_path).sheet_names)[0]
+        empty_cells = find_empty_cells_in_formula_ranges(sheet_name)
+
+    # Look for cells with the most dependencies
+    if hasattr(formula_analysis, 'dependency_graph'):
+        print("\\nCells with most dependencies:")
+        # Find cells that are referenced most
+        dependency_counts = {}
+        for cell, info in formula_analysis.dependency_graph.items():
+            if 'dependents' in info:
+                dep_count = len(info['dependents'])
+                if dep_count > 0:
+                    dependency_counts[cell] = dep_count
+
+        # Show top 5
+        top_cells = sorted(dependency_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        for cell, count in top_cells:
+            print(f"  {cell}: {count} cells depend on this")
+else:
+    print("Query interface not available for detailed analysis")
+"""
+
+                        try:
+                            result = await execute_code_tool.ainvoke({"input_data": {"code": detailed_analysis_code}})
+                            logger.info(f"Detailed analysis result: {result[:200]}...")
+                        except Exception as e:
+                            logger.error(f"Error executing detailed analysis: {e}")
+
+            logger.info("Mock LLM interaction completed")
 
             # Commented out LLM interaction for testing
             # messages = [

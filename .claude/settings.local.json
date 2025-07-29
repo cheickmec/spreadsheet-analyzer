@@ -5,7 +5,8 @@
       "Bash(uv run:*)",
       "Bash(find:*)",
       "Bash(jupyter nbconvert:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(ls:*)"
     ],
     "deny": []
   },

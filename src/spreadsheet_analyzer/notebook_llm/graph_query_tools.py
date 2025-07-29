@@ -40,10 +40,10 @@ def get_current_session() -> NotebookSession:
     from spreadsheet_analyzer.notebook_llm_interface import get_session_manager
 
     session_manager = get_session_manager()
-    session_result = session_manager.get_session_sync("default_session")
-    if session_result.is_err():
-        raise RuntimeError(f"No active session: {session_result.err_value}")
-    return session_result.ok_value
+    # Access the session directly from the internal dictionary
+    if "default_session" not in session_manager._sessions:
+        raise RuntimeError("No active session: default_session not found")
+    return session_manager._sessions["default_session"]
 
 
 def format_dependency_result(result: DependencyQueryResult) -> str:

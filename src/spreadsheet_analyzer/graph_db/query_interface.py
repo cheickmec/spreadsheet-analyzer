@@ -368,36 +368,43 @@ class EnhancedQueryInterface:
         direct_deps = []
         range_deps = []
         if node:
+            # Dependencies are stored as strings in the format "Sheet!Cell" or "Sheet!Range"
             for dep in node.dependencies:
-                dep_key = f"{dep.sheet}!{dep.cell}"
-                if dep.is_range:
-                    range_deps.append(dep_key)
+                # Check if it's a range (contains colon)
+                if ":" in dep:
+                    range_deps.append(dep)
                 else:
-                    direct_deps.append(dep_key)
+                    direct_deps.append(dep)
 
         # Get direct dependents
         direct_dependents = []
         for key, formula_node in self.graph.items():
             for dep in formula_node.dependencies:
-                if not dep.is_range and dep.sheet == sheet and dep.cell == cell_ref:
+                # Check if this dependency points to our cell (not a range)
+                if dep == cell_key and ":" not in dep:
                     direct_dependents.append(key)
 
         # Get range-based information
         range_dependents = []
         is_in_ranges = []
 
-        if include_ranges and self.range_index:
-            # Find which formulas reference this cell through ranges
-            formula_keys = self.range_index.get_ranges_containing_cell(sheet, cell_ref)
-            range_dependents = formula_keys
+        if include_ranges and self.range_index and hasattr(self.range_index, "sheet_ranges"):
+            # Check if this cell is part of any ranges
+            import re
 
-            # Find which ranges this cell is part of
-            for formula_key in formula_keys:
-                # Find the range that contains this cell
-                for range_ref in self.range_index.ranges_by_sheet.get(sheet, []):
-                    if range_ref.formula_key == formula_key:
-                        is_in_ranges.append(f"{sheet}!{range_ref.range_ref}")
-                        break
+            match = re.match(r"^([A-Z]+)(\d+)$", cell_ref.upper())
+            if match:
+                col_str, row_str = match.groups()
+                from spreadsheet_analyzer.graph_db.range_membership import col_to_num
+
+                row = int(row_str)
+                col = col_to_num(col_str)
+
+                # Check if cell is in any range
+                if self.range_index.is_cell_in_any_range(sheet, row, col):
+                    # For now, we can't determine which specific formulas reference this cell through ranges
+                    # without more information in the index
+                    pass
 
         # Calculate totals
         total_dependencies = len(direct_deps) + len(range_deps)
@@ -467,35 +474,34 @@ class EnhancedQueryInterface:
         Returns:
             List of empty cell references that are included in formula ranges
         """
-        if not self.range_index:
+        if not self.range_index or not hasattr(self.range_index, "sheet_ranges"):
             return []
 
         empty_cells_in_ranges = []
 
         # For each range in the sheet
-        for range_ref in self.range_index.ranges_by_sheet.get(sheet, []):
-            bounds = range_ref.bounds
-
-            # Check each cell in the range
+        if sheet in self.range_index.sheet_ranges:
             from spreadsheet_analyzer.graph_db.range_membership import num_to_col
 
-            for row in range(bounds.start_row, bounds.end_row + 1):
-                for col in range(bounds.start_col, bounds.end_col + 1):
-                    col_letter = num_to_col(col)
-                    cell_ref = f"{col_letter}{row}"
-                    cell_key = f"{sheet}!{cell_ref}"
+            for min_row, max_row, min_col, max_col, _ in self.range_index.sheet_ranges[sheet]:
+                # Check each cell in the range
+                for row in range(min_row, max_row + 1):
+                    for col in range(min_col, max_col + 1):
+                        col_letter = num_to_col(col)
+                        cell_ref = f"{col_letter}{row}"
+                        cell_key = f"{sheet}!{cell_ref}"
 
-                    # If cell doesn't have a formula, it's either empty or has a value
-                    if cell_key not in self.graph:
-                        # Check if any other formula references this cell directly
-                        is_directly_referenced = any(
-                            dep.sheet == sheet and dep.cell == cell_ref and not dep.is_range
-                            for node in self.graph.values()
-                            for dep in node.dependencies
-                        )
+                        # If cell doesn't have a formula, it's either empty or has a value
+                        if cell_key not in self.graph:
+                            # Check if any other formula references this cell directly
+                            is_directly_referenced = any(
+                                dep == cell_key and ":" not in dep
+                                for node in self.graph.values()
+                                for dep in node.dependencies
+                            )
 
-                        if not is_directly_referenced:
-                            empty_cells_in_ranges.append(cell_ref)
+                            if not is_directly_referenced:
+                                empty_cells_in_ranges.append(cell_ref)
 
         return list(set(empty_cells_in_ranges))  # Remove duplicates
 
@@ -503,19 +509,21 @@ class EnhancedQueryInterface:
         """Get enhanced statistics including range membership information."""
         base_stats = self._get_base_statistics()
 
-        if self.range_index:
+        if self.range_index and hasattr(self.range_index, "sheet_ranges"):
             # Count total cells covered by ranges
             total_cells_in_ranges = 0
-            unique_ranges = set()
+            unique_ranges = 0
 
-            for sheet, ranges in self.range_index.ranges_by_sheet.items():
-                for range_ref in ranges:
-                    total_cells_in_ranges += range_ref.total_cells
-                    unique_ranges.add(f"{sheet}!{range_ref.range_ref}")
+            # The pipeline's RangeMembershipIndex has a different structure
+            for sheet, ranges in self.range_index.sheet_ranges.items():
+                unique_ranges += len(ranges)
+                for min_row, max_row, min_col, max_col, _ in ranges:
+                    cells_in_range = (max_row - min_row + 1) * (max_col - min_col + 1)
+                    total_cells_in_ranges += cells_in_range
 
             base_stats.update(
                 {
-                    "unique_ranges": len(unique_ranges),
+                    "unique_ranges": unique_ranges,
                     "total_cells_in_ranges": total_cells_in_ranges,
                     "has_range_index": True,
                 }
@@ -536,11 +544,12 @@ class EnhancedQueryInterface:
         referenced_cells = set()
         for node in self.graph.values():
             for dep in node.dependencies:
-                if not dep.is_range:
-                    referenced_cells.add(f"{dep.sheet}!{dep.cell}")
+                # Skip ranges (contain colon)
+                if ":" not in dep:
+                    referenced_cells.add(dep)
 
-        # Count range nodes
-        range_nodes = sum(1 for node in self.graph.values() if node.node_type == "range")
+        # Count range nodes (nodes don't have node_type, count range dependencies instead)
+        range_nodes = sum(1 for node in self.graph.values() for dep in node.dependencies if ":" in dep)
 
         # Calculate average dependencies
         total_deps = sum(len(node.dependencies) for node in self.graph.values())
@@ -572,44 +581,32 @@ class EnhancedQueryInterface:
         for key, node in self.graph.items():
             node_data = {
                 "id": key,
-                "type": node.node_type,
+                "type": "cell",  # FormulaNode doesn't have node_type
                 "sheet": node.sheet,
                 "cell": node.cell,
                 "formula": node.formula,
-                "depth": node.depth,
+                "depth": getattr(node, "depth", 0),  # Depth might not exist
                 "is_volatile": key in self.analysis.volatile_formulas,
                 "has_external_ref": key in self.analysis.external_references,
             }
-
-            if node.range_info:
-                node_data["range_info"] = node.range_info
 
             nodes.append(node_data)
 
             # Export edges
             for dep in node.dependencies:
-                dep_key = f"{dep.sheet}!{dep.cell}"
                 edge_data = {
                     "from": key,
-                    "to": dep_key,
+                    "to": dep,
                     "type": "DEPENDS_ON",
-                    "is_range": dep.is_range,
-                    "is_absolute": dep.is_absolute,
+                    "is_range": ":" in dep,
                 }
                 edges.append(edge_data)
 
         # Add range membership relationships if available
-        if self.range_index:
-            for sheet, ranges in self.range_index.ranges_by_sheet.items():
-                for range_ref in ranges:
-                    # Create virtual edges for range membership
-                    edge_data = {
-                        "from": range_ref.formula_key,
-                        "to": f"{sheet}!{range_ref.range_ref}",
-                        "type": "REFERENCES_RANGE",
-                        "total_cells": range_ref.total_cells,
-                    }
-                    edges.append(edge_data)
+        if self.range_index and hasattr(self.range_index, "sheet_ranges"):
+            # Note: The pipeline's RangeMembershipIndex doesn't store formula keys,
+            # so we can't create range membership edges here
+            pass
 
         return {
             "nodes": nodes,
