@@ -195,3 +195,4 @@ neo4j_plugins/
 test_claude_direct.py
 test_*_direct.py
 .serena/*
+.pipeline_cache/
