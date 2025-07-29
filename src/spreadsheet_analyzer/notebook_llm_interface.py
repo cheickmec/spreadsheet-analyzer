@@ -16,6 +16,22 @@ from spreadsheet_analyzer.notebook_llm.graph_query_tools import get_graph_query_
 from spreadsheet_analyzer.notebook_tools import CellType
 
 
+# CLAUDE-KNOWLEDGE: Consistent output truncation for token efficiency
+def truncate_output(text: str, max_length: int = 1000) -> str:
+    """Truncate output text for token efficiency.
+
+    Args:
+        text: The output text to truncate
+        max_length: Maximum length before truncation
+
+    Returns:
+        Original text if under max_length, otherwise truncated with indicator
+    """
+    if len(text) <= max_length:
+        return text
+    return text[:max_length] + "\n... (output truncated)"
+
+
 class ExecuteCodeInput(BaseModel):
     code: str = Field(description="Python code to execute")
     cell_id: str | None = Field(description="Optional cell ID for tracking", default=None)
@@ -81,9 +97,17 @@ async def execute_code(input_data: ExecuteCodeInput) -> str:
         outputs = []
         for output in result.value.outputs:
             if output.output_type == "stream":
-                outputs.append(f"[{output.metadata.get('name', 'output')}] {output.content}")
+                # CLAUDE-KNOWLEDGE: Truncate stream outputs to manage token usage
+                content = truncate_output(output.content)
+                outputs.append(f"[{output.metadata.get('name', 'output')}] {content}")
             elif output.output_type == "execute_result":
-                outputs.append(f"Result: {output.content}")
+                # CLAUDE-KNOWLEDGE: Truncate execution results for consistency
+                content = truncate_output(output.content)
+                outputs.append(f"Result: {content}")
+            elif output.output_type == "error":
+                # CLAUDE-KNOWLEDGE: Include error outputs but truncate long tracebacks
+                content = truncate_output(output.content)
+                outputs.append(f"Error: {content}")
 
         return f"✅ Code executed successfully\nCell ID: {result.value.cell_id}\nOutputs:\n" + "\n".join(outputs)
 
@@ -112,9 +136,15 @@ async def edit_and_execute(input_data: EditAndExecuteInput) -> str:
         outputs = []
         for output in result.value.outputs:
             if output.output_type == "stream":
-                outputs.append(f"[{output.metadata.get('name', 'output')}] {output.content}")
+                # CLAUDE-KNOWLEDGE: Consistent truncation across all tool outputs
+                content = truncate_output(output.content)
+                outputs.append(f"[{output.metadata.get('name', 'output')}] {content}")
             elif output.output_type == "execute_result":
-                outputs.append(f"Result: {output.content}")
+                content = truncate_output(output.content)
+                outputs.append(f"Result: {content}")
+            elif output.output_type == "error":
+                content = truncate_output(output.content)
+                outputs.append(f"Error: {content}")
 
         return f"✅ Cell edited and executed successfully\nCell ID: {result.value.cell_id}\nOutputs:\n" + "\n".join(
             outputs
@@ -216,7 +246,9 @@ async def read_cell(input_data: ReadCellInput) -> str:
         cell = result.value
         outputs = []
         for output in cell.outputs:
-            outputs.append(f"[{output.output_type}] {output.content}")
+            # CLAUDE-KNOWLEDGE: Truncate outputs when reading cells too
+            content = truncate_output(output.content)
+            outputs.append(f"[{output.output_type}] {content}")
 
         return (
             f"Cell ID: {cell.cell_id}\nType: {cell.cell_type.value}\nContent: {cell.content}\nOutputs:\n"
