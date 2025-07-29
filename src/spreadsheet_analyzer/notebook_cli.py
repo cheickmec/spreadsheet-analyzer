@@ -294,6 +294,9 @@ class NotebookCLI:
 
         # Step 2: Create notebook and add pipeline results
         async with notebook_session(session_id, notebook_path) as session:
+            # Add query interface to session if available
+            session.query_interface = query_interface
+
             # Register the session with the global session manager so tools can access it
             from spreadsheet_analyzer.notebook_llm_interface import get_session_manager
 
@@ -356,14 +359,21 @@ class NotebookCLI:
 
             # Add a basic data loading cell
             logger.info("Adding data loading cell...")
-            load_data_code = f'''import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+
+            # Calculate relative path from repo root
+            try:
+                repo_root = Path.cwd()
+                relative_path = excel_path.relative_to(repo_root)
+                path_str = f'"{relative_path}"'
+            except ValueError:
+                # If file is outside repo, use absolute path
+                path_str = f'r"{excel_path}"'
+
+            load_data_code = f"""import pandas as pd
 from pathlib import Path
 
-# Load the Excel file
-excel_path = Path(r"{excel_path}")
+# Load the Excel file (path relative to repo root)
+excel_path = Path({path_str})
 print(f"Loading data from: {{excel_path}}")
 
 try:
@@ -383,7 +393,7 @@ try:
 except Exception as e:
     print(f"Error loading Excel file: {{e}}")
     df = None
-'''
+"""
 
             result = await toolkit.execute_code(load_data_code)
             if result.is_ok():
@@ -396,101 +406,36 @@ except Exception as e:
                 logger.info("Adding graph query interface tools...")
 
                 # Add markdown documentation for graph queries
-                graph_tools_doc = """## 🔍 Formula Dependency Query Interface
+                graph_tools_doc = """## 🔍 Formula Dependency Query Tools
 
-The deterministic pipeline has created a formula dependency graph. You can explore it using the `query_interface` object:
+The deterministic pipeline has analyzed all formulas and created a dependency graph. You can query this graph using the following tools:
 
-### Available Query Methods:
+### Available Tools:
 
-1. **Get Cell Dependencies**
-   ```python
-   result = query_interface.get_cell_dependencies("Summary", "D2")
-   ```
+1. **get_cell_dependencies** - Analyze what a cell depends on and what depends on it
+   - Parameters: `sheet` (e.g., "Summary"), `cell_ref` (e.g., "D2")
 
-2. **Find Cells Affecting a Range**
-   ```python
-   affecting = query_interface.find_cells_affecting_range("Summary", "A1", "D5")
-   ```
+2. **find_cells_affecting_range** - Find all cells that affect a specific range
+   - Parameters: `sheet`, `start_cell`, `end_cell`
 
-3. **Find Empty Cells in Formula Ranges**
-   ```python
-   empty_cells = query_interface.find_empty_cells_in_formula_ranges("Summary")
-   ```
+3. **find_empty_cells_in_formula_ranges** - Find gaps in data that formulas reference
+   - Parameters: `sheet`
 
-4. **Get Formula Statistics**
-   ```python
-   stats = query_interface.get_formula_statistics_with_ranges()
-   ```
+4. **get_formula_statistics** - Get overall statistics about formulas
+   - No parameters needed
 
-### Example Usage:
+5. **find_circular_references** - Find all circular reference chains
+   - No parameters needed
+
+### Usage:
+These tools are available through the tool-calling interface. Each query will be documented in a markdown cell showing both the query and its results.
 """
 
                 result = await toolkit.render_markdown(graph_tools_doc)
                 if result.is_err():
                     logger.warning(f"Failed to add graph tools documentation: {result.err_value}")
 
-                # Add graph query interface code cell
-                graph_query_code = '''# Formula dependency graph query interface is available
-from spreadsheet_analyzer.graph_db.query_interface import create_enhanced_query_interface
-
-# The query interface was created from the pipeline analysis
-# Note: This is a placeholder - in production, we would pass the actual pipeline result
-query_interface = None  # Will be set by the notebook session
-
-# Example: Analyze dependencies for a specific cell
-def analyze_cell_dependencies(sheet_name, cell_ref):
-    """Analyze all dependencies for a specific cell."""
-    if not query_interface:
-        print("Query interface not available. Run the deterministic pipeline first.")
-        return
-
-    result = query_interface.get_cell_dependencies(sheet_name, cell_ref)
-
-    print(f"\\n📊 Analysis for {sheet_name}!{cell_ref}:")
-    print(f"Has formula: {result.has_formula}")
-    if result.formula:
-        print(f"Formula: {result.formula}")
-    print(f"\\nDirect dependencies: {len(result.direct_dependencies)}")
-    for dep in result.direct_dependencies:
-        print(f"  - {dep}")
-    print(f"\\nRange dependencies: {len(result.range_dependencies)}")
-    for dep in result.range_dependencies:
-        print(f"  - {dep}")
-    print(f"\\nCells that depend on this: {len(result.direct_dependents)}")
-    for dep in result.direct_dependents:
-        print(f"  - {dep}")
-
-    return result
-
-# Example: Find all empty cells that are part of formula ranges
-def find_range_gaps(sheet_name):
-    """Find empty cells that are included in formula ranges."""
-    if not query_interface:
-        print("Query interface not available. Run the deterministic pipeline first.")
-        return
-
-    empty_cells = query_interface.find_empty_cells_in_formula_ranges(sheet_name)
-    print(f"\\n🔍 Empty cells in formula ranges for {sheet_name}:")
-    print(f"Found {len(empty_cells)} empty cells that are part of formula ranges:")
-    for cell in empty_cells[:10]:  # Show first 10
-        print(f"  - {cell}")
-    if len(empty_cells) > 10:
-        print(f"  ... and {len(empty_cells) - 10} more")
-
-    return empty_cells
-
-print("✅ Graph query interface tools loaded!")
-print("\\nAvailable functions:")
-print("  - analyze_cell_dependencies(sheet_name, cell_ref)")
-print("  - find_range_gaps(sheet_name)")
-print("\\nNote: The actual query_interface will be populated when integrated with the LLM tools.")
-'''
-
-                result = await toolkit.execute_code(graph_query_code)
-                if result.is_ok():
-                    logger.info(f"✅ Graph query interface tools added: {result.ok_value.cell_id}")
-                else:
-                    logger.error(f"❌ Failed to add graph query tools: {result.err_value}")
+                logger.info("Graph query tools are available via tool-calling interface")
 
             # Skip LLM interaction for now
             logger.info("Skipping LLM interaction (commented out)")

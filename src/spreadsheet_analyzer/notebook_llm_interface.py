@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from result import Err, Ok
 
 import spreadsheet_analyzer.notebook_session
+from spreadsheet_analyzer.notebook_llm.graph_query_tools import get_graph_query_tools
 from spreadsheet_analyzer.notebook_tools import CellType
 
 
@@ -283,7 +284,7 @@ async def save_notebook(input_data: SaveNotebookInput) -> str:
 
 def get_notebook_tools() -> list[Any]:
     """Get all notebook tools for LLM use."""
-    return [
+    notebook_tools = [
         execute_code,
         edit_and_execute,
         add_cell,
@@ -293,6 +294,11 @@ def get_notebook_tools() -> list[Any]:
         get_notebook_state,
         save_notebook,
     ]
+
+    # Add graph query tools
+    graph_tools = get_graph_query_tools()
+
+    return notebook_tools + graph_tools
 
 
 def create_notebook_tool_descriptions() -> str:
