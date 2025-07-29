@@ -342,7 +342,7 @@ class EnhancedQueryInterface:
         """
         self.analysis = formula_analysis
         self.graph = formula_analysis.dependency_graph
-        self.range_index = formula_analysis.range_membership_index
+        self.range_index = formula_analysis.range_index
         self.graph_db = graph_interface
 
     def get_cell_dependencies(self, sheet: str, cell_ref: str, *, include_ranges: bool = True) -> DependencyQueryResult:

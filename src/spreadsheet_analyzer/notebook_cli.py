@@ -8,21 +8,204 @@ Automated Excel analysis using LLM function calling with the notebook tools inte
 import argparse
 import asyncio
 import logging
-import os
 import sys
 from pathlib import Path
 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-from langchain_openai import ChatOpenAI
 from structlog import get_logger
 
-from spreadsheet_analyzer.notebook_llm_interface import (
-    get_notebook_tools,
+from spreadsheet_analyzer.graph_db.query_interface import (
+    create_enhanced_query_interface,
 )
 from spreadsheet_analyzer.notebook_session import notebook_session
+from spreadsheet_analyzer.pipeline import DeterministicPipeline
+from spreadsheet_analyzer.pipeline.types import (
+    ContentAnalysis,
+    FormulaAnalysis,
+    IntegrityResult,
+    PipelineResult,
+    SecurityReport,
+    WorkbookStructure,
+)
 
 logger = get_logger(__name__)
+
+
+class PipelineResultsToMarkdown:
+    """Convert pipeline results to well-formatted markdown cells."""
+
+    @staticmethod
+    def create_header(pipeline_result: PipelineResult) -> str:
+        """Create the main header markdown."""
+        return f"""# 📊 Excel Analysis Report
+
+**File:** `{pipeline_result.context.file_path.name}`
+**Analysis Time:** `{pipeline_result.context.start_time.strftime("%Y-%m-%d %H:%M:%S")}`
+**Execution Time:** `{pipeline_result.execution_time:.2f} seconds`
+**Status:** {"✅ Success" if pipeline_result.success else "❌ Failed"}
+
+---
+"""
+
+    @staticmethod
+    def integrity_to_markdown(integrity: IntegrityResult) -> str:
+        """Convert integrity results to markdown."""
+        trust_stars = "⭐" * integrity.trust_tier
+
+        md = f"""## 🔒 File Integrity Analysis
+
+**File Hash:** `{integrity.file_hash[:16]}...`
+**File Size:** {integrity.metadata.size_mb:.2f} MB
+**MIME Type:** {integrity.metadata.mime_type}
+**Excel Format:** {"✅ Valid Excel" if integrity.is_excel else "❌ Not Excel"}
+**Trust Level:** {trust_stars} ({integrity.trust_tier}/5)
+**Processing Class:** {integrity.processing_class}
+"""
+
+        if not integrity.validation_passed:
+            md += "\n### ⚠️ Validation Status: Failed\n"
+
+        return md
+
+    @staticmethod
+    def security_to_markdown(security: SecurityReport) -> str:
+        """Convert security results to markdown."""
+        risk_emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "NONE": "✅"}
+
+        md = f"""## 🛡️ Security Analysis
+
+**Risk Level:** {risk_emoji.get(security.risk_level, "❓")} {security.risk_level}
+**Safe to Process:** {"✅ Yes" if security.is_safe else "❌ No"}
+**Threats Found:** {security.threat_count}
+"""
+
+        if security.has_macros:
+            md += "\n⚠️ **Contains VBA Macros**\n"
+        if security.has_external_links:
+            md += "\n⚠️ **Contains External Links**\n"
+
+        if security.threats:
+            md += "\n### Detected Threats:\n"
+            for threat in security.threats[:5]:  # Show first 5
+                md += f"- **{threat.threat_type}** ({threat.risk_level}): {threat.description}\n"
+            if len(security.threats) > 5:
+                md += f"- ...and {len(security.threats) - 5} more threats\n"
+
+        return md
+
+    @staticmethod
+    def structure_to_markdown(structure: WorkbookStructure) -> str:
+        """Convert structure results to markdown."""
+        md = f"""## 📋 Structural Analysis
+
+**Total Sheets:** {structure.sheet_count}
+**Total Cells with Data:** {structure.total_cells:,}
+**Total Formulas:** {structure.total_formulas:,}
+**Named Ranges:** {len(structure.named_ranges)}
+**Complexity Score:** {structure.complexity_score}/100
+
+### Sheet Details:
+"""
+
+        for sheet in structure.sheets[:10]:  # Show first 10 sheets
+            md += f"- **{sheet.name}**: {sheet.row_count:,} rows × {sheet.column_count:,} cols, {sheet.formula_count:,} formulas\n"
+
+        if len(structure.sheets) > 10:
+            md += f"- ...and {len(structure.sheets) - 10} more sheets\n"
+
+        return md
+
+    @staticmethod
+    def formulas_to_markdown(formulas: FormulaAnalysis) -> str:
+        """Convert formula analysis to markdown."""
+        md = f"""## 🔗 Formula Analysis
+
+**Total Formulas:** {len(formulas.dependency_graph):,}
+**Max Dependency Depth:** {formulas.max_dependency_depth} levels
+**Formula Complexity Score:** {formulas.formula_complexity_score}/100
+**Circular References:** {"⚠️ Yes" if formulas.has_circular_references else "✅ No"}
+**Volatile Formulas:** {len(formulas.volatile_formulas)}
+**External References:** {len(formulas.external_references)}
+"""
+
+        if formulas.circular_references:
+            md += "\n### ⚠️ Circular References Found:\n"
+            for i, chain in enumerate(list(formulas.circular_references)[:3], 1):
+                chain_str = " → ".join(f"`{cell}`" for cell in list(chain)[:5])
+                if len(chain) > 5:
+                    chain_str += " → ..."
+                md += f"{i}. {chain_str}\n"
+            if len(formulas.circular_references) > 3:
+                md += f"...and {len(formulas.circular_references) - 3} more circular reference chains\n"
+
+        if formulas.volatile_formulas:
+            md += "\n### 🔄 Volatile Formulas (recalculate on every change):\n"
+            for cell in list(formulas.volatile_formulas)[:5]:
+                md += f"- `{cell}`\n"
+            if len(formulas.volatile_formulas) > 5:
+                md += f"- ...and {len(formulas.volatile_formulas) - 5} more volatile formulas\n"
+
+        return md
+
+    @staticmethod
+    def content_to_markdown(content: ContentAnalysis) -> str:
+        """Convert content analysis to markdown."""
+        quality_emoji = "🟢" if content.data_quality_score >= 80 else "🟡" if content.data_quality_score >= 60 else "🔴"
+
+        md = f"""## 📊 Content Analysis
+
+**Data Quality Score:** {quality_emoji} {content.data_quality_score}/100
+**Patterns Found:** {len(content.data_patterns)}
+**Insights Generated:** {len(content.insights)}
+
+### Summary:
+{content.summary}
+"""
+
+        if content.insights:
+            md += "\n### 💡 Key Insights:\n"
+            for insight in content.insights[:5]:
+                severity_emoji = "🔴" if insight.severity == "HIGH" else "🟡" if insight.severity == "MEDIUM" else "🟢"
+                md += f"\n**{insight.title}** {severity_emoji}\n"
+                md += f"{insight.description}\n"
+                if insight.recommendation:
+                    md += f"- **Recommendation:** {insight.recommendation}\n"
+            if len(content.insights) > 5:
+                md += f"\n...and {len(content.insights) - 5} more insights\n"
+
+        if content.data_patterns:
+            md += "\n### 🔍 Data Patterns:\n"
+            for pattern in content.data_patterns[:3]:
+                confidence = int(pattern.confidence * 100)
+                md += f"- **{pattern.pattern_type}** (Confidence: {confidence}%): {pattern.description}\n"
+
+        return md
+
+    @staticmethod
+    def create_summary(pipeline_result: PipelineResult) -> str:
+        """Create a summary markdown section."""
+        md = "## 📌 Analysis Summary\n\n"
+
+        if pipeline_result.errors:
+            md += "### ❌ Errors Encountered:\n"
+            for error in pipeline_result.errors:
+                md += f"- {error}\n"
+            md += "\n"
+
+        md += "### ✅ Completed Analysis Stages:\n"
+        if pipeline_result.integrity:
+            md += "- ✓ File Integrity Check\n"
+        if pipeline_result.security:
+            md += "- ✓ Security Scan\n"
+        if pipeline_result.structure:
+            md += "- ✓ Structural Analysis\n"
+        if pipeline_result.formulas:
+            md += "- ✓ Formula Analysis\n"
+        if pipeline_result.content:
+            md += "- ✓ Content Intelligence\n"
+
+        md += "\n---\n\n*This analysis was generated using the deterministic pipeline. Additional interactive analysis can be performed using the cells below.*"
+
+        return md
 
 
 class NotebookCLI:
@@ -69,48 +252,47 @@ class NotebookCLI:
 
     async def run_analysis(self, args):
         """Run the automated analysis loop."""
-        llm = None
-
-        # Try primary model first
-        try:
-            if "claude" in args.model.lower():
-                if args.api_key:
-                    os.environ["ANTHROPIC_API_KEY"] = args.api_key
-                llm = ChatAnthropic(model_name=args.model)
-            elif "gpt" in args.model.lower():
-                if args.api_key:
-                    os.environ["OPENAI_API_KEY"] = args.api_key
-                llm = ChatOpenAI(model_name=args.model)
-            else:
-                logger.error(f"Unsupported primary model: {args.model}")
-                return
-        except Exception as e:
-            logger.warning(f"Failed to initialize primary model {args.model}: {e}")
-            llm = None
-
-        # If primary model failed, try fallback
-        if llm is None:
-            try:
-                logger.info("Trying fallback model: gpt-4")
-                llm = ChatOpenAI(model_name="gpt-4")
-            except Exception as fallback_e:
-                logger.error(f"Failed to initialize fallback model gpt-4: {fallback_e}")
-                return
-
-        tools = get_notebook_tools()
-        llm_with_tools = llm.bind_tools(tools)
-
-        session_id = args.session_id or f"{args.excel_file.stem}_analysis_session"
-
         # Resolve the excel file path to be absolute
         excel_path = args.excel_file.resolve()
         notebook_path = args.notebook_path or excel_path.parent / f"{excel_path.stem}_analysis.ipynb"
+        session_id = args.session_id or f"{args.excel_file.stem}_analysis_session"
 
-        logger.info(f"Starting notebook session with model: {type(llm).__name__}")
+        # Check if file exists
+        if not excel_path.exists():
+            logger.error(f"Excel file not found: {excel_path}")
+            return
+
+        logger.info(f"Starting analysis of: {excel_path}")
         logger.info(f"Session ID: {session_id}")
         logger.info(f"Notebook Path: {notebook_path}")
-        logger.info(f"Max rounds: {args.max_rounds}")
 
+        # Step 1: Run deterministic pipeline
+        logger.info("Running deterministic pipeline analysis...")
+        pipeline_result = None
+        query_interface = None
+
+        try:
+            # Run the pipeline with progress tracking
+            pipeline = DeterministicPipeline()
+            pipeline_result = await asyncio.to_thread(pipeline.run, excel_path)
+
+            if pipeline_result.success:
+                logger.info(f"✅ Pipeline analysis completed in {pipeline_result.execution_time:.2f} seconds")
+
+                # Create query interface if formula analysis succeeded
+                if pipeline_result.formulas:
+                    query_interface = create_enhanced_query_interface(pipeline_result.formulas)
+                    logger.info("Created enhanced query interface for formula analysis")
+            else:
+                logger.error("Pipeline analysis failed:")
+                for error in pipeline_result.errors:
+                    logger.error(f"  - {error}")
+
+        except Exception as e:
+            logger.exception(f"Error running deterministic pipeline: {e}")
+            # Continue anyway - we can still create a notebook
+
+        # Step 2: Create notebook and add pipeline results
         async with notebook_session(session_id, notebook_path) as session:
             # Register the session with the global session manager so tools can access it
             from spreadsheet_analyzer.notebook_llm_interface import get_session_manager
@@ -118,87 +300,283 @@ class NotebookCLI:
             session_manager = get_session_manager()
             session_manager._sessions["default_session"] = session
 
-            initial_prompt = (
-                "You are an expert data analyst. Your goal is to conduct a thorough analysis of the provided Excel file. "
-                f"The file is located at: '{args.excel_file.resolve()}'.\n\n"
-                "Follow these steps:\n"
-                "1. Load the data from the Excel file into a pandas DataFrame. Use the tools provided.\n"
-                "2. Explore the data to understand its structure, columns, and data types.\n"
-                "3. Identify patterns, trends, and insights in the data.\n"
-                "4. Create visualizations if appropriate.\n"
-                "5. Summarize your findings and provide actionable insights.\n\n"
-                "Start by loading the data and showing its basic information."
-            )
+            # Add pipeline results as markdown cells if available
+            if pipeline_result:
+                logger.info("Adding pipeline results to notebook...")
+                toolkit = session.toolkit
 
-            messages = [
-                SystemMessage(
-                    "You are an AI assistant that can interact with a Jupyter notebook to analyze data. "
-                    "Use the provided tools to execute code, manage cells, and explore the data thoroughly. "
-                    "Always use the tools to perform actions rather than just describing what you would do."
-                ),
-                HumanMessage(content=initial_prompt),
-            ]
+                # Add header
+                header_md = PipelineResultsToMarkdown.create_header(pipeline_result)
+                result = await toolkit.render_markdown(header_md)
+                if result.is_err():
+                    logger.warning(f"Failed to add header: {result.err_value}")
 
-            for round_num in range(1, args.max_rounds + 1):
-                logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
+                # Add integrity analysis
+                if pipeline_result.integrity:
+                    integrity_md = PipelineResultsToMarkdown.integrity_to_markdown(pipeline_result.integrity)
+                    result = await toolkit.render_markdown(integrity_md)
+                    if result.is_err():
+                        logger.warning(f"Failed to add integrity analysis: {result.err_value}")
 
-                if args.verbose:
-                    logger.info("Sending messages to LLM:", messages=messages)
+                # Add security analysis
+                if pipeline_result.security:
+                    security_md = PipelineResultsToMarkdown.security_to_markdown(pipeline_result.security)
+                    result = await toolkit.render_markdown(security_md)
+                    if result.is_err():
+                        logger.warning(f"Failed to add security analysis: {result.err_value}")
 
-                try:
-                    response = await llm_with_tools.ainvoke(messages)
-                except Exception as api_error:
-                    logger.warning(f"Primary model API call failed: {api_error}")
+                # Add structure analysis
+                if pipeline_result.structure:
+                    structure_md = PipelineResultsToMarkdown.structure_to_markdown(pipeline_result.structure)
+                    result = await toolkit.render_markdown(structure_md)
+                    if result.is_err():
+                        logger.warning(f"Failed to add structure analysis: {result.err_value}")
 
-                    # Try fallback if we haven't already
-                    if not isinstance(llm, ChatOpenAI):
-                        try:
-                            logger.info("Switching to fallback model: gpt-4")
-                            llm = ChatOpenAI(model_name="gpt-4")
-                            llm_with_tools = llm.bind_tools(tools)
-                            response = await llm_with_tools.ainvoke(messages)
-                        except Exception as fallback_error:
-                            logger.error(f"Fallback model also failed: {fallback_error}")
-                            break
-                    else:
-                        logger.error(f"API call failed: {api_error}")
-                        break
+                # Add formula analysis
+                if pipeline_result.formulas:
+                    formulas_md = PipelineResultsToMarkdown.formulas_to_markdown(pipeline_result.formulas)
+                    result = await toolkit.render_markdown(formulas_md)
+                    if result.is_err():
+                        logger.warning(f"Failed to add formula analysis: {result.err_value}")
 
-                if args.verbose:
-                    logger.info("Received response from LLM:", response=response)
+                # Add content analysis
+                if pipeline_result.content:
+                    content_md = PipelineResultsToMarkdown.content_to_markdown(pipeline_result.content)
+                    result = await toolkit.render_markdown(content_md)
+                    if result.is_err():
+                        logger.warning(f"Failed to add content analysis: {result.err_value}")
 
-                # Process tool calls
-                tool_output_messages = []
-                if response.tool_calls:
-                    # Add the AI response with tool calls to the conversation first
-                    messages.append(response)
+                # Add summary
+                summary_md = PipelineResultsToMarkdown.create_summary(pipeline_result)
+                result = await toolkit.render_markdown(summary_md)
+                if result.is_err():
+                    logger.warning(f"Failed to add summary: {result.err_value}")
 
-                    for tool_call in response.tool_calls:
-                        tool_name = tool_call.get("name")
-                        tool_args = tool_call.get("args")
-                        logger.info(f"LLM called tool: {tool_name}", args=tool_args)
+                logger.info("Pipeline results added to notebook")
 
-                        # Dynamically call the tool function
-                        tool_func = next((t for t in tools if t.name == tool_name), None)
-                        if tool_func:
-                            tool_output = await tool_func.ainvoke(tool_args)
-                            logger.info(f"Tool output: {tool_output}")
-                            tool_output_messages.append(
-                                ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
-                            )
-                        else:
-                            logger.warning(f"LLM tried to call unknown tool: {tool_name}")
+            # Add a basic data loading cell
+            logger.info("Adding data loading cell...")
+            load_data_code = f'''import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pathlib import Path
 
-                    # Add tool results to conversation
-                    messages.extend(tool_output_messages)
+# Load the Excel file
+excel_path = Path(r"{excel_path}")
+print(f"Loading data from: {{excel_path}}")
 
-                elif response.content:
-                    logger.info(f"LLM response: {response.content}")
-                    # If no tool calls, the LLM is done
-                    break
+try:
+    # Try to read the first sheet
+    df = pd.read_excel(excel_path)
+    print(f"\\nLoaded data with shape: {{df.shape}}")
+    print(f"Columns: {{list(df.columns)}}")
+
+    # Display first few rows
+    print("\\nFirst 5 rows:")
+    display(df.head())
+
+    # Basic info
+    print("\\nData types:")
+    print(df.dtypes)
+
+except Exception as e:
+    print(f"Error loading Excel file: {{e}}")
+    df = None
+'''
+
+            result = await toolkit.execute_code(load_data_code)
+            if result.is_ok():
+                logger.info(f"✅ Data loading cell executed: {result.ok_value.cell_id}")
+            else:
+                logger.error(f"❌ Failed to execute data loading cell: {result.err_value}")
+
+            # Add graph query interface tools if formula analysis succeeded
+            if query_interface and pipeline_result and pipeline_result.formulas:
+                logger.info("Adding graph query interface tools...")
+
+                # Add markdown documentation for graph queries
+                graph_tools_doc = """## 🔍 Formula Dependency Query Interface
+
+The deterministic pipeline has created a formula dependency graph. You can explore it using the `query_interface` object:
+
+### Available Query Methods:
+
+1. **Get Cell Dependencies**
+   ```python
+   result = query_interface.get_cell_dependencies("Summary", "D2")
+   ```
+
+2. **Find Cells Affecting a Range**
+   ```python
+   affecting = query_interface.find_cells_affecting_range("Summary", "A1", "D5")
+   ```
+
+3. **Find Empty Cells in Formula Ranges**
+   ```python
+   empty_cells = query_interface.find_empty_cells_in_formula_ranges("Summary")
+   ```
+
+4. **Get Formula Statistics**
+   ```python
+   stats = query_interface.get_formula_statistics_with_ranges()
+   ```
+
+### Example Usage:
+"""
+
+                result = await toolkit.render_markdown(graph_tools_doc)
+                if result.is_err():
+                    logger.warning(f"Failed to add graph tools documentation: {result.err_value}")
+
+                # Add graph query interface code cell
+                graph_query_code = '''# Formula dependency graph query interface is available
+from spreadsheet_analyzer.graph_db.query_interface import create_enhanced_query_interface
+
+# The query interface was created from the pipeline analysis
+# Note: This is a placeholder - in production, we would pass the actual pipeline result
+query_interface = None  # Will be set by the notebook session
+
+# Example: Analyze dependencies for a specific cell
+def analyze_cell_dependencies(sheet_name, cell_ref):
+    """Analyze all dependencies for a specific cell."""
+    if not query_interface:
+        print("Query interface not available. Run the deterministic pipeline first.")
+        return
+
+    result = query_interface.get_cell_dependencies(sheet_name, cell_ref)
+
+    print(f"\\n📊 Analysis for {sheet_name}!{cell_ref}:")
+    print(f"Has formula: {result.has_formula}")
+    if result.formula:
+        print(f"Formula: {result.formula}")
+    print(f"\\nDirect dependencies: {len(result.direct_dependencies)}")
+    for dep in result.direct_dependencies:
+        print(f"  - {dep}")
+    print(f"\\nRange dependencies: {len(result.range_dependencies)}")
+    for dep in result.range_dependencies:
+        print(f"  - {dep}")
+    print(f"\\nCells that depend on this: {len(result.direct_dependents)}")
+    for dep in result.direct_dependents:
+        print(f"  - {dep}")
+
+    return result
+
+# Example: Find all empty cells that are part of formula ranges
+def find_range_gaps(sheet_name):
+    """Find empty cells that are included in formula ranges."""
+    if not query_interface:
+        print("Query interface not available. Run the deterministic pipeline first.")
+        return
+
+    empty_cells = query_interface.find_empty_cells_in_formula_ranges(sheet_name)
+    print(f"\\n🔍 Empty cells in formula ranges for {sheet_name}:")
+    print(f"Found {len(empty_cells)} empty cells that are part of formula ranges:")
+    for cell in empty_cells[:10]:  # Show first 10
+        print(f"  - {cell}")
+    if len(empty_cells) > 10:
+        print(f"  ... and {len(empty_cells) - 10} more")
+
+    return empty_cells
+
+print("✅ Graph query interface tools loaded!")
+print("\\nAvailable functions:")
+print("  - analyze_cell_dependencies(sheet_name, cell_ref)")
+print("  - find_range_gaps(sheet_name)")
+print("\\nNote: The actual query_interface will be populated when integrated with the LLM tools.")
+'''
+
+                result = await toolkit.execute_code(graph_query_code)
+                if result.is_ok():
+                    logger.info(f"✅ Graph query interface tools added: {result.ok_value.cell_id}")
                 else:
-                    logger.warning("LLM response was empty.")
-                    break
+                    logger.error(f"❌ Failed to add graph query tools: {result.err_value}")
+
+            # Skip LLM interaction for now
+            logger.info("Skipping LLM interaction (commented out)")
+
+            # initial_prompt = (
+            #     "You are an expert data analyst. Your goal is to conduct a thorough analysis of the provided Excel file. "
+            #     f"The file is located at: '{args.excel_file.resolve()}'.\n\n"
+            #     "Follow these steps:\n"
+            #     "1. Load the data from the Excel file into a pandas DataFrame. Use the tools provided.\n"
+            #     "2. Explore the data to understand its structure, columns, and data types.\n"
+            #     "3. Identify patterns, trends, and insights in the data.\n"
+            #     "4. Create visualizations if appropriate.\n"
+            #     "5. Summarize your findings and provide actionable insights.\n\n"
+            #     "Start by loading the data and showing its basic information."
+            # )
+
+            # Commented out LLM interaction for testing
+            # messages = [
+            #     SystemMessage(
+            #         "You are an AI assistant that can interact with a Jupyter notebook to analyze data. "
+            #         "Use the provided tools to execute code, manage cells, and explore the data thoroughly. "
+            #         "Always use the tools to perform actions rather than just describing what you would do."
+            #     ),
+            #     HumanMessage(content=initial_prompt),
+            # ]
+
+            # for round_num in range(1, args.max_rounds + 1):
+            #     logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
+
+            #     if args.verbose:
+            #         logger.info("Sending messages to LLM:", messages=messages)
+
+            #     try:
+            #         response = await llm_with_tools.ainvoke(messages)
+            #     except Exception as api_error:
+            #         logger.warning(f"Primary model API call failed: {api_error}")
+
+            #         # Try fallback if we haven't already
+            #         if not isinstance(llm, ChatOpenAI):
+            #             try:
+            #                 logger.info("Switching to fallback model: gpt-4")
+            #                 llm = ChatOpenAI(model_name="gpt-4")
+            #                 llm_with_tools = llm.bind_tools(tools)
+            #                 response = await llm_with_tools.ainvoke(messages)
+            #             except Exception as fallback_error:
+            #                 logger.error(f"Fallback model also failed: {fallback_error}")
+            #                 break
+            #         else:
+            #             logger.error(f"API call failed: {api_error}")
+            #             break
+
+            #     if args.verbose:
+            #         logger.info("Received response from LLM:", response=response)
+
+            #     # Process tool calls
+            #     tool_output_messages = []
+            #     if response.tool_calls:
+            #         # Add the AI response with tool calls to the conversation first
+            #         messages.append(response)
+
+            #         for tool_call in response.tool_calls:
+            #             tool_name = tool_call.get("name")
+            #             tool_args = tool_call.get("args")
+            #             logger.info(f"LLM called tool: {tool_name}", args=tool_args)
+
+            #             # Dynamically call the tool function
+            #             tool_func = next((t for t in tools if t.name == tool_name), None)
+            #             if tool_func:
+            #                 tool_output = await tool_func.ainvoke(tool_args)
+            #                 logger.info(f"Tool output: {tool_output}")
+            #                 tool_output_messages.append(
+            #                     ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
+            #                 )
+            #             else:
+            #                 logger.warning(f"LLM tried to call unknown tool: {tool_name}")
+
+            #         # Add tool results to conversation
+            #         messages.extend(tool_output_messages)
+
+            #     elif response.content:
+            #         logger.info(f"LLM response: {response.content}")
+            #         # If no tool calls, the LLM is done
+            #         break
+            #     else:
+            #         logger.warning("LLM response was empty.")
+            #         break
 
             # Ensure notebook is saved at the end
             logger.info("Analysis complete. Saving notebook...")

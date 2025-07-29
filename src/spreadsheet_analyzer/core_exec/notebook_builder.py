@@ -207,27 +207,19 @@ class NotebookBuilder:
         self._execution_count = count
         return self
 
-    def _format_source(self, content: str) -> list[str]:
+    def _format_source(self, content: str) -> str:
         """
-        Format source content as a list of lines.
+        Format source content for notebook cells.
 
         Args:
             content: Raw content string
 
         Returns:
-            List of formatted lines
+            Formatted source string
         """
-        if not content:
-            return []
-
-        # Split into lines and ensure proper line endings
-        lines = content.splitlines()
-
-        # Handle trailing newline
-        if content.endswith("\n"):
-            lines.append("")
-
-        return lines
+        # nbformat expects source as a string, not a list
+        # Just return the content as-is to preserve formatting
+        return content if content else ""
 
     import json
 

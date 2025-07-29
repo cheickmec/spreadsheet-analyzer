@@ -95,9 +95,6 @@ async def analyze_spreadsheet(
     file_path: Path,
     sheet_name: str | None = None,
     use_llm: bool = True,
-    model: str = "claude-3-opus-20240229",
-    max_cost: float = 0.50,
-    temperature: float = 0.0,
     tasks: list[str] | None = None,
     output_dir: Path = Path("analysis_results"),
     kernel: str = "python3",
@@ -112,9 +109,6 @@ async def analyze_spreadsheet(
         file_path: Path to Excel/CSV file
         sheet_name: Specific sheet to analyze (None = auto-detect)
         use_llm: Whether to use LLM enhancement (default: True)
-        model: LLM model identifier
-        max_cost: Maximum cost for LLM calls
-        temperature: LLM sampling temperature
         tasks: List of task names to run (None = auto-detect)
         output_dir: Where to save results
         kernel: Jupyter kernel to use
@@ -297,9 +291,6 @@ def main(argv: list[str] | None = None) -> NoReturn:
                 file_path=args.file,
                 sheet_name=args.sheet,
                 use_llm=use_llm,
-                model=args.model,
-                max_cost=args.max_cost,
-                temperature=args.temperature,
                 tasks=tasks,
                 output_dir=args.output_dir,
                 kernel=args.kernel,
