@@ -39,11 +39,6 @@ class PipelineResultsToMarkdown:
         return f"""# 📊 Excel Analysis Report
 
 **File:** `{pipeline_result.context.file_path.name}`
-**Analysis Time:** `{pipeline_result.context.start_time.strftime("%Y-%m-%d %H:%M:%S")}`
-**Execution Time:** `{pipeline_result.execution_time:.2f} seconds`
-**Status:** {"✅ Success" if pipeline_result.success else "❌ Failed"}
-
----
 """
 
     @staticmethod
@@ -69,48 +64,62 @@ class PipelineResultsToMarkdown:
     @staticmethod
     def security_to_markdown(security: SecurityReport) -> str:
         """Convert security results to markdown."""
-        risk_emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "NONE": "✅"}
+        # Only show security section if risk is MEDIUM or higher
+        if security.risk_level in ("LOW", "NONE"):
+            return ""
+
+        risk_emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡"}
 
         md = f"""## 🛡️ Security Analysis
 
 **Risk Level:** {risk_emoji.get(security.risk_level, "❓")} {security.risk_level}
-**Safe to Process:** {"✅ Yes" if security.is_safe else "❌ No"}
-**Threats Found:** {security.threat_count}
 """
 
         if security.has_macros:
-            md += "\n⚠️ **Contains VBA Macros**\n"
+            md += "⚠️ **Contains VBA Macros**\n"
         if security.has_external_links:
-            md += "\n⚠️ **Contains External Links**\n"
+            md += "⚠️ **Contains External Links**\n"
 
-        if security.threats:
+        # Only show non-hidden sheet threats
+        relevant_threats = [t for t in security.threats if t.threat_type not in ("HIDDEN_SHEET", "VERY_HIDDEN_SHEET")]
+
+        if relevant_threats:
             md += "\n### Detected Threats:\n"
-            for threat in security.threats[:5]:  # Show first 5
-                md += f"- **{threat.threat_type}** ({threat.risk_level}): {threat.description}\n"
-            if len(security.threats) > 5:
-                md += f"- ...and {len(security.threats) - 5} more threats\n"
+            for threat in relevant_threats[:5]:
+                md += f"- **{threat.threat_type}**: {threat.description}\n"
+            if len(relevant_threats) > 5:
+                md += f"- ...and {len(relevant_threats) - 5} more threats\n"
 
         return md
 
     @staticmethod
-    def structure_to_markdown(structure: WorkbookStructure) -> str:
+    def structure_to_markdown(structure: WorkbookStructure, security: SecurityReport | None = None) -> str:
         """Convert structure results to markdown."""
+        # Extract hidden sheet names from security threats
+        hidden_sheets = set()
+        if security and security.threats:
+            for threat in security.threats:
+                if threat.threat_type in ("HIDDEN_SHEET", "VERY_HIDDEN_SHEET"):
+                    sheet_name = threat.details.get("sheet_name")
+                    if sheet_name:
+                        hidden_sheets.add(sheet_name)
+
         md = f"""## 📋 Structural Analysis
 
 **Total Sheets:** {structure.sheet_count}
 **Total Cells with Data:** {structure.total_cells:,}
-**Total Formulas:** {structure.total_formulas:,}
 **Named Ranges:** {len(structure.named_ranges)}
 **Complexity Score:** {structure.complexity_score}/100
 
 ### Sheet Details:
+
+| Sheet Name | Hidden | Rows | Columns | Formulas |
+|------------|--------|------|---------|----------|
 """
 
-        for sheet in structure.sheets[:10]:  # Show first 10 sheets
-            md += f"- **{sheet.name}**: {sheet.row_count:,} rows × {sheet.column_count:,} cols, {sheet.formula_count:,} formulas\n"
-
-        if len(structure.sheets) > 10:
-            md += f"- ...and {len(structure.sheets) - 10} more sheets\n"
+        for sheet in structure.sheets:
+            is_hidden = sheet.name in hidden_sheets
+            md += f"| {sheet.name} | {is_hidden} | {sheet.row_count:,} | {sheet.column_count} | {sheet.formula_count:,} |\n"
 
         return md
 
@@ -119,7 +128,6 @@ class PipelineResultsToMarkdown:
         """Convert formula analysis to markdown."""
         md = f"""## 🔗 Formula Analysis
 
-**Total Formulas:** {len(formulas.dependency_graph):,}
 **Max Dependency Depth:** {formulas.max_dependency_depth} levels
 **Formula Complexity Score:** {formulas.formula_complexity_score}/100
 **Circular References:** {"⚠️ Yes" if formulas.has_circular_references else "✅ No"}
@@ -154,23 +162,27 @@ class PipelineResultsToMarkdown:
         md = f"""## 📊 Content Analysis
 
 **Data Quality Score:** {quality_emoji} {content.data_quality_score}/100
-**Patterns Found:** {len(content.data_patterns)}
-**Insights Generated:** {len(content.insights)}
-
-### Summary:
-{content.summary}
 """
 
-        if content.insights:
+        # Filter out "incomplete data" insights which are usually false positives in Excel
+        relevant_insights = [
+            i
+            for i in content.insights
+            if "incomplete data" not in i.title.lower()
+            and "missing data" not in i.title.lower()
+            and "data completeness" not in i.description.lower()
+        ]
+
+        if relevant_insights:
             md += "\n### 💡 Key Insights:\n"
-            for insight in content.insights[:5]:
+            for insight in relevant_insights[:5]:
                 severity_emoji = "🔴" if insight.severity == "HIGH" else "🟡" if insight.severity == "MEDIUM" else "🟢"
                 md += f"\n**{insight.title}** {severity_emoji}\n"
                 md += f"{insight.description}\n"
                 if insight.recommendation:
                     md += f"- **Recommendation:** {insight.recommendation}\n"
-            if len(content.insights) > 5:
-                md += f"\n...and {len(content.insights) - 5} more insights\n"
+            if len(relevant_insights) > 5:
+                md += f"\n...and {len(relevant_insights) - 5} more insights\n"
 
         if content.data_patterns:
             md += "\n### 🔍 Data Patterns:\n"
@@ -330,12 +342,12 @@ class NotebookCLI:
                 if result.is_err():
                     logger.warning(f"Failed to add header: {result.err_value}")
 
-                # Add integrity analysis
-                if pipeline_result.integrity:
-                    integrity_md = PipelineResultsToMarkdown.integrity_to_markdown(pipeline_result.integrity)
-                    result = await toolkit.render_markdown(integrity_md)
-                    if result.is_err():
-                        logger.warning(f"Failed to add integrity analysis: {result.err_value}")
+                # Skip integrity analysis - not useful for LLM
+                # if pipeline_result.integrity:
+                #     integrity_md = PipelineResultsToMarkdown.integrity_to_markdown(pipeline_result.integrity)
+                #     result = await toolkit.render_markdown(integrity_md)
+                #     if result.is_err():
+                #         logger.warning(f"Failed to add integrity analysis: {result.err_value}")
 
                 # Add security analysis
                 if pipeline_result.security:
@@ -346,7 +358,9 @@ class NotebookCLI:
 
                 # Add structure analysis
                 if pipeline_result.structure:
-                    structure_md = PipelineResultsToMarkdown.structure_to_markdown(pipeline_result.structure)
+                    structure_md = PipelineResultsToMarkdown.structure_to_markdown(
+                        pipeline_result.structure, pipeline_result.security
+                    )
                     result = await toolkit.render_markdown(structure_md)
                     if result.is_err():
                         logger.warning(f"Failed to add structure analysis: {result.err_value}")
@@ -358,18 +372,18 @@ class NotebookCLI:
                     if result.is_err():
                         logger.warning(f"Failed to add formula analysis: {result.err_value}")
 
-                # Add content analysis
-                if pipeline_result.content:
-                    content_md = PipelineResultsToMarkdown.content_to_markdown(pipeline_result.content)
-                    result = await toolkit.render_markdown(content_md)
-                    if result.is_err():
-                        logger.warning(f"Failed to add content analysis: {result.err_value}")
+                # Skip content analysis - data quality scores are misleading for Excel
+                # if pipeline_result.content:
+                #     content_md = PipelineResultsToMarkdown.content_to_markdown(pipeline_result.content)
+                #     result = await toolkit.render_markdown(content_md)
+                #     if result.is_err():
+                #         logger.warning(f"Failed to add content analysis: {result.err_value}")
 
-                # Add summary
-                summary_md = PipelineResultsToMarkdown.create_summary(pipeline_result)
-                result = await toolkit.render_markdown(summary_md)
-                if result.is_err():
-                    logger.warning(f"Failed to add summary: {result.err_value}")
+                # Skip summary - not useful for LLM
+                # summary_md = PipelineResultsToMarkdown.create_summary(pipeline_result)
+                # result = await toolkit.render_markdown(summary_md)
+                # if result.is_err():
+                #     logger.warning(f"Failed to add summary: {result.err_value}")
 
                 logger.info("Pipeline results added to notebook")
 
@@ -430,91 +444,82 @@ except Exception as e:
                     # If cache is outside repo, use absolute path
                     cache_path_str = f'r"{formula_cache_path}"'
 
-                query_interface_code = f'''import pickle
+                query_interface_code = f'''# Query interface for formula dependency analysis
+# The pipeline has already analyzed all formulas and cached the results
+
+import pickle
 from pathlib import Path
 from spreadsheet_analyzer.graph_db.query_interface import create_enhanced_query_interface
 
-# Load the formula analysis from pipeline cache
+# Load cached formula analysis
 cache_file = Path({cache_path_str})
-if cache_file.exists():
-    with open(cache_file, 'rb') as f:
-        formula_analysis = pickle.load(f)
+with open(cache_file, 'rb') as f:
+    formula_analysis = pickle.load(f)
 
-    # Create query interface
-    query_interface = create_enhanced_query_interface(formula_analysis)
-    print("✅ Graph query interface loaded successfully")
-    print(f"   Total formulas: {{len(formula_analysis.dependency_graph):,}}")
-    print(f"   Max dependency depth: {{formula_analysis.max_dependency_depth}}")
+query_interface = create_enhanced_query_interface(formula_analysis)
 
-    # Define convenience functions for easier use
-    def get_cell_dependencies(sheet, cell_ref):
-        """Get complete dependency information for a specific cell."""
-        result = query_interface.get_cell_dependencies(sheet, cell_ref)
-        print(f"\\nCell {{sheet}}!{{cell_ref}}:")
-        print(f"  Has formula: {{result.has_formula}}")
-        if result.formula:
-            print(f"  Formula: {{result.formula}}")
-        if result.direct_dependencies:
-            print(f"  Direct dependencies: {{', '.join(result.direct_dependencies[:5])}}")
-            if len(result.direct_dependencies) > 5:
-                print(f"    ...and {{len(result.direct_dependencies) - 5}} more")
-        if result.direct_dependents:
-            print(f"  Cells that depend on this: {{', '.join(result.direct_dependents[:5])}}")
-            if len(result.direct_dependents) > 5:
-                print(f"    ...and {{len(result.direct_dependents) - 5}} more")
-        return result
+# Convenience functions for graph queries
+def get_cell_dependencies(sheet, cell_ref):
+    """Get complete dependency information for a specific cell."""
+    result = query_interface.get_cell_dependencies(sheet, cell_ref)
+    print(f"\\nCell {{sheet}}!{{cell_ref}}:")
+    print(f"  Has formula: {{result.has_formula}}")
+    if result.formula:
+        print(f"  Formula: {{result.formula}}")
+    if result.direct_dependencies:
+        print(f"  Direct dependencies: {{', '.join(result.direct_dependencies[:5])}}")
+        if len(result.direct_dependencies) > 5:
+            print(f"    ...and {{len(result.direct_dependencies) - 5}} more")
+    if result.direct_dependents:
+        print(f"  Cells that depend on this: {{', '.join(result.direct_dependents[:5])}}")
+        if len(result.direct_dependents) > 5:
+            print(f"    ...and {{len(result.direct_dependents) - 5}} more")
+    return result
 
-    def find_cells_affecting_range(sheet, start_cell, end_cell):
-        """Find all cells that affect any cell within the specified range."""
-        result = query_interface.find_cells_affecting_range(sheet, start_cell, end_cell)
-        print(f"\\nCells affecting range {{sheet}}!{{start_cell}}:{{end_cell}}:")
-        for cell, deps in list(result.items())[:5]:
-            print(f"  {{cell}} depends on: {{', '.join(deps[:3])}}")
-            if len(deps) > 3:
-                print(f"    ...and {{len(deps) - 3}} more")
-        if len(result) > 5:
-            print(f"  ...and {{len(result) - 5}} more cells")
-        return result
+def find_cells_affecting_range(sheet, start_cell, end_cell):
+    """Find all cells that affect any cell within the specified range."""
+    result = query_interface.find_cells_affecting_range(sheet, start_cell, end_cell)
+    print(f"\\nCells affecting range {{sheet}}!{{start_cell}}:{{end_cell}}:")
+    for cell, deps in list(result.items())[:5]:
+        print(f"  {{cell}} depends on: {{', '.join(deps[:3])}}")
+        if len(deps) > 3:
+            print(f"    ...and {{len(deps) - 3}} more")
+    if len(result) > 5:
+        print(f"  ...and {{len(result) - 5}} more cells")
+    return result
 
-    def get_formula_statistics():
-        """Get comprehensive statistics about formulas in the workbook."""
-        stats = query_interface.get_formula_statistics_with_ranges()
-        print("\\nFormula Statistics:")
-        print(f"  Total formulas: {{stats['total_formulas']:,}}")
-        print(f"  Formulas with dependencies: {{stats['formulas_with_dependencies']:,}}")
-        print(f"  Unique cells referenced: {{stats['unique_cells_referenced']:,}}")
-        print(f"  Max dependency depth: {{stats['max_dependency_depth']}} levels")
-        print(f"  Circular references: {{stats['circular_reference_chains']}}")
-        print(f"  Formula complexity score: {{stats['complexity_score']}}/100")
-        return stats
+def get_formula_statistics():
+    """Get comprehensive statistics about formulas in the workbook."""
+    stats = query_interface.get_formula_statistics_with_ranges()
+    print("\\nFormula Statistics:")
+    print(f"  Total formulas: {{stats['total_formulas']:,}}")
+    print(f"  Formulas with dependencies: {{stats['formulas_with_dependencies']:,}}")
+    print(f"  Unique cells referenced: {{stats['unique_cells_referenced']:,}}")
+    print(f"  Max dependency depth: {{stats['max_dependency_depth']}} levels")
+    print(f"  Circular references: {{stats['circular_reference_chains']}}")
+    print(f"  Formula complexity score: {{stats['complexity_score']}}/100")
+    return stats
 
-    def find_empty_cells_in_formula_ranges(sheet):
-        """Find empty cells that are part of formula ranges."""
-        result = query_interface.find_empty_cells_in_formula_ranges(sheet)
-        print(f"\\nEmpty cells in formula ranges for sheet '{{sheet}}':")
-        if result:
-            print(f"  Found {{len(result)}} empty cells")
-            # Group by rows for display
-            rows = {{}}
-            for cell in list(result)[:20]:
-                row_num = ''.join(filter(str.isdigit, cell))
-                if row_num not in rows:
-                    rows[row_num] = []
-                rows[row_num].append(cell)
-            for row, cells in list(rows.items())[:5]:
-                print(f"  Row {{row}}: {{', '.join(cells)}}")
-            if len(result) > 20:
-                print(f"  ...and {{len(result) - 20}} more")
-        else:
-            print("  No empty cells found in formula ranges")
-        return result
-
-    # Display available sheets for reference
-    if hasattr(formula_analysis, 'sheets_with_formulas') and formula_analysis.sheets_with_formulas:
-        print(f"\\nSheets with formulas: {{', '.join(formula_analysis.sheets_with_formulas)}}")
-else:
-    print("⚠️ Formula analysis cache not found at {{cache_file}}")
-    query_interface = None
+def find_empty_cells_in_formula_ranges(sheet):
+    """Find empty cells that are part of formula ranges."""
+    result = query_interface.find_empty_cells_in_formula_ranges(sheet)
+    print(f"\\nEmpty cells in formula ranges for sheet '{{sheet}}':")
+    if result:
+        print(f"  Found {{len(result)}} empty cells")
+        # Group by rows for display
+        rows = {{}}
+        for cell in list(result)[:20]:
+            row_num = ''.join(filter(str.isdigit, cell))
+            if row_num not in rows:
+                rows[row_num] = []
+            rows[row_num].append(cell)
+        for row, cells in list(rows.items())[:5]:
+            print(f"  Row {{row}}: {{', '.join(cells)}}")
+        if len(result) > 20:
+            print(f"  ...and {{len(result) - 20}} more")
+    else:
+        print("  No empty cells found in formula ranges")
+    return result
 '''
 
                 result = await toolkit.execute_code(query_interface_code)
