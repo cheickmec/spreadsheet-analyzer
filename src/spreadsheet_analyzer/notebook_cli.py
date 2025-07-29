@@ -559,196 +559,134 @@ These tools are available through the tool-calling interface. Each query will be
 
                 logger.info("Graph query tools are available via tool-calling interface")
 
-            # Mock LLM interaction for testing
-            logger.info("Starting mock LLM interaction...")
+            # Step 3: Setup LLM interaction (if requested)
+            if args.max_rounds > 0:
+                logger.info("Setting up LLM interaction...")
 
-            # Import tools for mock LLM
-            from spreadsheet_analyzer.notebook_llm_interface import get_notebook_tools
+                # Import LangChain components
+                try:
+                    from langchain_anthropic import ChatAnthropic
+                    from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+                    from langchain_openai import ChatOpenAI
+                except ImportError as e:
+                    logger.error(f"Failed to import LangChain components: {e}")
+                    logger.error("Please install langchain-anthropic and langchain-openai packages")
+                else:
+                    # Get notebook tools
+                    from spreadsheet_analyzer.notebook_llm_interface import get_notebook_tools
 
-            # Get execute_code tool for running Python code
-            tools = get_notebook_tools()
-            execute_code_tool = next((t for t in tools if t.name == "execute_code"), None)
+                    tools = get_notebook_tools()
 
-            if not execute_code_tool:
-                logger.error("Execute code tool not found")
-            else:
-                # Mock LLM rounds using direct Python code
-                for round_num in range(1, min(4, args.max_rounds + 1)):  # Limit to 3 rounds for mock
-                    logger.info(f"Mock LLM round {round_num}")
+                    # Initialize LLM based on model selection
+                    try:
+                        if "claude" in args.model.lower():
+                            llm = ChatAnthropic(
+                                model_name=args.model,
+                                api_key=args.api_key,
+                                max_tokens=4096,
+                            )
+                        elif "gpt" in args.model.lower():
+                            llm = ChatOpenAI(
+                                model_name=args.model,
+                                api_key=args.api_key,
+                                temperature=0,
+                            )
+                        else:
+                            logger.error(f"Unsupported model: {args.model}")
+                            llm = None
 
-                    if round_num == 1:
-                        # Round 1: Execute some basic analysis code
-                        logger.info("Mock LLM: Let me analyze the data structure")
+                        if llm:
+                            # Bind tools to LLM
+                            llm_with_tools = llm.bind_tools(tools)
 
-                        analysis_code = """# Basic data analysis
-print("=== Data Analysis ===")
-print(f"Total rows: {df.shape[0] if 'df' in locals() else 'N/A'}")
-print(f"Total columns: {df.shape[1] if 'df' in locals() else 'N/A'}")
+                            # Create initial prompt
+                            initial_prompt = f"""I've loaded the Excel file '{excel_path.name}' into a Jupyter notebook.
+The deterministic pipeline has already analyzed the file and provided structural information above.
 
-# Check for missing values
-if 'df' in locals():
-    missing_values = df.isnull().sum()
-    print("\\nMissing values per column:")
-    for col, count in missing_values.items():
-        if count > 0:
-            print(f"  - {col}: {count} missing values")
-"""
+The data has been loaded into a DataFrame called 'df' (if successful).
+{"A query interface is available to analyze formula dependencies using functions like get_cell_dependencies(), find_cells_affecting_range(), get_formula_statistics(), and find_empty_cells_in_formula_ranges()." if formula_cache_path and formula_cache_path.exists() else ""}
 
-                        try:
-                            result = await execute_code_tool.ainvoke({"input_data": {"code": analysis_code}})
-                            logger.info(f"Code execution result: {result[:100]}...")
-                        except Exception as e:
-                            logger.error(f"Error executing code: {e}")
+Please analyze this data thoroughly. You can:
+1. Execute Python code to explore the data
+2. Use pandas operations to analyze patterns
+3. Create visualizations if helpful
+4. {"Query the formula dependency graph" if formula_cache_path and formula_cache_path.exists() else "Look for data quality issues"}
+5. Provide insights and recommendations
 
-                    elif round_num == 2 and formula_cache_path and formula_cache_path.exists():
-                        # Round 2: Query formula statistics using direct Python calls
-                        logger.info("Mock LLM: Now let me check the formula structure using the query interface")
+Start by examining the data structure and then proceed with deeper analysis."""
 
-                        formula_query_code = """# Query formula statistics
-if 'query_interface' in globals() and query_interface:
-    print("=== Formula Analysis ===")
+                            messages = [
+                                SystemMessage(
+                                    "You are an AI assistant that can interact with a Jupyter notebook to analyze data. "
+                                    "Use the provided tools to execute code, manage cells, and explore the data thoroughly. "
+                                    "Always use the tools to perform actions rather than just describing what you would do."
+                                ),
+                                HumanMessage(content=initial_prompt),
+                            ]
 
-    # Get overall statistics
-    stats = get_formula_statistics()
+                            for round_num in range(1, args.max_rounds + 1):
+                                logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
 
-    # Find cells affecting a specific range
-    if 'df' in locals() and not df.empty:
-        # Use the first sheet from the Excel file
-        sheet_name = list(pd.ExcelFile(excel_path).sheet_names)[0]
-        print(f"\\nAnalyzing dependencies in sheet: {sheet_name}")
+                                if args.verbose:
+                                    logger.info("Sending messages to LLM:", messages=messages)
 
-        # Check cells affecting the first 10 rows
-        affecting_cells = find_cells_affecting_range(sheet_name, "A1", "E10")
+                                try:
+                                    response = await llm_with_tools.ainvoke(messages)
+                                except Exception as api_error:
+                                    logger.warning(f"Primary model API call failed: {api_error}")
 
-        # Look for a cell with dependencies
-        for col in ['B', 'C', 'D', 'E', 'F']:
-            for row in range(2, 7):
-                cell_ref = f"{col}{row}"
-                deps = get_cell_dependencies(sheet_name, cell_ref)
-                if deps.has_formula:
-                    break
-            if deps.has_formula:
-                break
-else:
-    print("Query interface not available")
-"""
+                                    # Try fallback if we haven't already
+                                    if not isinstance(llm, ChatOpenAI):
+                                        try:
+                                            logger.info("Switching to fallback model: gpt-4")
+                                            llm = ChatOpenAI(model_name="gpt-4")
+                                            llm_with_tools = llm.bind_tools(tools)
+                                            response = await llm_with_tools.ainvoke(messages)
+                                        except Exception as fallback_error:
+                                            logger.error(f"Fallback model also failed: {fallback_error}")
+                                            break
+                                    else:
+                                        logger.error(f"API call failed: {api_error}")
+                                        break
 
-                        try:
-                            result = await execute_code_tool.ainvoke({"input_data": {"code": formula_query_code}})
-                            logger.info(f"Formula query result: {result[:200]}...")
-                        except Exception as e:
-                            logger.error(f"Error executing formula queries: {e}")
+                                if args.verbose:
+                                    logger.info("Received response from LLM:", response=response)
 
-                    elif round_num == 3 and formula_cache_path and formula_cache_path.exists():
-                        # Round 3: More detailed analysis
-                        logger.info("Mock LLM: Let me examine empty cells and specific dependencies")
+                                # Process tool calls
+                                tool_output_messages = []
+                                if response.tool_calls:
+                                    # Add the AI response with tool calls to the conversation first
+                                    messages.append(response)
 
-                        detailed_analysis_code = """# Detailed formula analysis
-if 'query_interface' in globals() and query_interface:
-    print("=== Detailed Formula Analysis ===")
+                                    for tool_call in response.tool_calls:
+                                        tool_name = tool_call.get("name")
+                                        tool_args = tool_call.get("args")
+                                        logger.info(f"LLM called tool: {tool_name}", args=tool_args)
 
-    # Check for empty cells in formula ranges
-    if 'df' in locals() and not df.empty:
-        sheet_name = list(pd.ExcelFile(excel_path).sheet_names)[0]
-        empty_cells = find_empty_cells_in_formula_ranges(sheet_name)
+                                        # Dynamically call the tool function
+                                        tool_func = next((t for t in tools if t.name == tool_name), None)
+                                        if tool_func:
+                                            tool_output = await tool_func.ainvoke(tool_args)
+                                            logger.info(f"Tool output: {tool_output}")
+                                            tool_output_messages.append(
+                                                ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
+                                            )
+                                        else:
+                                            logger.warning(f"LLM tried to call unknown tool: {tool_name}")
 
-    # Look for cells with the most dependencies
-    if hasattr(formula_analysis, 'dependency_graph'):
-        print("\\nCells with most dependencies:")
-        # Find cells that are referenced most
-        dependency_counts = {}
-        for cell, info in formula_analysis.dependency_graph.items():
-            if 'dependents' in info:
-                dep_count = len(info['dependents'])
-                if dep_count > 0:
-                    dependency_counts[cell] = dep_count
+                                    # Add tool results to conversation
+                                    messages.extend(tool_output_messages)
 
-        # Show top 5
-        top_cells = sorted(dependency_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-        for cell, count in top_cells:
-            print(f"  {cell}: {count} cells depend on this")
-else:
-    print("Query interface not available for detailed analysis")
-"""
+                                elif response.content:
+                                    logger.info(f"LLM response: {response.content}")
+                                    # If no tool calls, the LLM is done
+                                    break
+                                else:
+                                    logger.warning("LLM response was empty.")
+                                    break
 
-                        try:
-                            result = await execute_code_tool.ainvoke({"input_data": {"code": detailed_analysis_code}})
-                            logger.info(f"Detailed analysis result: {result[:200]}...")
-                        except Exception as e:
-                            logger.error(f"Error executing detailed analysis: {e}")
-
-            logger.info("Mock LLM interaction completed")
-
-            # Commented out LLM interaction for testing
-            # messages = [
-            #     SystemMessage(
-            #         "You are an AI assistant that can interact with a Jupyter notebook to analyze data. "
-            #         "Use the provided tools to execute code, manage cells, and explore the data thoroughly. "
-            #         "Always use the tools to perform actions rather than just describing what you would do."
-            #     ),
-            #     HumanMessage(content=initial_prompt),
-            # ]
-
-            # for round_num in range(1, args.max_rounds + 1):
-            #     logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
-
-            #     if args.verbose:
-            #         logger.info("Sending messages to LLM:", messages=messages)
-
-            #     try:
-            #         response = await llm_with_tools.ainvoke(messages)
-            #     except Exception as api_error:
-            #         logger.warning(f"Primary model API call failed: {api_error}")
-
-            #         # Try fallback if we haven't already
-            #         if not isinstance(llm, ChatOpenAI):
-            #             try:
-            #                 logger.info("Switching to fallback model: gpt-4")
-            #                 llm = ChatOpenAI(model_name="gpt-4")
-            #                 llm_with_tools = llm.bind_tools(tools)
-            #                 response = await llm_with_tools.ainvoke(messages)
-            #             except Exception as fallback_error:
-            #                 logger.error(f"Fallback model also failed: {fallback_error}")
-            #                 break
-            #         else:
-            #             logger.error(f"API call failed: {api_error}")
-            #             break
-
-            #     if args.verbose:
-            #         logger.info("Received response from LLM:", response=response)
-
-            #     # Process tool calls
-            #     tool_output_messages = []
-            #     if response.tool_calls:
-            #         # Add the AI response with tool calls to the conversation first
-            #         messages.append(response)
-
-            #         for tool_call in response.tool_calls:
-            #             tool_name = tool_call.get("name")
-            #             tool_args = tool_call.get("args")
-            #             logger.info(f"LLM called tool: {tool_name}", args=tool_args)
-
-            #             # Dynamically call the tool function
-            #             tool_func = next((t for t in tools if t.name == tool_name), None)
-            #             if tool_func:
-            #                 tool_output = await tool_func.ainvoke(tool_args)
-            #                 logger.info(f"Tool output: {tool_output}")
-            #                 tool_output_messages.append(
-            #                     ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
-            #                 )
-            #             else:
-            #                 logger.warning(f"LLM tried to call unknown tool: {tool_name}")
-
-            #         # Add tool results to conversation
-            #         messages.extend(tool_output_messages)
-
-            #     elif response.content:
-            #         logger.info(f"LLM response: {response.content}")
-            #         # If no tool calls, the LLM is done
-            #         break
-            #     else:
-            #         logger.warning("LLM response was empty.")
-            #         break
+                    except Exception as e:
+                        logger.error(f"Failed to initialize LLM: {e}")
 
             # Ensure notebook is saved at the end
             logger.info("Analysis complete. Saving notebook...")
