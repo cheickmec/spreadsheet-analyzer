@@ -185,8 +185,27 @@ async def add_cell(input_data: AddCellInput) -> str:
         if isinstance(result, Err):
             return f"Failed to add cell: {result.value}"
 
-        cell_type_name = input_data.cell_type.capitalize()
-        return f"✅ {cell_type_name} cell added successfully\nCell ID: {result.value.cell_id}\nContent: {input_data.content[:100]}{'...' if len(input_data.content) > 100 else ''}"
+        # CLAUDE-KNOWLEDGE: For non-code cells, avoid echoing content back to save tokens
+        # The LLM already knows what content it sent
+        if cell_type == CellType.CODE:
+            # For code cells, include outputs
+            outputs = []
+            for output in result.value.outputs:
+                if output.output_type == "stream":
+                    content = truncate_output(output.content)
+                    outputs.append(f"[{output.metadata.get('name', 'output')}] {content}")
+                elif output.output_type == "execute_result":
+                    content = truncate_output(output.content)
+                    outputs.append(f"Result: {content}")
+                elif output.output_type == "error":
+                    content = truncate_output(output.content)
+                    outputs.append(f"Error: {content}")
+
+            return f"✅ Code cell added and executed\nCell ID: {result.value.cell_id}\nOutputs:\n" + "\n".join(outputs)
+        else:
+            # For markdown and raw cells, just confirm success
+            cell_type_name = input_data.cell_type.capitalize()
+            return f"✅ {cell_type_name} cell added successfully"
 
     except Exception as e:
         return f"Error adding cell: {e!s}"
