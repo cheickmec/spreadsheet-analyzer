@@ -269,6 +269,22 @@ class NotebookCLI:
         notebook_path = args.notebook_path or excel_path.parent / f"{excel_path.stem}_analysis.ipynb"
         session_id = args.session_id or f"{args.excel_file.stem}_analysis_session"
 
+        # Set up LLM message logging to file
+        import json
+        from datetime import datetime
+
+        llm_log_path = (
+            excel_path.parent / f"{excel_path.stem}_llm_messages_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        )
+        llm_logger = logging.getLogger("llm_messages")
+        llm_logger.setLevel(logging.DEBUG)
+        llm_file_handler = logging.FileHandler(llm_log_path, mode="w")
+        llm_file_handler.setLevel(logging.DEBUG)
+        llm_formatter = logging.Formatter("%(asctime)s - %(message)s")
+        llm_file_handler.setFormatter(llm_formatter)
+        llm_logger.addHandler(llm_file_handler)
+        llm_logger.info(f"Starting LLM message logging for: {excel_path}")
+
         # Check if file exists
         if not excel_path.exists():
             logger.error(f"Excel file not found: {excel_path}")
@@ -277,6 +293,7 @@ class NotebookCLI:
         logger.info(f"Starting analysis of: {excel_path}")
         logger.info(f"Session ID: {session_id}")
         logger.info(f"Notebook Path: {notebook_path}")
+        logger.info(f"LLM message log: {llm_log_path}")
 
         # Step 1: Run deterministic pipeline
         logger.info("Running deterministic pipeline analysis...")
@@ -584,18 +601,30 @@ These tools are available through the tool-calling interface. Each query will be
 
                     # Initialize LLM based on model selection
                     try:
+                        import os
+
                         if "claude" in args.model.lower():
-                            llm = ChatAnthropic(
-                                model_name=args.model,
-                                api_key=args.api_key,
-                                max_tokens=4096,
-                            )
+                            api_key = args.api_key or os.getenv("ANTHROPIC_API_KEY")
+                            if not api_key:
+                                logger.error("No API key provided. Set ANTHROPIC_API_KEY or use --api-key")
+                                llm = None
+                            else:
+                                llm = ChatAnthropic(
+                                    model_name=args.model,
+                                    api_key=api_key,
+                                    max_tokens=4096,
+                                )
                         elif "gpt" in args.model.lower():
-                            llm = ChatOpenAI(
-                                model_name=args.model,
-                                api_key=args.api_key,
-                                temperature=0,
-                            )
+                            api_key = args.api_key or os.getenv("OPENAI_API_KEY")
+                            if not api_key:
+                                logger.error("No API key provided. Set OPENAI_API_KEY or use --api-key")
+                                llm = None
+                            else:
+                                llm = ChatOpenAI(
+                                    model_name=args.model,
+                                    api_key=api_key,
+                                    temperature=0,
+                                )
                         else:
                             logger.error(f"Unsupported model: {args.model}")
                             llm = None
@@ -604,21 +633,39 @@ These tools are available through the tool-calling interface. Each query will be
                             # Bind tools to LLM
                             llm_with_tools = llm.bind_tools(tools)
 
-                            # Create initial prompt
+                            # Get current notebook state in py:percent format
+                            try:
+                                notebook_state = session.toolkit.export_to_percent_format()
+                            except Exception as e:
+                                logger.error(f"Failed to export notebook state: {e}")
+                                import traceback
+
+                                traceback.print_exc()
+                                notebook_state = "# Failed to export notebook state"
+
+                            # Create initial prompt with notebook context
                             initial_prompt = f"""I've loaded the Excel file '{excel_path.name}' into a Jupyter notebook.
-The deterministic pipeline has already analyzed the file and provided structural information above.
 
-The data has been loaded into a DataFrame called 'df' (if successful).
-{"A query interface is available to analyze formula dependencies using functions like get_cell_dependencies(), find_cells_affecting_range(), get_formula_statistics(), and find_empty_cells_in_formula_ranges()." if formula_cache_path and formula_cache_path.exists() else ""}
+## Current Notebook State:
+```python
+{notebook_state}
+```
 
-Please analyze this data thoroughly. You can:
-1. Execute Python code to explore the data
+The notebook already contains:
+- Pipeline analysis results (Security, Structure, Formula Analysis)
+- Data loaded into DataFrame 'df' with initial exploration showing shape and first rows
+{"- Query interface for formula dependencies (get_cell_dependencies, find_cells_affecting_range, get_formula_statistics, find_empty_cells_in_formula_ranges)" if formula_cache_path and formula_cache_path.exists() else ""}
+
+Please continue the analysis from where it left off. **DO NOT re-execute cells that already have output.**
+
+You can:
+1. Execute NEW Python code to explore the data further
 2. Use pandas operations to analyze patterns
 3. Create visualizations if helpful
-4. {"Query the formula dependency graph" if formula_cache_path and formula_cache_path.exists() else "Look for data quality issues"}
+4. {"Query the formula dependency graph using the available functions" if formula_cache_path and formula_cache_path.exists() else "Look for data quality issues"}
 5. Provide insights and recommendations
 
-Start by examining the data structure and then proceed with deeper analysis."""
+Focus on deeper analysis that builds upon what's already been done."""
 
                             messages = [
                                 SystemMessage(
@@ -632,11 +679,28 @@ Start by examining the data structure and then proceed with deeper analysis."""
                             for round_num in range(1, args.max_rounds + 1):
                                 logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
 
+                                # Log messages being sent to LLM
+                                llm_logger.info(f"\n{'=' * 80}\nROUND {round_num} - SENDING TO LLM\n{'=' * 80}")
+                                for i, msg in enumerate(messages):
+                                    msg_type = type(msg).__name__
+                                    msg_content = getattr(msg, "content", str(msg))
+                                    llm_logger.info(f"\nMessage {i + 1} ({msg_type}):\n{msg_content}")
+                                    if hasattr(msg, "tool_calls") and msg.tool_calls:
+                                        llm_logger.info(f"Tool calls: {json.dumps(msg.tool_calls, indent=2)}")
+
                                 if args.verbose:
                                     logger.info("Sending messages to LLM:", messages=messages)
 
                                 try:
                                     response = await llm_with_tools.ainvoke(messages)
+
+                                    # Log response from LLM
+                                    llm_logger.info(f"\n{'=' * 80}\nROUND {round_num} - RESPONSE FROM LLM\n{'=' * 80}")
+                                    llm_logger.info(f"Response type: {type(response).__name__}")
+                                    llm_logger.info(f"Content: {response.content}")
+                                    if hasattr(response, "tool_calls") and response.tool_calls:
+                                        llm_logger.info(f"Tool calls: {json.dumps(response.tool_calls, indent=2)}")
+
                                 except Exception as api_error:
                                     logger.warning(f"Primary model API call failed: {api_error}")
 
@@ -647,6 +711,18 @@ Start by examining the data structure and then proceed with deeper analysis."""
                                             llm = ChatOpenAI(model_name="gpt-4")
                                             llm_with_tools = llm.bind_tools(tools)
                                             response = await llm_with_tools.ainvoke(messages)
+
+                                            # Log response from fallback LLM
+                                            llm_logger.info(
+                                                f"\n{'=' * 80}\nROUND {round_num} - RESPONSE FROM LLM (FALLBACK)\n{'=' * 80}"
+                                            )
+                                            llm_logger.info(f"Response type: {type(response).__name__}")
+                                            llm_logger.info(f"Content: {response.content}")
+                                            if hasattr(response, "tool_calls") and response.tool_calls:
+                                                llm_logger.info(
+                                                    f"Tool calls: {json.dumps(response.tool_calls, indent=2)}"
+                                                )
+
                                         except Exception as fallback_error:
                                             logger.error(f"Fallback model also failed: {fallback_error}")
                                             break
@@ -673,6 +749,12 @@ Start by examining the data structure and then proceed with deeper analysis."""
                                         if tool_func:
                                             tool_output = await tool_func.ainvoke(tool_args)
                                             logger.info(f"Tool output: {tool_output}")
+
+                                            # Log tool call and output
+                                            llm_logger.info(f"\nTOOL CALL: {tool_name}")
+                                            llm_logger.info(f"Arguments: {json.dumps(tool_args, indent=2)}")
+                                            llm_logger.info(f"Output: {tool_output}")
+
                                             tool_output_messages.append(
                                                 ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
                                             )
