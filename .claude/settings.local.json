@@ -6,7 +6,8 @@
       "Bash(find:*)",
       "Bash(jupyter nbconvert:*)",
       "Bash(cat:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "mcp__sequential-thinking__sequentialthinking"
     ],
     "deny": []
   },
