@@ -232,8 +232,8 @@ class NotebookCLI:
         parser.add_argument(
             "--model",
             type=str,
-            default="claude-3-sonnet-20240229",
-            help="LLM model to use (e.g., 'claude-3-sonnet-20240229', 'gpt-4').",
+            default="claude-3-5-sonnet-20241022",
+            help="LLM model to use (e.g., 'claude-3-5-sonnet-20241022', 'gpt-4').",
         )
         parser.add_argument(
             "--api-key",
@@ -258,6 +258,12 @@ class NotebookCLI:
             type=int,
             default=5,
             help="Maximum number of analysis rounds (i.e., LLM calls).",
+        )
+        parser.add_argument(
+            "--sheet-index",
+            type=int,
+            default=0,
+            help="Index of the sheet to analyze (0-based). Default is 0 (first sheet).",
         )
         parser.add_argument("--verbose", action="store_true", help="Enable verbose logging.")
         return parser
@@ -421,21 +427,37 @@ from pathlib import Path
 
 # Load the Excel file (path relative to repo root)
 excel_path = Path({path_str})
+sheet_index = {args.sheet_index}
+
 print(f"Loading data from: {{excel_path}}")
+print(f"Loading sheet at index: {{sheet_index}}")
 
 try:
-    # Try to read the first sheet
-    df = pd.read_excel(excel_path)
-    print(f"\\nLoaded data with shape: {{df.shape}}")
-    print(f"Columns: {{list(df.columns)}}")
+    # First, get information about all sheets
+    xl_file = pd.ExcelFile(excel_path)
+    sheet_names = xl_file.sheet_names
+    print(f"\\nAvailable sheets: {{sheet_names}}")
 
-    # Display first few rows
-    print("\\nFirst 5 rows:")
-    display(df.head())
+    if sheet_index >= len(sheet_names):
+        print(f"\\nError: Sheet index {{sheet_index}} is out of range. File has {{len(sheet_names)}} sheets.")
+        print("Please use --sheet-index with a value between 0 and {{}}".format(len(sheet_names)-1))
+        df = None
+    else:
+        # Load the specified sheet
+        selected_sheet = sheet_names[sheet_index]
+        print(f"\\nLoading sheet: '{{selected_sheet}}'")
 
-    # Basic info
-    print("\\nData types:")
-    print(df.dtypes)
+        df = pd.read_excel(excel_path, sheet_name=sheet_index)
+        print(f"\\nLoaded data with shape: {{df.shape}}")
+        print(f"Columns: {{list(df.columns)}}")
+
+        # Display first few rows
+        print("\\nFirst 5 rows:")
+        display(df.head())
+
+        # Basic info
+        print("\\nData types:")
+        print(df.dtypes)
 
 except Exception as e:
     print(f"Error loading Excel file: {{e}}")
@@ -644,7 +666,8 @@ These tools are available through the tool-calling interface. Each query will be
                                 notebook_state = "# Failed to export notebook state"
 
                             # Create initial prompt with notebook context
-                            initial_prompt = f"""I've loaded the Excel file '{excel_path.name}' into a Jupyter notebook.
+                            sheet_info = f" (sheet index {args.sheet_index})" if args.sheet_index != 0 else ""
+                            initial_prompt = f"""I've loaded the Excel file '{excel_path.name}'{sheet_info} into a Jupyter notebook.
 
 ## Current Notebook State:
 ```python
@@ -820,5 +843,4 @@ Focus on deeper analysis that builds upon what's already been done."""
 
 
 if __name__ == "__main__":
-    cli = NotebookCLI()
-    cli.run()
+    NotebookCLI().run()
