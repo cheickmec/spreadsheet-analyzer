@@ -795,6 +795,13 @@ All tools are available through the tool-calling interface. Use graph-based anal
 
                 logger.info("Graph query tools are available via tool-calling interface")
 
+                # Add marker to delineate LLM analysis region
+                marker_result = await toolkit.render_markdown("## --- LLM Analysis Start ---")
+                if marker_result.is_err():
+                    logger.warning(f"Failed to add LLM analysis marker: {marker_result.err_value}")
+                else:
+                    logger.info("Added LLM analysis boundary marker")
+
             # Step 3: Setup LLM interaction (if requested)
             if args.max_rounds > 0:
                 logger.info("Setting up LLM interaction...")
@@ -914,37 +921,74 @@ AUTONOMOUS ANALYSIS PROTOCOL:
 6. Focus on actionable insights and recommendations
 
 MULTI-TABLE DETECTION - CRITICAL FIRST STEP:
-Before analyzing data, ALWAYS check if the sheet contains multiple tables:
+Before analyzing data, ALWAYS check if the sheet contains multiple tables using BOTH mechanical AND semantic analysis:
 
 1. **Initial Structure Scan**
    ```python
-   # First, examine the raw structure
+   # First, examine the raw structure with MORE context
    print(f"Sheet dimensions: {{df.shape}}")
    print("\n--- First 30 rows ---")
    print(df.head(30))
 
+   # Look at ALL columns including unnamed ones
+   print("\n--- Column overview ---")
+   for col in df.columns:
+       non_null = df[col].notna().sum()
+       print(f"{{col}}: {{non_null}} non-null values, dtype: {{df[col].dtype}}")
+   ```
+
+2. **Mechanical Detection** (empty rows/columns)
+   ```python
    # Check for empty row patterns that separate tables
    empty_rows = df.isnull().all(axis=1)
    empty_row_groups = empty_rows.groupby((~empty_rows).cumsum()).sum()
-   print(f"\nEmpty row blocks found: {{empty_row_groups[empty_row_groups > 0].to_dict()}}")
+   print(f"\nEmpty row blocks: {{empty_row_groups[empty_row_groups > 0].to_dict()}}")
+
+   # Check for empty columns (potential horizontal separators)
+   empty_cols = df.isnull().all(axis=0)
+   print(f"Empty columns: {{list(df.columns[empty_cols])}}")
    ```
 
-2. **Identify Table Boundaries**
-   - Look for headers appearing mid-sheet (repeated column names)
-   - Check for significant empty row blocks
-   - Examine data type changes mid-sheet
-   - Look for different column structures
+3. **Semantic Detection** (USE HUMAN JUDGMENT)
+   ```python
+   # Ask yourself: What does each row represent?
+   # Example: If row 1 = "Product ABC, $50" and row 100 = "John Smith, Developer"
+   # These are clearly different entity types!
 
-3. **Multi-Table Handling Strategy**
-   If multiple tables detected you may do any or all the following as needed:
-   - Load tables separately using `pd.read_excel(sheet_name, skiprows=X, nrows=Y)`
-   - Analyze each region independently using `.iloc[start:end]`
-   - Focus on the most relevant table based on data quality and completeness
+   # Check for semantic shifts in data
+   print("\n--- Checking for semantic table boundaries ---")
 
-   Document which approach chosen and why.
+   # 1. Analyze column groupings - do they describe the same type of thing?
+   # Example: ['Customer', 'Address', 'Phone'] vs ['Date', 'Amount', 'Transaction ID']
 
-4. **Single Table Confirmation**
-   If single table confirmed, proceed with normal analysis.
+   # 2. Look for granularity changes
+   # Example: 5 summary rows followed by 1000 detail rows
+
+   # 3. Check if column names suggest different purposes
+   # Example: Financial columns vs HR columns in same sheet
+   ```
+
+4. **Common Multi-Table Patterns to Recognize**
+   - **Master/Detail**: Header info (few rows) + Line items (many rows)
+   - **Summary/Breakdown**: Totals followed by individual components
+   - **Different Domains**: Unrelated business data side-by-side
+   - **Time Periods**: Current data adjacent to historical data
+
+   Ask: "Would these naturally be separate tables in a database?"
+
+5. **Decision Framework**
+   Even WITHOUT empty rows/columns, declare multiple tables if:
+   - Rows represent fundamentally different entity types
+   - Column sets serve different business purposes
+   - There's a clear shift in data granularity
+   - A business analyst would logically separate them
+
+6. **Multi-Table Handling Strategy**
+   If multiple tables detected:
+   - Document the table boundaries and what each represents
+   - Analyze each table's purpose separately
+   - Use `.iloc[start:end, start_col:end_col]` for extraction
+   - Focus on the most relevant table(s) for insights
 
 COMPLETION PROTOCOL - CRITICAL:
 - FIRST: Always perform multi-table detection using the empty row analysis code
@@ -1035,12 +1079,53 @@ Mark analysis as COMPLETE when ALL of the following are achieved:
 4. ✓ Business logic validated (calculations, relationships, consistency)
 5. ✓ Key findings documented in markdown cells
 6. ✓ Actionable recommendations provided
-7. ✓ Final summary markdown cell created with title "## 📊 Analysis Complete"
+7. ✓ Final comprehensive analysis report created in markdown cell with title "## 📊 Analysis Complete"
 
-When these criteria are met, create a final markdown cell summarizing:
-- Top 3-5 key findings
-- Critical data quality issues
-- Recommended next steps
+When these criteria are met, create a final comprehensive analysis report in a markdown cell:
+
+**Report Structure Required:**
+# 📊 Analysis Complete
+
+## Executive Summary
+- Brief overview of the analysis performed
+- Most important findings in 2-3 sentences
+
+## Data Overview
+- Dataset characteristics (size, timeframe, scope)
+- Multi-table detection results
+- Data quality summary
+
+## Key Findings
+1. **Finding 1**: [Detailed description with supporting evidence]
+2. **Finding 2**: [Detailed description with supporting evidence]
+3. **Finding 3**: [Detailed description with supporting evidence]
+(Include 3-5 major findings)
+
+## Data Quality Issues
+- Missing data patterns
+- Anomalies detected
+- Validation concerns
+
+## Statistical Insights
+- Key distributions and patterns
+- Significant correlations
+- Trend analysis results
+
+## Business Implications
+- What these findings mean for business operations
+- Risk factors identified
+- Opportunities discovered
+
+## Recommendations
+1. **Immediate Actions**: [What should be done right away]
+2. **Short-term Improvements**: [1-3 month timeline]
+3. **Long-term Considerations**: [Strategic recommendations]
+
+## Technical Notes
+- Analysis methodology used
+- Assumptions made
+- Limitations of the analysis
+
 Then STOP the analysis - do not ask for further instructions."""
                                 ),
                                 HumanMessage(content=initial_prompt),
@@ -1049,8 +1134,13 @@ Then STOP the analysis - do not ask for further instructions."""
                             for round_num in range(1, args.max_rounds + 1):
                                 logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
 
+                                # Log round start with clear visual delimiter
+                                llm_logger.info(f"\n{'🔄' * 40}")
+                                llm_logger.info(f"{'🔄' * 15} ROUND {round_num} - Starting Analysis {'🔄' * 15}")
+                                llm_logger.info(f"{'🔄' * 40}\n")
+
                                 # Log messages being sent to LLM
-                                llm_logger.info(f"\n{'=' * 80}\nROUND {round_num} - SENDING TO LLM\n{'=' * 80}")
+                                llm_logger.info(f"{'═' * 20} Messages to LLM {'═' * 20}")
                                 for i, msg in enumerate(messages):
                                     msg_type = type(msg).__name__
                                     msg_content = getattr(msg, "content", str(msg))
@@ -1065,7 +1155,7 @@ Then STOP the analysis - do not ask for further instructions."""
                                     response = await llm_with_tools.ainvoke(messages)
 
                                     # Log response from LLM
-                                    llm_logger.info(f"\n{'=' * 80}\nROUND {round_num} - RESPONSE FROM LLM\n{'=' * 80}")
+                                    llm_logger.info(f"\n{'═' * 20} LLM Response {'═' * 20}")
                                     llm_logger.info(f"Response type: {type(response).__name__}")
                                     llm_logger.info(f"Content: {response.content}")
                                     if hasattr(response, "tool_calls") and response.tool_calls:
@@ -1083,9 +1173,7 @@ Then STOP the analysis - do not ask for further instructions."""
                                             response = await llm_with_tools.ainvoke(messages)
 
                                             # Log response from fallback LLM
-                                            llm_logger.info(
-                                                f"\n{'=' * 80}\nROUND {round_num} - RESPONSE FROM LLM (FALLBACK)\n{'=' * 80}"
-                                            )
+                                            llm_logger.info(f"\n{'═' * 20} LLM Response (FALLBACK) {'═' * 20}")
                                             llm_logger.info(f"Response type: {type(response).__name__}")
                                             llm_logger.info(f"Content: {response.content}")
                                             if hasattr(response, "tool_calls") and response.tool_calls:
@@ -1106,6 +1194,7 @@ Then STOP the analysis - do not ask for further instructions."""
                                 # Process tool calls
                                 tool_output_messages = []
                                 if response.tool_calls:
+                                    llm_logger.info(f"\n{'═' * 20} Tool Executions {'═' * 20}")
                                     # Add the AI response with tool calls to the conversation first
                                     messages.append(response)
 
@@ -1171,8 +1260,9 @@ Then STOP the analysis - do not ask for further instructions."""
                                             SystemMessage(
                                                 content="""
 REMINDER: You must complete the analysis autonomously.
-- Create a final summary markdown cell with "## 📊 Analysis Complete"
-- Include key findings and recommendations
+- Create a final comprehensive analysis report in markdown with "## 📊 Analysis Complete"
+- Follow the required report structure (Executive Summary, Data Overview, Key Findings, etc.)
+- Include all sections: findings, data quality, statistical insights, business implications, recommendations
 - Then STOP - do not ask for further instructions
 Complete the analysis now."""
                                             )
@@ -1185,12 +1275,24 @@ Complete the analysis now."""
                                         or "📊 analysis complete" in response_lower
                                     ):
                                         logger.info("Analysis marked as complete by LLM")
+                                        # Log round completion
+                                        llm_logger.info(f"\n{'✅' * 40}")
+                                        llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
+                                        llm_logger.info(f"{'✅' * 40}\n")
                                         break
 
                                     # If no tool calls and not asking for input, the LLM is done
+                                    # Log round completion
+                                    llm_logger.info(f"\n{'✅' * 40}")
+                                    llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
+                                    llm_logger.info(f"{'✅' * 40}\n")
                                     break
                                 else:
                                     logger.warning("LLM response was empty.")
+                                    # Log round completion
+                                    llm_logger.info(f"\n{'✅' * 40}")
+                                    llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
+                                    llm_logger.info(f"{'✅' * 40}\n")
                                     break
 
                     except Exception as e:
