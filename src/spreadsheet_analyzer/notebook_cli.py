@@ -8,7 +8,9 @@ Automated Excel analysis using LLM function calling with the notebook tools inte
 import argparse
 import asyncio
 import logging
+import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from structlog import get_logger
@@ -28,6 +30,169 @@ from spreadsheet_analyzer.pipeline.types import (
 )
 
 logger = get_logger(__name__)
+
+
+class StructuredFileNameGenerator:
+    """Generate structured file names for notebooks and logs with all relevant parameters."""
+
+    def __init__(
+        self,
+        excel_file: Path,
+        model: str,
+        sheet_index: int,
+        sheet_name: str | None = None,
+        max_rounds: int = 5,
+        session_id: str | None = None,
+    ):
+        """
+        Initialize the file name generator.
+
+        Args:
+            excel_file: Path to the Excel file being analyzed
+            model: LLM model name being used
+            sheet_index: Index of the sheet being analyzed
+            sheet_name: Name of the sheet being analyzed (optional)
+            max_rounds: Maximum number of analysis rounds
+            session_id: Custom session ID (optional)
+        """
+        self.excel_file = excel_file
+        self.model = self._sanitize_model_name(model)
+        self.sheet_index = sheet_index
+        self.sheet_name = self._sanitize_sheet_name(sheet_name) if sheet_name else None
+        self.max_rounds = max_rounds
+        self.session_id = session_id
+
+    def _sanitize_model_name(self, model: str) -> str:
+        """Sanitize model name for use in file names."""
+        # Remove version suffixes and special characters
+        model_clean = model.replace("-", "_").replace(".", "_")
+        # Extract the main model name (e.g., "claude_3_5_sonnet" from "claude-3-5-sonnet-20241022")
+        if "claude" in model_clean.lower():
+            # Extract Claude model variant
+            if "opus" in model_clean.lower():
+                return "claude_opus"
+            elif "sonnet" in model_clean.lower():
+                return "claude_sonnet"
+            elif "haiku" in model_clean.lower():
+                return "claude_haiku"
+            else:
+                return "claude"
+        elif "gpt" in model_clean.lower():
+            # Extract GPT model variant
+            if "4" in model_clean:
+                return "gpt4"
+            elif "3" in model_clean:
+                return "gpt3"
+            else:
+                return "gpt"
+        else:
+            # For other models, use a simplified version
+            return model_clean.split("_")[0] if "_" in model_clean else model_clean
+
+    def _sanitize_sheet_name(self, sheet_name: str) -> str:
+        """Sanitize sheet name for use in file names."""
+        # Remove or replace characters that are problematic in file names
+        # Replace spaces, special characters with underscores
+        sanitized = re.sub(r"[^\w\-_.]", "_", sheet_name)
+        # Remove multiple consecutive underscores
+        sanitized = re.sub(r"_+", "_", sanitized)
+        # Remove leading/trailing underscores
+        sanitized = sanitized.strip("_")
+        # Limit length
+        return sanitized[:50] if len(sanitized) > 50 else sanitized
+
+    def generate_notebook_name(self, include_timestamp: bool = False) -> str:
+        """
+        Generate a structured notebook file name.
+
+        Args:
+            include_timestamp: Whether to include timestamp in notebook name
+
+        Returns:
+            Structured notebook file name
+        """
+        # Build the base name with all parameters
+        parts = [
+            self.excel_file.stem,  # Excel file name
+            f"sheet{self.sheet_index}",  # Sheet index
+        ]
+
+        # Add sheet name if available
+        if self.sheet_name:
+            parts.append(self.sheet_name)
+
+        # Add model name
+        parts.append(self.model)
+
+        # Add max rounds
+        parts.append(f"r{self.max_rounds}")
+
+        # Add timestamp if requested
+        if include_timestamp:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            parts.append(timestamp)
+
+        # Join parts and add extension
+        return f"{'_'.join(parts)}.ipynb"
+
+    def generate_log_name(self, include_timestamp: bool = True) -> str:
+        """
+        Generate a structured log file name.
+
+        Args:
+            include_timestamp: Whether to include timestamp in log name (default True)
+
+        Returns:
+            Structured log file name
+        """
+        # Build the base name with all parameters
+        parts = [
+            self.excel_file.stem,  # Excel file name
+            f"sheet{self.sheet_index}",  # Sheet index
+        ]
+
+        # Add sheet name if available
+        if self.sheet_name:
+            parts.append(self.sheet_name)
+
+        # Add model name
+        parts.append(self.model)
+
+        # Add max rounds
+        parts.append(f"r{self.max_rounds}")
+
+        # Add log type
+        parts.append("llm_messages")
+
+        # Add timestamp (default for logs)
+        if include_timestamp:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            parts.append(timestamp)
+
+        # Join parts and add extension
+        return f"{'_'.join(parts)}.log"
+
+    def generate_session_id(self) -> str:
+        """Generate a structured session ID."""
+        parts = [
+            self.excel_file.stem,  # Excel file name
+            f"sheet{self.sheet_index}",  # Sheet index
+        ]
+
+        # Add sheet name if available
+        if self.sheet_name:
+            parts.append(self.sheet_name)
+
+        # Add model name
+        parts.append(self.model)
+
+        # Add max rounds
+        parts.append(f"r{self.max_rounds}")
+
+        # Add session suffix
+        parts.append("analysis_session")
+
+        return "_".join(parts)
 
 
 class PipelineResultsToMarkdown:
@@ -272,16 +437,39 @@ class NotebookCLI:
         """Run the automated analysis loop."""
         # Resolve the excel file path to be absolute
         excel_path = args.excel_file.resolve()
-        notebook_path = args.notebook_path or excel_path.parent / f"{excel_path.stem}_analysis.ipynb"
-        session_id = args.session_id or f"{args.excel_file.stem}_analysis_session"
+
+        # Get sheet name from Excel file if possible
+        sheet_name = None
+        try:
+            import openpyxl
+
+            workbook = openpyxl.load_workbook(excel_path, read_only=True, data_only=True)
+            if args.sheet_index < len(workbook.sheetnames):
+                sheet_name = workbook.sheetnames[args.sheet_index]
+            workbook.close()
+        except Exception as e:
+            logger.warning(f"Could not read sheet name from Excel file: {e}")
+
+        # Create file name generator with all parameters
+        file_name_generator = StructuredFileNameGenerator(
+            excel_file=excel_path,
+            model=args.model,
+            sheet_index=args.sheet_index,
+            sheet_name=sheet_name,
+            max_rounds=args.max_rounds,
+            session_id=args.session_id,
+        )
+
+        # Generate structured file names
+        notebook_name = file_name_generator.generate_notebook_name(include_timestamp=False)
+        notebook_path = args.notebook_path or excel_path.parent / notebook_name
+        session_id = args.session_id or file_name_generator.generate_session_id()
+        llm_log_name = file_name_generator.generate_log_name(include_timestamp=True)
+        llm_log_path = excel_path.parent / llm_log_name
 
         # Set up LLM message logging to file
         import json
-        from datetime import datetime
 
-        llm_log_path = (
-            excel_path.parent / f"{excel_path.stem}_llm_messages_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-        )
         llm_logger = logging.getLogger("llm_messages")
         llm_logger.setLevel(logging.DEBUG)
         llm_file_handler = logging.FileHandler(llm_log_path, mode="w")
