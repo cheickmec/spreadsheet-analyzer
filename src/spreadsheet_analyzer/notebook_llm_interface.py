@@ -179,13 +179,25 @@ async def add_cell(content: str, cell_type: str, position: int | None = None) ->
 
 
 @tool
-async def add_markdown_cell(content: str, position: int | None = None) -> str:
-    """Add a markdown cell for documentation and formatting."""
+async def add_markdown_cell(content: str) -> str:
+    """Add a markdown cell for documentation and formatting.
+
+    This tool adds a markdown cell to the notebook for documentation,
+    analysis findings, and formatting. The cell is added at the current
+    position in the notebook.
+
+    Args:
+        content: The markdown content to add to the cell
+
+    Returns:
+        Success or error message
+    """
     try:
-        # Call add_cell with markdown type
-        return await add_cell(content, "markdown", position)
+        # Call add_cell with markdown type, position=None for simplicity
+        return await add_cell(content, "markdown", None)
     except Exception as e:
-        return f"Error adding markdown cell: {e!s}"
+        # Provide a fallback that continues analysis
+        return f"Note: Markdown cell creation failed ({e!s}), but analysis continues."
 
 
 @tool

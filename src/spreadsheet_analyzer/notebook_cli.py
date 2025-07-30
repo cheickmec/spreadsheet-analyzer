@@ -882,7 +882,9 @@ You can:
 5. Use formulas library tools for formula evaluation and what-if analysis
 6. Provide insights and recommendations
 
-Focus on deeper analysis that builds upon what's already been done."""
+Focus on deeper analysis that builds upon what's already been done.
+
+IMPORTANT: Track your progress against the completion criteria and create a final summary when done."""
 
                             messages = [
                                 SystemMessage(
@@ -910,6 +912,14 @@ AUTONOMOUS ANALYSIS PROTOCOL:
 4. Document reasoning in code comments
 5. Use available tools to execute code and explore data
 6. Focus on actionable insights and recommendations
+
+COMPLETION PROTOCOL - CRITICAL:
+- Complete ALL analysis steps autonomously without asking for user input
+- NEVER ask "Would you like me to..." or "Let me know if..." or "Do you need..."
+- When analysis is complete, provide a final summary and STOP
+- If errors occur, implement workarounds and continue analysis
+- End with definitive conclusions and actionable recommendations
+- DO NOT offer to perform additional analysis - just complete what's needed
 
 TEXTUAL DATA EXPLORATION TECHNIQUES:
 - `.iloc[start:end]` or `.loc[condition]` to examine specific data regions
@@ -981,7 +991,22 @@ BEST PRACTICES:
 - Build upon existing analysis
 - Provide clear, actionable recommendations
 - Always validate findings with multiple approaches
-- Use descriptive statistics to paint a picture of the data"""
+- Use descriptive statistics to paint a picture of the data
+
+ANALYSIS COMPLETION CRITERIA:
+Mark analysis as COMPLETE when ALL of the following are achieved:
+1. ✓ Data quality assessment completed (missing data, duplicates, anomalies)
+2. ✓ Statistical analysis performed (distributions, correlations, patterns)
+3. ✓ Business logic validated (calculations, relationships, consistency)
+4. ✓ Key findings documented in markdown cells
+5. ✓ Actionable recommendations provided
+6. ✓ Final summary markdown cell created with title "## 📊 Analysis Complete"
+
+When these criteria are met, create a final markdown cell summarizing:
+- Top 3-5 key findings
+- Critical data quality issues
+- Recommended next steps
+Then STOP the analysis - do not ask for further instructions."""
                                 ),
                                 HumanMessage(content=initial_prompt),
                             ]
@@ -1057,8 +1082,18 @@ BEST PRACTICES:
                                         # Dynamically call the tool function
                                         tool_func = next((t for t in tools if t.name == tool_name), None)
                                         if tool_func:
-                                            tool_output = await tool_func.ainvoke(tool_args)
-                                            logger.info(f"Tool output: {tool_output}")
+                                            try:
+                                                tool_output = await tool_func.ainvoke(tool_args)
+                                                logger.info(f"Tool output: {tool_output}")
+                                            except Exception as tool_error:
+                                                # Log the error but continue analysis
+                                                logger.error(f"Tool execution failed: {tool_error}", exc_info=True)
+                                                tool_output = (
+                                                    f"Tool execution failed: {tool_error!s}. "
+                                                    f"Continuing analysis with alternative approach. "
+                                                    f"The analysis will proceed without this specific operation."
+                                                )
+                                                # Don't break the analysis loop - let the LLM adapt
 
                                             # Log tool call and output
                                             llm_logger.info(f"\nTOOL CALL: {tool_name}")
@@ -1076,7 +1111,48 @@ BEST PRACTICES:
 
                                 elif response.content:
                                     logger.info(f"LLM response: {response.content}")
-                                    # If no tool calls, the LLM is done
+
+                                    # Check if the response contains patterns indicating it's asking for user input
+                                    forbidden_patterns = [
+                                        "would you like me to",
+                                        "let me know if",
+                                        "do you need",
+                                        "should i proceed",
+                                        "would you prefer",
+                                        "shall i continue",
+                                        "feel free to ask",
+                                        "if you'd like",
+                                        "please let me know",
+                                    ]
+
+                                    response_lower = response.content.lower()
+                                    if any(pattern in response_lower for pattern in forbidden_patterns):
+                                        logger.warning(
+                                            "LLM attempted to ask for user input - enforcing autonomous completion"
+                                        )
+                                        # Add a system message to remind the LLM to complete autonomously
+                                        messages.append(response)
+                                        messages.append(
+                                            SystemMessage(
+                                                content="""
+REMINDER: You must complete the analysis autonomously.
+- Create a final summary markdown cell with "## 📊 Analysis Complete"
+- Include key findings and recommendations
+- Then STOP - do not ask for further instructions
+Complete the analysis now."""
+                                            )
+                                        )
+                                        continue  # Continue to next round instead of breaking
+
+                                    # Check if analysis is complete
+                                    if (
+                                        "analysis complete" in response_lower
+                                        or "📊 analysis complete" in response_lower
+                                    ):
+                                        logger.info("Analysis marked as complete by LLM")
+                                        break
+
+                                    # If no tool calls and not asking for input, the LLM is done
                                     break
                                 else:
                                     logger.warning("LLM response was empty.")
