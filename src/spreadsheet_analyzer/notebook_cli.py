@@ -913,12 +913,46 @@ AUTONOMOUS ANALYSIS PROTOCOL:
 5. Use available tools to execute code and explore data
 6. Focus on actionable insights and recommendations
 
+MULTI-TABLE DETECTION - CRITICAL FIRST STEP:
+Before analyzing data, ALWAYS check if the sheet contains multiple tables:
+
+1. **Initial Structure Scan**
+   ```python
+   # First, examine the raw structure
+   print(f"Sheet dimensions: {{df.shape}}")
+   print("\n--- First 30 rows ---")
+   print(df.head(30))
+
+   # Check for empty row patterns that separate tables
+   empty_rows = df.isnull().all(axis=1)
+   empty_row_groups = empty_rows.groupby((~empty_rows).cumsum()).sum()
+   print(f"\nEmpty row blocks found: {{empty_row_groups[empty_row_groups > 0].to_dict()}}")
+   ```
+
+2. **Identify Table Boundaries**
+   - Look for headers appearing mid-sheet (repeated column names)
+   - Check for significant empty row blocks
+   - Examine data type changes mid-sheet
+   - Look for different column structures
+
+3. **Multi-Table Handling Strategy**
+   If multiple tables detected you may do any or all the following as needed:
+   - Load tables separately using `pd.read_excel(sheet_name, skiprows=X, nrows=Y)`
+   - Analyze each region independently using `.iloc[start:end]`
+   - Focus on the most relevant table based on data quality and completeness
+
+   Document which approach chosen and why.
+
+4. **Single Table Confirmation**
+   If single table confirmed, proceed with normal analysis.
+
 COMPLETION PROTOCOL - CRITICAL:
+- FIRST: Always perform multi-table detection using the empty row analysis code
 - Complete ALL analysis steps autonomously without asking for user input
 - NEVER ask "Would you like me to..." or "Let me know if..." or "Do you need..."
 - When analysis is complete, provide a final summary and STOP
-- If errors occur, implement workarounds and continue analysis
-- End with definitive conclusions and actionable recommendations
+- If errors occur, implement workarounds or fix code, re-run it and continue analysis
+- End with definitive conclusions
 - DO NOT offer to perform additional analysis - just complete what's needed
 
 TEXTUAL DATA EXPLORATION TECHNIQUES:
@@ -995,12 +1029,13 @@ BEST PRACTICES:
 
 ANALYSIS COMPLETION CRITERIA:
 Mark analysis as COMPLETE when ALL of the following are achieved:
-1. ✓ Data quality assessment completed (missing data, duplicates, anomalies)
-2. ✓ Statistical analysis performed (distributions, correlations, patterns)
-3. ✓ Business logic validated (calculations, relationships, consistency)
-4. ✓ Key findings documented in markdown cells
-5. ✓ Actionable recommendations provided
-6. ✓ Final summary markdown cell created with title "## 📊 Analysis Complete"
+1. ✓ Multi-table detection performed (empty row analysis to identify table boundaries)
+2. ✓ Data quality assessment completed (missing data, duplicates, anomalies)
+3. ✓ Statistical analysis performed (distributions, correlations, patterns)
+4. ✓ Business logic validated (calculations, relationships, consistency)
+5. ✓ Key findings documented in markdown cells
+6. ✓ Actionable recommendations provided
+7. ✓ Final summary markdown cell created with title "## 📊 Analysis Complete"
 
 When these criteria are met, create a final markdown cell summarizing:
 - Top 3-5 key findings
