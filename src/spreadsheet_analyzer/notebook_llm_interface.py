@@ -11,6 +11,7 @@ from langchain_core.tools import tool
 from result import Err, Ok
 
 import spreadsheet_analyzer.notebook_session
+from spreadsheet_analyzer.notebook_llm.formulas_evaluator_tools import get_formulas_evaluator_tools
 from spreadsheet_analyzer.notebook_llm.graph_query_tools import get_graph_query_tools
 from spreadsheet_analyzer.notebook_tools import CellType
 
@@ -314,7 +315,10 @@ def get_notebook_tools() -> list[Any]:
     # Add graph query tools
     graph_tools = get_graph_query_tools()
 
-    return notebook_tools + graph_tools
+    # Add formulas evaluator tools (replaces xlcalculator)
+    formulas_tools = get_formulas_evaluator_tools()
+
+    return notebook_tools + graph_tools + formulas_tools
 
 
 def create_notebook_tool_descriptions() -> str:

@@ -760,29 +760,33 @@ def find_empty_cells_in_formula_ranges(sheet):
                 logger.info("Adding graph query interface tools...")
 
                 # Add markdown documentation for graph queries
-                graph_tools_doc = """## 🔍 Formula Dependency Query Tools
+                graph_tools_doc = """## 🔍 Formula Analysis Tools
 
-The deterministic pipeline has analyzed all formulas and created a dependency graph. You can query this graph using the following tools:
+You have TWO approaches available for formula analysis:
 
-### Available Tools:
+### 1️⃣ Graph-Based Dependency Analysis (Recommended for Complex Files)
+The deterministic pipeline has analyzed all formulas and created a dependency graph. These tools are robust and handle complex Excel files:
 
-1. **get_cell_dependencies** - Analyze what a cell depends on and what depends on it
-   - Parameters: `sheet` (e.g., "Summary"), `cell_ref` (e.g., "D2")
+- **get_cell_dependencies** - Analyze what a cell depends on and what depends on it
+- **find_cells_affecting_range** - Find all cells that affect a specific range
+- **find_empty_cells_in_formula_ranges** - Find gaps in data that formulas reference
+- **get_formula_statistics** - Get overall statistics about formulas
+- **find_circular_references** - Find all circular reference chains
 
-2. **find_cells_affecting_range** - Find all cells that affect a specific range
-   - Parameters: `sheet`, `start_cell`, `end_cell`
+### 2️⃣ Formulas Library for Advanced Formula Evaluation (Recommended)
+Robust formula evaluation using the 'formulas' library that handles complex Excel files:
 
-3. **find_empty_cells_in_formula_ranges** - Find gaps in data that formulas reference
-   - Parameters: `sheet`
+- **load_excel_with_formulas** - Load Excel file for formula evaluation
+- **evaluate_cell** - Get calculated cell values and formulas
+- **set_cell_and_recalculate** - What-if analysis with recalculation
+- **get_cell_dependencies_formulas** - Track formula dependencies
+- **export_formulas_model** - Export model to JSON
+- **get_formulas_help** - Get detailed help
 
-4. **get_formula_statistics** - Get overall statistics about formulas
-   - No parameters needed
-
-5. **find_circular_references** - Find all circular reference chains
-   - No parameters needed
+✅ **Recommended**: The formulas library handles complex Excel files much better than other alternatives.
 
 ### Usage:
-These tools are available through the tool-calling interface. Each query will be documented in a markdown cell showing both the query and its results.
+All tools are available through the tool-calling interface. Use graph-based analysis for quick dependency queries, and the formulas library for accurate formula evaluation and what-if analysis.
 """
 
                 result = await toolkit.render_markdown(graph_tools_doc)
@@ -865,7 +869,8 @@ These tools are available through the tool-calling interface. Each query will be
 The notebook already contains:
 - Pipeline analysis results (Security, Structure, Formula Analysis)
 - Data loaded into DataFrame 'df' with initial exploration showing shape and first rows
-{"- Query interface for formula dependencies (get_cell_dependencies, find_cells_affecting_range, get_formula_statistics, find_empty_cells_in_formula_ranges)" if formula_cache_path and formula_cache_path.exists() else ""}
+{"- Query interface for formula dependencies (graph-based analysis)" if formula_cache_path and formula_cache_path.exists() else ""}
+- Formula analysis tools: graph-based for dependencies, formulas library for evaluation
 
 Please continue the analysis from where it left off. **DO NOT re-execute cells that already have output.**
 
@@ -873,8 +878,9 @@ You can:
 1. Execute NEW Python code to explore the data further
 2. Use pandas operations to analyze patterns
 3. Create visualizations if helpful
-4. {"Query the formula dependency graph using the available functions" if formula_cache_path and formula_cache_path.exists() else "Look for data quality issues"}
-5. Provide insights and recommendations
+4. {"Query the formula dependency graph using graph-based tools" if formula_cache_path and formula_cache_path.exists() else "Look for data quality issues"}
+5. Use formulas library tools for formula evaluation and what-if analysis
+6. Provide insights and recommendations
 
 Focus on deeper analysis that builds upon what's already been done."""
 

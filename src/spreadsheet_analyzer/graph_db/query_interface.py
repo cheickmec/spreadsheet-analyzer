@@ -13,7 +13,7 @@ from typing import Any
 
 from neo4j import GraphDatabase
 
-from spreadsheet_analyzer.pipeline.types import FormulaAnalysis
+from spreadsheet_analyzer.pipeline.types import FormulaAnalysis, FormulaNode
 
 logger = logging.getLogger(__name__)
 
@@ -376,13 +376,22 @@ class EnhancedQueryInterface:
                 else:
                     direct_deps.append(dep)
 
+        # Calculate dependents if not already done
+        if all(n.dependents is None for n in self.graph.values()):
+            self._calculate_dependents()
+
         # Get direct dependents
         direct_dependents = []
-        for key, formula_node in self.graph.items():
-            for dep in formula_node.dependencies:
-                # Check if this dependency points to our cell (not a range)
-                if dep == cell_key and ":" not in dep:
-                    direct_dependents.append(key)
+        if node and node.dependents:
+            direct_dependents = list(node.dependents)
+
+        # Also check for cells not in the graph that might be referenced
+        if cell_key not in self.graph:
+            for key, formula_node in self.graph.items():
+                for dep in formula_node.dependencies:
+                    # Check if this dependency points to our cell (not a range)
+                    if dep == cell_key and ":" not in dep:
+                        direct_dependents.append(key)
 
         # Get range-based information
         range_dependents = []
@@ -483,25 +492,28 @@ class EnhancedQueryInterface:
         if sheet in self.range_index.sheet_ranges:
             from spreadsheet_analyzer.graph_db.range_membership import num_to_col
 
-            for min_row, max_row, min_col, max_col, _ in self.range_index.sheet_ranges[sheet]:
-                # Check each cell in the range
-                for row in range(min_row, max_row + 1):
-                    for col in range(min_col, max_col + 1):
-                        col_letter = num_to_col(col)
-                        cell_ref = f"{col_letter}{row}"
-                        cell_key = f"{sheet}!{cell_ref}"
+            for range_tuple in self.range_index.sheet_ranges[sheet]:
+                # Handle different tuple sizes safely
+                if len(range_tuple) >= 4:
+                    min_row, max_row, min_col, max_col = range_tuple[:4]
+                    # Check each cell in the range
+                    for row in range(min_row, max_row + 1):
+                        for col in range(min_col, max_col + 1):
+                            col_letter = num_to_col(col)
+                            cell_ref = f"{col_letter}{row}"
+                            cell_key = f"{sheet}!{cell_ref}"
 
-                        # If cell doesn't have a formula, it's either empty or has a value
-                        if cell_key not in self.graph:
-                            # Check if any other formula references this cell directly
-                            is_directly_referenced = any(
-                                dep == cell_key and ":" not in dep
-                                for node in self.graph.values()
-                                for dep in node.dependencies
-                            )
+                            # If cell doesn't have a formula, it's either empty or has a value
+                            if cell_key not in self.graph:
+                                # Check if any other formula references this cell directly
+                                is_directly_referenced = any(
+                                    dep == cell_key and ":" not in dep
+                                    for node in self.graph.values()
+                                    for dep in node.dependencies
+                                )
 
-                            if not is_directly_referenced:
-                                empty_cells_in_ranges.append(cell_ref)
+                                if not is_directly_referenced:
+                                    empty_cells_in_ranges.append(cell_ref)
 
         return list(set(empty_cells_in_ranges))  # Remove duplicates
 
@@ -517,9 +529,14 @@ class EnhancedQueryInterface:
             # The pipeline's RangeMembershipIndex has a different structure
             for sheet, ranges in self.range_index.sheet_ranges.items():
                 unique_ranges += len(ranges)
-                for min_row, max_row, min_col, max_col, _ in ranges:
-                    cells_in_range = (max_row - min_row + 1) * (max_col - min_col + 1)
-                    total_cells_in_ranges += cells_in_range
+                for range_tuple in ranges:
+                    # Handle different tuple sizes safely
+                    if len(range_tuple) >= 4:
+                        min_row, max_row, min_col, max_col = range_tuple[:4]
+                        # Check for None values before calculation
+                        if all(v is not None for v in [min_row, max_row, min_col, max_col]):
+                            cells_in_range = (max_row - min_row + 1) * (max_col - min_col + 1)
+                            total_cells_in_ranges += cells_in_range
 
             base_stats.update(
                 {
@@ -533,8 +550,104 @@ class EnhancedQueryInterface:
 
         return base_stats
 
+    def _calculate_dependents(self) -> None:
+        """Calculate dependents for all nodes in the graph."""
+        # Build reverse dependency map
+        dependents_map = {}
+
+        for key, node in self.graph.items():
+            for dep in node.dependencies:
+                if dep not in dependents_map:
+                    dependents_map[dep] = set()
+                dependents_map[dep].add(key)
+
+        # Update nodes with calculated dependents
+        for key, node in self.graph.items():
+            dependents = dependents_map.get(key, set())
+            if dependents or node.dependents != frozenset():
+                # Create a new node with updated dependents
+                self.graph[key] = FormulaNode(
+                    sheet=node.sheet,
+                    cell=node.cell,
+                    formula=node.formula,
+                    dependencies=node.dependencies,
+                    volatile=node.volatile,
+                    external=node.external,
+                    complexity_score=node.complexity_score,
+                    edge_labels=node.edge_labels,
+                    cell_metadata=node.cell_metadata,
+                    dependents=frozenset(dependents),
+                    depth=node.depth,
+                    pagerank=node.pagerank,
+                )
+
+    def _calculate_depths(self) -> None:
+        """Calculate depth for all nodes in the graph."""
+        # First, identify leaf nodes (nodes with no dependencies)
+        leaf_nodes = {key for key, node in self.graph.items() if not node.dependencies}
+
+        # Initialize depths
+        depths = dict.fromkeys(leaf_nodes, 0)
+
+        # Use BFS to calculate depths
+        from collections import deque
+
+        queue = deque(leaf_nodes)
+
+        while queue:
+            current = queue.popleft()
+            current_depth = depths.get(current, 0)
+
+            # Find nodes that depend on current node
+            for key, node in self.graph.items():
+                if current in node.dependencies and key not in depths:
+                    # Calculate depth as max of all dependencies + 1
+                    dep_depths = []
+                    all_deps_calculated = True
+
+                    for dep in node.dependencies:
+                        if dep in depths:
+                            dep_depths.append(depths[dep])
+                        elif dep not in self.graph:  # External dependency
+                            dep_depths.append(0)
+                        else:
+                            all_deps_calculated = False
+                            break
+
+                    if all_deps_calculated:
+                        depths[key] = max(dep_depths) + 1 if dep_depths else 1
+                        queue.append(key)
+
+        # Update nodes with calculated depths
+        for key, depth in depths.items():
+            if key in self.graph:
+                # Create a new node with updated depth
+                old_node = self.graph[key]
+                self.graph[key] = FormulaNode(
+                    sheet=old_node.sheet,
+                    cell=old_node.cell,
+                    formula=old_node.formula,
+                    dependencies=old_node.dependencies,
+                    volatile=old_node.volatile,
+                    external=old_node.external,
+                    complexity_score=old_node.complexity_score,
+                    edge_labels=old_node.edge_labels,
+                    cell_metadata=old_node.cell_metadata,
+                    dependents=old_node.dependents,
+                    depth=depth,
+                    pagerank=old_node.pagerank,
+                )
+
     def _get_base_statistics(self) -> dict[str, Any]:
         """Get base statistics about formulas."""
+        # Calculate depths if not already done
+        if all(node.depth is None for node in self.graph.values()):
+            self._calculate_depths()
+
+        # Calculate dependents if not already done
+        if all(node.dependents is None for node in self.graph.values()):
+            self._calculate_dependents()
+
         total_formulas = len(self.graph)
 
         # Count formulas with dependencies
@@ -555,6 +668,9 @@ class EnhancedQueryInterface:
         total_deps = sum(len(node.dependencies) for node in self.graph.values())
         avg_deps = total_deps / total_formulas if total_formulas > 0 else 0
 
+        # Calculate max depth from nodes
+        max_depth = max((node.depth for node in self.graph.values() if node.depth is not None), default=0)
+
         return {
             "total_formulas": total_formulas,
             "formulas_with_dependencies": formulas_with_deps,
@@ -563,7 +679,7 @@ class EnhancedQueryInterface:
             "circular_reference_chains": len(self.analysis.circular_references),
             "volatile_formulas": len(self.analysis.volatile_formulas),
             "external_references": len(self.analysis.external_references),
-            "max_dependency_depth": self.analysis.max_dependency_depth,
+            "max_dependency_depth": max_depth,
             "average_dependencies_per_formula": round(avg_deps, 2),
             "complexity_score": self.analysis.formula_complexity_score,
         }
@@ -585,7 +701,7 @@ class EnhancedQueryInterface:
                 "sheet": node.sheet,
                 "cell": node.cell,
                 "formula": node.formula,
-                "depth": getattr(node, "depth", 0),  # Depth might not exist
+                "depth": node.depth if node.depth is not None else 0,
                 "is_volatile": key in self.analysis.volatile_formulas,
                 "has_external_ref": key in self.analysis.external_references,
             }
