@@ -3,6 +3,15 @@ Graph Query Tools for LLM Interface
 
 Provides LangChain tools for querying the formula dependency graph.
 Each tool creates a markdown cell documenting the query and results.
+
+CLAUDE-PERFORMANCE: This module uses Pydantic models for input validation because:
+1. Graph queries require structured inputs (sheet names, cell references, ranges)
+2. The validation overhead is justified by preventing invalid graph traversals
+3. Each tool has only 1-2 parameters, minimizing context window impact
+4. Type safety prevents expensive graph query failures
+
+See formulas_evaluator_tools.py for contrast - it uses simple strings to minimize
+context overhead for straightforward operations.
 """
 
 from typing import Any
@@ -97,10 +106,11 @@ async def add_query_markdown(session: NotebookSession, title: str, query: str, r
 
 @tool
 async def get_cell_dependencies(input_data: CellDependencyInput) -> str:
-    """
-    Get complete dependency information for a specific cell.
-    Shows what the cell depends on and what depends on it.
-    """
+    """Get complete dependency information for a specific cell.
+
+    This tool analyzes a cell's formula dependencies and shows both what the cell
+    depends on and what depends on it. Async to support concurrent notebook rendering.
+    Uses Pydantic model for structured validation of sheet/cell references."""
     try:
         session = get_current_session()
 
@@ -129,10 +139,11 @@ async def get_cell_dependencies(input_data: CellDependencyInput) -> str:
 
 @tool
 async def find_cells_affecting_range(input_data: RangeAnalysisInput) -> str:
-    """
-    Find all cells that affect any cell within the specified range.
+    """Find all cells that affect any cell within the specified range.
+
     Useful for understanding what impacts a specific area of the spreadsheet.
-    """
+    Async to support concurrent notebook rendering. Uses Pydantic model for
+    structured validation of range boundaries."""
     try:
         session = get_current_session()
 
@@ -169,10 +180,11 @@ async def find_cells_affecting_range(input_data: RangeAnalysisInput) -> str:
 
 @tool
 async def find_empty_cells_in_formula_ranges(input_data: SheetAnalysisInput) -> str:
-    """
-    Find empty cells that are part of formula ranges.
-    These might be data gaps that affect calculations.
-    """
+    """Find empty cells that are part of formula ranges.
+
+    These might be data gaps that affect calculations. Helps identify potential
+    issues where formulas reference empty cells. Async to support concurrent notebook
+    rendering. Uses Pydantic model for structured validation of sheet name."""
     try:
         session = get_current_session()
 
@@ -215,10 +227,10 @@ async def find_empty_cells_in_formula_ranges(input_data: SheetAnalysisInput) -> 
 
 @tool
 async def get_formula_statistics() -> str:
-    """
-    Get comprehensive statistics about formulas in the workbook.
-    Includes counts, complexity metrics, and range information.
-    """
+    """Get comprehensive statistics about formulas in the workbook.
+
+    Includes counts, complexity metrics, and range information. Provides a high-level
+    overview of the spreadsheet's formula complexity. Async to support concurrent notebook rendering."""
     try:
         session = get_current_session()
 
@@ -255,10 +267,10 @@ async def get_formula_statistics() -> str:
 
 @tool
 async def find_circular_references() -> str:
-    """
-    Find all circular reference chains in the workbook.
-    Circular references can cause calculation errors.
-    """
+    """Find all circular reference chains in the workbook.
+
+    Circular references can cause calculation errors and infinite loops.
+    This tool identifies all circular dependency chains. Async to support concurrent notebook rendering."""
     try:
         session = get_current_session()
 

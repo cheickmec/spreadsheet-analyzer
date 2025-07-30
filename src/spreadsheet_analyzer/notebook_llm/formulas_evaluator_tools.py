@@ -3,12 +3,23 @@ Excel Formulas Evaluator Tools for LLM
 
 LangChain tools for Excel formula evaluation using the 'formulas' library.
 This provides robust formula evaluation that works with complex Excel files.
+
+CLAUDE-PERFORMANCE: This module primarily uses simple string parameters because:
+1. Most operations take 1-2 simple inputs (cell addresses, file paths)
+2. String parameters minimize LLM context window overhead
+3. Input parsing is straightforward and errors are handled gracefully
+4. Performance research shows context clutter impacts agent reliability
+
+Only complex multi-parameter tools (like set_cell_and_recalculate) benefit from
+Pydantic validation. See graph_query_tools.py for contrast where structured
+validation is essential for graph traversal operations.
 """
 
 from pathlib import Path
 from typing import Any
 
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 from spreadsheet_analyzer.excel_formulas_evaluator import (
     HAS_FORMULAS,
@@ -17,6 +28,15 @@ from spreadsheet_analyzer.excel_formulas_evaluator import (
 
 # Global evaluator instance
 _formulas_evaluator: ExcelFormulasEvaluator | None = None
+
+
+# CLAUDE-PERFORMANCE: Only this complex tool uses Pydantic due to its 3 parameters
+class WhatIfAnalysisInput(BaseModel):
+    """Input for what-if analysis with multiple parameters."""
+
+    cell_address: str = Field(description="Cell to change (e.g., 'Sheet1!A1')")
+    value: str = Field(description="New value (will be converted to appropriate type: number, boolean, or string)")
+    cells_to_check: str = Field(description="Comma-separated cells to recalculate (e.g., 'Sheet1!B1,Sheet1!C1')")
 
 
 @tool
@@ -31,13 +51,7 @@ def load_excel_with_formulas(file_path: str) -> str:
     - Export models to JSON
 
     This is more robust than xlcalculator and handles complex Excel files better.
-
-    Args:
-        file_path: Path to the Excel file to load
-
-    Returns:
-        Success message with file statistics, or error message
-    """
+    Uses simple string parameter to minimize context overhead."""
     global _formulas_evaluator
 
     if not HAS_FORMULAS:
@@ -72,12 +86,8 @@ def load_excel_with_formulas(file_path: str) -> str:
 def evaluate_cell(cell_address: str) -> str:
     """Evaluate a cell and get its calculated value.
 
-    Args:
-        cell_address: Cell address like "Sheet1!A1"
-
-    Returns:
-        The cell value and formula (if any)
-    """
+    Returns the cell value and formula (if any), formatted with dependencies.
+    Uses simple string parameter to minimize context overhead."""
     if _formulas_evaluator is None:
         return "Error: No Excel file loaded. Use load_excel_with_formulas first."
 
@@ -115,12 +125,8 @@ def evaluate_cell(cell_address: str) -> str:
 def get_cell_dependencies_formulas(cell_address: str) -> str:
     """Get all cells that a given cell depends on (using formulas evaluator).
 
-    Args:
-        cell_address: Cell address like "Sheet1!A1"
-
-    Returns:
-        List of dependencies with their values
-    """
+    Returns list of dependencies with their values and formulas.
+    Uses simple string parameter to minimize context overhead."""
     if _formulas_evaluator is None:
         return "Error: No Excel file loaded. Use load_excel_with_formulas first."
 
@@ -166,12 +172,8 @@ def get_cell_dependencies_formulas(cell_address: str) -> str:
 def get_cell_dependents_formulas(cell_address: str) -> str:
     """Get all cells that depend on a given cell (using formulas evaluator).
 
-    Args:
-        cell_address: Cell address like "Sheet1!A1"
-
-    Returns:
-        List of dependent cells
-    """
+    Returns list of dependent cells with their formulas.
+    Uses simple string parameter to minimize context overhead."""
     if _formulas_evaluator is None:
         return "Error: No Excel file loaded. Use load_excel_with_formulas first."
 
@@ -201,26 +203,18 @@ def get_cell_dependents_formulas(cell_address: str) -> str:
         return f"Error getting dependents: {e!s}"
 
 
-@tool
-def set_cell_and_recalculate(cell_address: str, value: str, cells_to_check: str) -> str:
+@tool(args_schema=WhatIfAnalysisInput)
+def set_cell_and_recalculate(input_data: WhatIfAnalysisInput) -> str:
     """Set a cell value and recalculate specific cells to see the impact.
 
-    This is useful for what-if analysis.
-
-    Args:
-        cell_address: Cell to change (e.g., "Sheet1!A1")
-        value: New value (will be converted to appropriate type)
-        cells_to_check: Comma-separated cells to recalculate (e.g., "Sheet1!B1,Sheet1!C1")
-
-    Returns:
-        Original and new values for the checked cells
-    """
+    This is useful for what-if analysis to understand how changes propagate
+    through the spreadsheet. Uses Pydantic model due to 3 parameters - justified by complexity."""
     if _formulas_evaluator is None:
         return "Error: No Excel file loaded. Use load_excel_with_formulas first."
 
     try:
         # Parse cells to check
-        cells_to_check_list = [c.strip() for c in cells_to_check.split(",")]
+        cells_to_check_list = [c.strip() for c in input_data.cells_to_check.split(",")]
 
         # Get original values
         original_values = {}
@@ -232,22 +226,22 @@ def set_cell_and_recalculate(cell_address: str, value: str, cells_to_check: str)
 
         # Convert value to appropriate type
         try:
-            typed_value = float(value)
+            typed_value = float(input_data.value)
         except ValueError:
-            if value.lower() in ("true", "false"):
-                typed_value = value.lower() == "true"
+            if input_data.value.lower() in ("true", "false"):
+                typed_value = input_data.value.lower() == "true"
             else:
-                typed_value = value
+                typed_value = input_data.value
 
         # Set the new value
-        _formulas_evaluator.set_cell_value(cell_address, typed_value)
+        _formulas_evaluator.set_cell_value(input_data.cell_address, typed_value)
 
         # Recalculate
         new_values = _formulas_evaluator.calculate(outputs=cells_to_check_list)
 
         # Format results
         result = "✅ What-if analysis completed\n"
-        result += f"Changed: {cell_address} = {typed_value}\n\n"
+        result += f"Changed: {input_data.cell_address} = {typed_value}\n\n"
         result += "Impact on other cells:\n"
 
         for cell in cells_to_check_list:
@@ -266,12 +260,11 @@ def set_cell_and_recalculate(cell_address: str, value: str, cells_to_check: str)
 
 
 @tool
-def get_formula_statistics() -> str:
-    """Get comprehensive statistics about formulas in the workbook.
+def get_formula_statistics_formulas() -> str:
+    """Get comprehensive statistics about formulas in the workbook (using formulas evaluator).
 
-    Returns:
-        Detailed formula statistics
-    """
+    Returns detailed formula statistics including counts, dependencies, and complexity.
+    No parameters needed - analyzes the entire loaded workbook."""
     if _formulas_evaluator is None:
         return "Error: No Excel file loaded. Use load_excel_with_formulas first."
 
@@ -309,12 +302,8 @@ def get_formula_statistics() -> str:
 def export_formulas_model(output_path: str) -> str:
     """Export the Excel model to JSON format for analysis or version control.
 
-    Args:
-        output_path: Path for the output JSON file
-
-    Returns:
-        Success or error message
-    """
+    Returns success or error message with export details.
+    Uses simple string parameter to minimize context overhead."""
     if _formulas_evaluator is None:
         return "Error: No Excel file loaded. Use load_excel_with_formulas first."
 
@@ -338,9 +327,8 @@ def export_formulas_model(output_path: str) -> str:
 def list_sheets_formulas() -> str:
     """List all sheets in the Excel file (using formulas evaluator).
 
-    Returns:
-        List of sheet names
-    """
+    Returns list of sheet names with formula counts.
+    No parameters needed - lists sheets from the loaded workbook."""
     if _formulas_evaluator is None:
         return "Error: No Excel file loaded. Use load_excel_with_formulas first."
 
@@ -368,9 +356,8 @@ def list_sheets_formulas() -> str:
 def get_formulas_help() -> str:
     """Get help on using the formulas evaluator.
 
-    Returns:
-        Help text with examples
-    """
+    Returns comprehensive help text with examples and workflow guidance.
+    No parameters needed - provides static help information."""
     return """Excel Formulas Evaluator Help:
 
 This evaluator uses the 'formulas' library which is MORE ROBUST than xlcalculator.
@@ -409,7 +396,7 @@ def get_formulas_evaluator_tools() -> list[Any]:
         get_cell_dependencies_formulas,
         get_cell_dependents_formulas,
         set_cell_and_recalculate,
-        get_formula_statistics,
+        get_formula_statistics_formulas,
         export_formulas_model,
         list_sheets_formulas,
         get_formulas_help,
