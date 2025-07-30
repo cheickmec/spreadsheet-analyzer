@@ -170,7 +170,38 @@ Important aspects for deploying agents in real-world scenarios.
   - User satisfaction metrics
   - Business impact assessment
 
-### 6. [Jupyter Ecosystem](./jupyter-ecosystem/)
+### 6. [Excel-Specific Technical Research](.)
+
+Deep technical analysis of Excel file formats, parsing libraries, and evaluation engines.
+
+- **[Excel Formula Evaluation Libraries](./excel-formula-evaluation-libraries.md)**
+
+  - xlcalculator: Modern AST-based formula evaluator
+  - koala2: Graph-based Excel calculation engine
+  - formulas: Complete Excel formula interpreter with visualization
+  - pycel: Excel-to-Python compiler with graph visualization
+  - Performance comparisons and benchmarks
+  - Integration strategies with spreadsheet analyzers
+  - License and compatibility considerations
+
+- **[Excel Alternatives & Competing Formats](./excel-alternatives-comprehensive-analysis.md)**
+
+  - Google Sheets: Cloud-native architecture and API capabilities
+  - LibreOffice Calc: OpenDocument format and compatibility
+  - Apple Numbers: Canvas-based design philosophy
+  - Database-spreadsheet hybrids (Airtable, Smartsheet)
+  - Market share analysis and adoption trends
+  - Format conversion challenges and solutions
+
+- **[Excel Parsing Edge Cases](./excel-parsing-edge-cases.md)**
+
+  - Complex formula parsing scenarios
+  - Cross-sheet reference handling
+  - Circular reference detection
+  - Performance optimization strategies
+  - Memory management for large workbooks
+
+### 7. [Jupyter Ecosystem](./jupyter-ecosystem/)
 
 Comprehensive analysis of Jupyter ecosystem packages for notebook-based analysis.
 
