@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field
 from result import Err, Ok
 
 import spreadsheet_analyzer.notebook_session
@@ -32,39 +31,6 @@ def truncate_output(text: str, max_length: int = 1000) -> str:
     return text[:max_length] + "\n... (output truncated)"
 
 
-class ExecuteCodeInput(BaseModel):
-    code: str = Field(description="Python code to execute")
-    cell_id: str | None = Field(description="Optional cell ID for tracking", default=None)
-
-
-class EditAndExecuteInput(BaseModel):
-    cell_id: str = Field(description="Cell ID to edit and execute")
-    new_code: str = Field(description="New code content")
-
-
-class AddCellInput(BaseModel):
-    content: str = Field(description="Cell content")
-    cell_type: str = Field(description="Type of cell: 'code', 'markdown', or 'raw'")
-    position: int | None = Field(description="Position to insert cell (optional)", default=None)
-
-
-class DeleteCellInput(BaseModel):
-    cell_id: str = Field(description="Cell ID to delete")
-
-
-class ReadCellInput(BaseModel):
-    cell_id: str = Field(description="Cell ID to read")
-
-
-class GetStateInput(BaseModel):
-    session_id: str = Field(description="Session ID to get state for")
-
-
-class SaveNotebookInput(BaseModel):
-    session_id: str = Field(description="Session ID to save")
-    file_path: str | None = Field(description="File path to save to (optional)", default=None)
-
-
 # Global session manager
 _session_manager = None
 
@@ -78,7 +44,7 @@ def get_session_manager() -> spreadsheet_analyzer.notebook_session.SessionManage
 
 
 @tool
-async def execute_code(input_data: ExecuteCodeInput) -> str:
+async def execute_code(code: str, cell_id: str | None = None) -> str:
     """Execute Python code in a new cell."""
     try:
         session_manager = get_session_manager()
@@ -88,7 +54,7 @@ async def execute_code(input_data: ExecuteCodeInput) -> str:
             return f"Error: {session_result.err_value}"
 
         session = session_result.ok_value
-        result = await session.toolkit.execute_code(code=input_data.code, cell_id=input_data.cell_id)
+        result = await session.toolkit.execute_code(code=code, cell_id=cell_id)
 
         if isinstance(result, Err):
             return f"Execution failed: {result.value}"
@@ -116,7 +82,7 @@ async def execute_code(input_data: ExecuteCodeInput) -> str:
 
 
 @tool
-async def edit_and_execute(input_data: EditAndExecuteInput) -> str:
+async def edit_and_execute(cell_id: str, new_code: str) -> str:
     """Edit an existing code cell and execute it immediately."""
     try:
         session_manager = get_session_manager()
@@ -127,7 +93,7 @@ async def edit_and_execute(input_data: EditAndExecuteInput) -> str:
 
         session = session_result.ok_value
         # For now, we'll just execute the new code (edit + execute in one step)
-        result = await session.toolkit.execute_code(code=input_data.new_code, cell_id=input_data.cell_id)
+        result = await session.toolkit.execute_code(code=new_code, cell_id=cell_id)
 
         if isinstance(result, Err):
             return f"Edit and execute failed: {result.value}"
@@ -155,7 +121,7 @@ async def edit_and_execute(input_data: EditAndExecuteInput) -> str:
 
 
 @tool
-async def add_cell(input_data: AddCellInput) -> str:
+async def add_cell(content: str, cell_type: str, position: int | None = None) -> str:
     """Add a new cell to the notebook (code, markdown, or raw)."""
     try:
         session_manager = get_session_manager()
@@ -169,42 +135,42 @@ async def add_cell(input_data: AddCellInput) -> str:
         # Convert string to CellType enum
         cell_type_map = {"code": CellType.CODE, "markdown": CellType.MARKDOWN, "raw": CellType.RAW}
 
-        if input_data.cell_type not in cell_type_map:
-            return f"Error: Invalid cell type '{input_data.cell_type}'. Must be 'code', 'markdown', or 'raw'"
+        if cell_type not in cell_type_map:
+            return f"Error: Invalid cell type '{cell_type}'. Must be 'code', 'markdown', or 'raw'"
 
-        cell_type = cell_type_map[input_data.cell_type]
+        cell_type_enum = cell_type_map[cell_type]
 
         # Handle different cell types appropriately
-        if cell_type == CellType.CODE:
-            result = await session.toolkit.execute_code(input_data.content)
-        elif cell_type == CellType.MARKDOWN:
-            result = await session.toolkit.render_markdown(input_data.content)
-        elif cell_type == CellType.RAW:
-            result = await session.toolkit.add_raw_cell(input_data.content)
+        if cell_type_enum == CellType.CODE:
+            result = await session.toolkit.execute_code(content)
+        elif cell_type_enum == CellType.MARKDOWN:
+            result = await session.toolkit.render_markdown(content)
+        elif cell_type_enum == CellType.RAW:
+            result = await session.toolkit.add_raw_cell(content)
 
         if isinstance(result, Err):
             return f"Failed to add cell: {result.value}"
 
         # CLAUDE-KNOWLEDGE: For non-code cells, avoid echoing content back to save tokens
         # The LLM already knows what content it sent
-        if cell_type == CellType.CODE:
+        if cell_type_enum == CellType.CODE:
             # For code cells, include outputs
             outputs = []
             for output in result.value.outputs:
                 if output.output_type == "stream":
-                    content = truncate_output(output.content)
-                    outputs.append(f"[{output.metadata.get('name', 'output')}] {content}")
+                    content_output = truncate_output(output.content)
+                    outputs.append(f"[{output.metadata.get('name', 'output')}] {content_output}")
                 elif output.output_type == "execute_result":
-                    content = truncate_output(output.content)
-                    outputs.append(f"Result: {content}")
+                    content_output = truncate_output(output.content)
+                    outputs.append(f"Result: {content_output}")
                 elif output.output_type == "error":
-                    content = truncate_output(output.content)
-                    outputs.append(f"Error: {content}")
+                    content_output = truncate_output(output.content)
+                    outputs.append(f"Error: {content_output}")
 
             return f"✅ Code cell added and executed\nCell ID: {result.value.cell_id}\nOutputs:\n" + "\n".join(outputs)
         else:
             # For markdown and raw cells, just confirm success
-            cell_type_name = input_data.cell_type.capitalize()
+            cell_type_name = cell_type.capitalize()
             return f"✅ {cell_type_name} cell added successfully"
 
     except Exception as e:
@@ -212,18 +178,17 @@ async def add_cell(input_data: AddCellInput) -> str:
 
 
 @tool
-async def add_markdown_cell(input_data: AddCellInput) -> str:
+async def add_markdown_cell(content: str, position: int | None = None) -> str:
     """Add a markdown cell for documentation and formatting."""
     try:
-        # Override the cell type to ensure it's markdown
-        input_data.cell_type = "markdown"
-        return await add_cell(input_data)
+        # Call add_cell with markdown type
+        return await add_cell(content, "markdown", position)
     except Exception as e:
         return f"Error adding markdown cell: {e!s}"
 
 
 @tool
-async def delete_cell(input_data: DeleteCellInput) -> str:
+async def delete_cell(cell_id: str) -> str:
     """Delete a cell from the notebook."""
     try:
         session_manager = get_session_manager()
@@ -234,19 +199,19 @@ async def delete_cell(input_data: DeleteCellInput) -> str:
 
         session = session_result.ok_value
 
-        result = await session.toolkit.delete_cell(input_data.cell_id)
+        result = await session.toolkit.delete_cell(cell_id)
 
         if isinstance(result, Err):
             return f"Failed to delete cell: {result.value}"
 
-        return f"✅ Cell {input_data.cell_id} deleted successfully"
+        return f"✅ Cell {cell_id} deleted successfully"
 
     except Exception as e:
         return f"Error deleting cell: {e!s}"
 
 
 @tool
-async def read_cell(input_data: ReadCellInput) -> str:
+async def read_cell(cell_id: str) -> str:
     """Read the content and outputs of a specific cell."""
     try:
         session_manager = get_session_manager()
@@ -257,7 +222,7 @@ async def read_cell(input_data: ReadCellInput) -> str:
 
         session = session_result.ok_value
 
-        result = await session.toolkit.get_cell(input_data.cell_id)
+        result = await session.toolkit.get_cell(cell_id)
 
         if isinstance(result, Err):
             return f"Failed to read cell: {result.value}"
@@ -279,11 +244,11 @@ async def read_cell(input_data: ReadCellInput) -> str:
 
 
 @tool
-async def get_notebook_state(input_data: GetStateInput) -> str:
+async def get_notebook_state(session_id: str) -> str:
     """Get the current state of the notebook."""
     try:
         session_manager = get_session_manager()
-        session_result = await session_manager.get_session(input_data.session_id)
+        session_result = await session_manager.get_session(session_id)
 
         if session_result.is_err():
             return f"Error: {session_result.err_value}"
@@ -309,20 +274,20 @@ async def get_notebook_state(input_data: GetStateInput) -> str:
 
 
 @tool
-async def save_notebook(input_data: SaveNotebookInput) -> str:
+async def save_notebook(session_id: str, file_path: str | None = None) -> str:
     """Save the notebook to a file."""
     try:
         session_manager = get_session_manager()
-        session_result = await session_manager.get_session(input_data.session_id)
+        session_result = await session_manager.get_session(session_id)
 
         if session_result.is_err():
             return f"Error: {session_result.err_value}"
 
         session = session_result.ok_value
 
-        file_path = Path(input_data.file_path) if input_data.file_path else None
+        file_path_obj = Path(file_path) if file_path else None
 
-        save_result = session.toolkit.save_notebook(file_path, overwrite=True)
+        save_result = session.toolkit.save_notebook(file_path_obj, overwrite=True)
 
         if isinstance(save_result, Ok):
             return f"✅ Notebook saved successfully to: {save_result.ok_value}"
