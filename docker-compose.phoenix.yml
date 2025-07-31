@@ -1,0 +1,79 @@
+# Docker Compose for Arize Phoenix Self-Hosted Deployment
+#
+# This configuration sets up Phoenix for local observability of the spreadsheet analyzer.
+# Phoenix provides tracing, evaluation, and debugging for LLM applications.
+#
+# Usage:
+#   docker-compose -f docker-compose.phoenix.yml up -d
+#
+# Access Phoenix UI at: http://localhost:6006
+#
+# To use with the spreadsheet analyzer:
+#   python -m spreadsheet_analyzer.notebook_cli data.xlsx --phoenix-mode docker
+
+version: '3.8'
+
+services:
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: spreadsheet-analyzer-phoenix
+    ports:
+      - "6006:6006"  # Phoenix UI
+      - "4317:4317"  # OTLP gRPC endpoint
+      - "9090:9090"  # Prometheus metrics (optional)
+    environment:
+      # Phoenix configuration
+      - PHOENIX_WORKING_DIR=/mnt/data
+      - PHOENIX_PORT=6006
+      - PHOENIX_GRPC_PORT=4317
+
+      # Enable authentication (optional - uncomment to use)
+      # - PHOENIX_ENABLE_AUTH=true
+      # - PHOENIX_SECRET_KEY=your-secret-key-here
+
+      # Database configuration (using SQLite by default)
+      # For production, consider using PostgreSQL (see phoenix-with-postgres below)
+
+    volumes:
+      # Persist Phoenix data
+      - phoenix_data:/mnt/data
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: PostgreSQL for production deployments
+  # Uncomment this section and update Phoenix environment to use PostgreSQL
+  #
+  # postgres:
+  #   image: postgres:14
+  #   container_name: spreadsheet-analyzer-postgres
+  #   environment:
+  #     - POSTGRES_USER=phoenix
+  #     - POSTGRES_PASSWORD=phoenix_password
+  #     - POSTGRES_DB=phoenix_db
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"  # Expose if needed for external access
+  #   restart: unless-stopped
+
+volumes:
+  phoenix_data:
+    driver: local
+  # postgres_data:
+  #   driver: local
+
+# Production configuration with PostgreSQL
+# To use PostgreSQL instead of SQLite:
+# 1. Uncomment the postgres service above
+# 2. Add this to Phoenix environment:
+#    - PHOENIX_SQL_DATABASE_URL=postgresql://phoenix:phoenix_password@postgres:5432/phoenix_db
+# 3. Add postgres to Phoenix depends_on:
+#    depends_on:
+#      - postgres
