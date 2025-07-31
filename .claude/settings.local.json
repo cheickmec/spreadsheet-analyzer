@@ -8,7 +8,15 @@
       "Bash(cat:*)",
       "Bash(ls:*)",
       "mcp__sequential-thinking__sequentialthinking",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:python.langchain.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.smith.langchain.com)",
+      "WebFetch(domain:langfuse.com)",
+      "WebFetch(domain:arize.com)",
+      "WebFetch(domain:docs.arize.com)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:docs.litellm.ai)"
     ],
     "deny": []
   },
