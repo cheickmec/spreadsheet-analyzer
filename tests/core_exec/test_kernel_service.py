@@ -51,6 +51,7 @@ class TestKernelProfile:
 class TestKernelService:
     """Test the main KernelService functionality using real kernels."""
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_kernel_lifecycle_basic(self) -> None:
         """Test basic session creation and shutdown."""
@@ -61,6 +62,7 @@ class TestKernelService:
             await service.close_session(session_id)
             assert session_id not in await service.list_sessions()
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_simple_code_execution(self) -> None:
         """Test executing simple Python code in a session."""
@@ -71,6 +73,7 @@ class TestKernelService:
             assert result.status == "ok"
             assert any("4" in str(o) for o in result.outputs)
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_print_statement_execution(self) -> None:
         """Test executing code with print statements."""
@@ -81,6 +84,7 @@ class TestKernelService:
             assert result.status == "ok"
             assert any("Hello, Kernel!" in o.get("text", "") for o in result.outputs if o.get("type") == "stream")
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_variable_persistence(self) -> None:
         """Test that variables persist across executions in the same session."""
@@ -92,6 +96,7 @@ class TestKernelService:
             assert result.status == "ok"
             assert any("123" in str(o) for o in result.outputs)
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_error_handling(self) -> None:
         """Test handling of Python execution errors."""
@@ -103,6 +108,7 @@ class TestKernelService:
             assert result.error is not None
             assert "ZeroDivisionError" in result.error.get("ename", "")
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_execution_timeout(self) -> None:
         """Test timeout handling for long-running code."""
@@ -113,6 +119,7 @@ class TestKernelService:
             assert result.status == "error"  # nbclient raises an exception on timeout
             assert "Timeout" in result.error.get("ename", "")
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_session_isolation(self) -> None:
         """Test that sessions are isolated from each other."""
@@ -125,6 +132,7 @@ class TestKernelService:
             assert result.status == "error"
             assert "NameError" in result.error.get("ename", "")
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "profile_name, profile",

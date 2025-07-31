@@ -130,7 +130,6 @@ class KernelService:
         self.max_sessions = max_sessions
         self._sessions: dict[str, Any] = {}
         self._session_last_used: dict[str, float] = {}
-        self._kernel_manager: AsyncKernelManager | None = None
         self._cleanup_task: asyncio.Task | None = None
         self._shutdown = False
 
@@ -144,17 +143,7 @@ class KernelService:
         await self.shutdown()
 
     async def _initialize(self) -> None:
-        """Initialize the kernel manager and start cleanup task."""
-        self._kernel_manager = AsyncKernelManager(kernel_name=self.profile.name)
-
-        # Set environment variables if provided
-        if self.profile.env_vars:
-            self._kernel_manager.env = self.profile.env_vars
-
-        # Set working directory if provided
-        if self.profile.working_dir:
-            self._kernel_manager.cwd = str(self.profile.working_dir)
-
+        """Initialize the kernel service and start cleanup task."""
         # Start background cleanup task
         self._cleanup_task = asyncio.create_task(self._cleanup_idle_sessions())
 
@@ -178,17 +167,25 @@ class KernelService:
         if len(self._sessions) >= self.max_sessions:
             raise RuntimeError(f"Maximum sessions ({self.max_sessions}) exceeded")
 
-        if not self._kernel_manager:
-            raise RuntimeError("Kernel service not initialized")
+        # Create a new kernel manager for this session
+        kernel_manager = AsyncKernelManager(kernel_name=self.profile.name)
+
+        # Set environment variables if provided
+        if self.profile.env_vars:
+            kernel_manager.env = self.profile.env_vars
+
+        # Set working directory if provided
+        if self.profile.working_dir:
+            kernel_manager.cwd = str(self.profile.working_dir)
 
         # Start kernel
-        await self._kernel_manager.start_kernel()
-        client = self._kernel_manager.client()
+        await kernel_manager.start_kernel()
+        client = kernel_manager.client()
         await client.wait_for_ready(timeout=30)
 
         # Store session
         self._sessions[session_id] = {
-            "kernel_manager": self._kernel_manager,
+            "kernel_manager": kernel_manager,
             "client": client,
             "created_at": time.time(),
         }

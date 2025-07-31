@@ -19,6 +19,7 @@ from spreadsheet_analyzer.core_exec import (
 )
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_execute_simple_code_notebook() -> None:
     """Test executing a notebook with simple code cells."""
@@ -40,6 +41,7 @@ async def test_execute_simple_code_notebook() -> None:
         assert any("Result: 15" in str(o) for o in final_result.outputs)
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_execute_notebook_with_error() -> None:
     """Test executing a notebook with code that produces errors."""
@@ -65,6 +67,7 @@ async def test_execute_notebook_with_error() -> None:
         assert results[2].status == "ok"
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_scrapbook_persistence() -> None:
     """Test data persistence using scrapbook."""
@@ -85,6 +88,7 @@ async def test_scrapbook_persistence() -> None:
         assert "'b': 'hello'" in retrieved_data
 
 
+@pytest.mark.slow
 @pytest.mark.asyncio
 async def test_streaming_execution() -> None:
     """Test streaming execution of a notebook."""

@@ -134,17 +134,16 @@ class NotebookIO:
             # Ensure parent directory exists
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Convert to dictionary and validate
-            notebook_dict = builder.to_dict()
+            # Get the notebook object directly (not dict)
+            notebook = builder.to_notebook()
 
             try:
-                nbformat.validate(notebook_dict)
+                nbformat.validate(notebook)
             except ValidationError as e:
                 raise NotebookFormatError(f"Generated notebook is invalid: {e}") from e
 
-            # Write to file
-            with file_path.open("w", encoding="utf-8") as f:
-                json.dump(notebook_dict, f, indent=2, ensure_ascii=False)
+            # Write using nbformat
+            nbformat.write(notebook, file_path)
 
         except Exception as e:
             raise NotebookFormatError(f"Error writing notebook: {e}") from e
@@ -246,10 +245,14 @@ class NotebookIO:
 
             # Create appropriate cell type
             if cell_type_str == "code":
+                # Convert outputs to proper nbformat objects
+                raw_outputs = cell_dict.get("outputs", [])
+                formatted_outputs = NotebookIO.convert_outputs_to_nbformat(raw_outputs)
+
                 cell = nbformat.v4.new_code_cell(
                     source=source,
                     metadata=metadata,
-                    outputs=cell_dict.get("outputs", []),
+                    outputs=formatted_outputs,
                     execution_count=cell_dict.get("execution_count"),
                 )
             elif cell_type_str == "markdown":

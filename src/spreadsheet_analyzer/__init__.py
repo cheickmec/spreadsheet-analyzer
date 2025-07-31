@@ -1,44 +1,28 @@
 """
-Spreadsheet Analyzer - A modular system for analyzing Excel and CSV files.
+Spreadsheet Analyzer - Excel analysis using deterministic pipeline and LLM tools.
 
-This package provides a three-tier architecture:
+This package provides intelligent Excel file analysis through:
 
-1. **Core Execution Layer** (`core_exec`):
-   - Generic notebook building and execution primitives
-   - Kernel management and I/O operations
-   - Domain-agnostic quality assessment
+1. **Deterministic Pipeline** (`pipeline`):
+   - Security scanning
+   - Structure analysis
+   - Formula dependency analysis
+   - Content intelligence
 
-2. **Plugin System** (`plugins`):
-   - Domain-specific analysis tasks (spreadsheet, CSV, etc.)
-   - Extensible quality inspection
-   - Task-based cell generation
-
-3. **Workflow Orchestration** (`workflows`):
-   - High-level APIs combining core + plugins
-   - CLI/API integration points
-   - Complete analysis workflows
+2. **Notebook Interface** (`notebook_cli`):
+   - Automated LLM-powered analysis
+   - Interactive Jupyter notebook generation
+   - Formula evaluation and graph queries
 
 Usage:
-    # Simple analysis notebook generation
-    from spreadsheet_analyzer.workflows import create_analysis_notebook
+    # Run automated analysis via CLI
+    python -m spreadsheet_analyzer.notebook_cli data.xlsx
 
-    result = await create_analysis_notebook(
-        file_path="data.xlsx",
-        output_path="analysis.ipynb",
-        execute=True
-    )
+    # Direct pipeline usage
+    from spreadsheet_analyzer.pipeline import DeterministicPipeline
 
-    # Advanced workflow configuration
-    from spreadsheet_analyzer.workflows import NotebookWorkflow, WorkflowConfig
-
-    config = WorkflowConfig(
-        file_path="data.xlsx",
-        tasks=["data_profiling", "outlier_detection"],
-        quality_checks=True
-    )
-
-    workflow = NotebookWorkflow()
-    result = await workflow.run(config)
+    pipeline = DeterministicPipeline()
+    result = pipeline.run("data.xlsx")
 """
 
 # Core execution primitives (domain-agnostic)
@@ -53,23 +37,6 @@ from .core_exec import (
     QualityMetrics,
 )
 
-# Plugin system
-from .plugins.base import PluginRegistry, Task, registry
-from .plugins.base import QualityInspector as PluginQualityInspector
-
-# Convenience imports
-from .plugins.spreadsheet import register_all_plugins as register_spreadsheet_plugins
-
-# Workflow orchestration (main user API)
-from .workflows import (
-    NotebookWorkflow,
-    WorkflowConfig,
-    WorkflowMode,
-    WorkflowResult,
-    create_analysis_notebook,
-    execute_notebook,
-)
-
 __version__ = "1.0.0"
 
 __all__ = [
@@ -82,20 +49,6 @@ __all__ = [
     "ExecutionBridge",
     "QualityMetrics",
     "QualityInspector",
-    # Plugin system
-    "Task",
-    "PluginQualityInspector",
-    "PluginRegistry",
-    "registry",
-    # Workflow orchestration
-    "NotebookWorkflow",
-    "WorkflowConfig",
-    "WorkflowResult",
-    "WorkflowMode",
-    "create_analysis_notebook",
-    "execute_notebook",
-    # Convenience
-    "register_spreadsheet_plugins",
 ]
 
 
@@ -109,60 +62,50 @@ def quick_start() -> str:
     return """
 # Spreadsheet Analyzer Quick Start
 
-## 1. Simple Analysis (Async)
-```python
-import asyncio
-from spreadsheet_analyzer import create_analysis_notebook
+## 1. Automated Analysis with LLM
+```bash
+# Basic usage
+python -m spreadsheet_analyzer.notebook_cli data.xlsx
 
-async def analyze():
-    result = await create_analysis_notebook(
-        file_path="your_data.xlsx",
-        output_path="analysis.ipynb",
-        execute=True
-    )
-
-    if result.success:
-        print(f"Analysis complete! Quality score: {result.quality_metrics.overall_score}")
-    else:
-        print(f"Errors: {result.errors}")
-
-asyncio.run(analyze())
+# With options
+python -m spreadsheet_analyzer.notebook_cli data.xlsx \\
+    --model claude-3-5-sonnet-20241022 \\
+    --max-rounds 5 \\
+    --sheet-index 0 \\
+    --notebook-path analysis.ipynb
 ```
 
-## 2. Advanced Configuration
+## 2. Direct Pipeline Usage
 ```python
-from spreadsheet_analyzer import NotebookWorkflow, WorkflowConfig, WorkflowMode
+from spreadsheet_analyzer.pipeline import DeterministicPipeline
 
-config = WorkflowConfig(
-    file_path="data.xlsx",
-    output_path="custom_analysis.ipynb",
-    sheet_name="Sales Data",
-    mode=WorkflowMode.BUILD_AND_EXECUTE,
-    tasks=["data_profiling", "formula_analysis", "outlier_detection"],
-    quality_checks=True,
-    execute_timeout=600
-)
+# Run deterministic analysis
+pipeline = DeterministicPipeline()
+result = pipeline.run("data.xlsx")
 
-workflow = NotebookWorkflow()
-result = await workflow.run(config)
+if result.success:
+    print(f"Analysis complete!")
+    print(f"Security risk: {result.security.risk_level}")
+    print(f"Sheets: {result.structure.sheet_count}")
+    print(f"Formula complexity: {result.formulas.formula_complexity_score}/100")
+    print(f"Circular references: {result.formulas.has_circular_references}")
 ```
 
-## 3. Plugin Development
+## 3. Programmatic Notebook Usage
 ```python
-from spreadsheet_analyzer.plugins.base import BaseTask
-from spreadsheet_analyzer import registry
+from spreadsheet_analyzer.notebook_session import notebook_session
+from spreadsheet_analyzer.notebook_llm_interface import get_notebook_tools
 
-class CustomAnalysisTask(BaseTask):
-    def __init__(self):
-        super().__init__("custom_analysis", "My custom analysis")
+async with notebook_session("my_session", "output.ipynb") as session:
+    # Execute code
+    result = await session.toolkit.execute_code("import pandas as pd")
 
-    def build_initial_cells(self, context):
-        # Return list of nbformat cell objects
-        pass
+    # Add markdown
+    result = await session.toolkit.render_markdown("# Analysis Results")
 
-# Register your plugin
-registry.register_task(CustomAnalysisTask())
+    # Save notebook
+    await session.toolkit.save_notebook("output.ipynb", overwrite=True)
 ```
 
-See documentation for more examples and advanced usage.
+See notebook_cli.py for the complete implementation.
 """
