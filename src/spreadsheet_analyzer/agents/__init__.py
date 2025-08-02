@@ -4,6 +4,46 @@ This package provides a functional multi-agent architecture for
 analyzing spreadsheets, with specialized agents for different tasks.
 """
 
+from .communication import (
+    CapabilityRouter,
+    DirectRouter,
+    MessageBus,
+    RoundRobinRouter,
+    chain_of_responsibility,
+    create_capability_router,
+    create_message_bus,
+    request_response,
+    scatter_gather,
+)
+from .coordination import (
+    CoordinationStrategy,
+    Coordinator,
+    HierarchicalStrategy,
+    MapReduceStrategy,
+    ParallelStrategy,
+    SequentialStrategy,
+    create_coordinator,
+    create_map_reduce_coordinator,
+)
+from .core import (
+    CompositeAgent,
+    FunctionalAgent,
+    StatefulAgent,
+    create_composite_agent,
+    create_echo_agent,
+    create_filter_agent,
+    create_pipeline_agent,
+    create_simple_agent,
+    create_transform_agent,
+)
+from .spreadsheet_agents import (
+    create_context_optimizer,
+    create_data_validator,
+    create_formula_analyzer,
+    create_pattern_detector,
+    create_spreadsheet_analysis_team,
+    create_summary_generator,
+)
 from .types import (
     Agent,
     AgentCapability,
@@ -28,10 +68,44 @@ __all__ = [
     "AgentMessage",
     "AgentResponse",
     "AgentState",
+    # Communication
+    "CapabilityRouter",
+    "chain_of_responsibility",
+    # Core agents
+    "CompositeAgent",
     # Coordination types
     "CoordinationPlan",
     "CoordinationStep",
+    "CoordinationStrategy",
+    "Coordinator",
+    "create_capability_router",
+    "create_composite_agent",
+    "create_context_optimizer",
+    "create_coordinator",
+    "create_data_validator",
+    "create_echo_agent",
+    "create_filter_agent",
+    "create_formula_analyzer",
+    "create_map_reduce_coordinator",
+    "create_message_bus",
+    "create_pattern_detector",
+    "create_pipeline_agent",
+    "create_simple_agent",
+    "create_spreadsheet_analysis_team",
+    "create_summary_generator",
+    "create_transform_agent",
+    "DirectRouter",
+    "FunctionalAgent",
+    "HierarchicalStrategy",
+    "MapReduceStrategy",
+    "MessageBus",
     "MessageRouter",
+    "ParallelStrategy",
+    "request_response",
+    "RoundRobinRouter",
+    "scatter_gather",
+    "SequentialStrategy",
+    "StatefulAgent",
     # Task types
     "Task",
     "TaskResult",
