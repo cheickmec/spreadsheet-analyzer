@@ -264,6 +264,12 @@ class MergeAwareLoader:
         # Handle formula cells that return None
         merge_info = self._extract_merge_info(ws)
         
+        # Extract cell formats for date detection
+        cell_formats = self._extract_cell_formats(ws, wb)
+        
+        # Store cell formats for use in normalization
+        self._cell_formats = cell_formats
+        
         # Check for formula cells returning None
         has_none_formulas = self._check_formula_nulls(ws)
         wb.close()
@@ -285,6 +291,7 @@ class MergeAwareLoader:
         df_filled.attrs['merge_info'] = merge_info
         df_filled.attrs['date_mode'] = self.date_mode
         df_filled.attrs['is_rtl'] = self.is_rtl
+        df_filled.attrs['cell_formats'] = cell_formats
         
         return df_filled, merge_info
     
@@ -353,6 +360,26 @@ class MergeAwareLoader:
                 
         return False
     
+    def _extract_cell_formats(self, worksheet, workbook) -> Dict[Tuple[int, int], str]:
+        """Extract cell number formats to identify date columns."""
+        cell_formats = {}
+        
+        # Excel built-in date format IDs
+        date_format_ids = {
+            14, 15, 16, 17, 18, 19, 20, 21, 22,  # Various date formats
+            45, 46, 47,  # Time formats
+            # Custom formats that contain date indicators
+        }
+        
+        for row in worksheet.iter_rows():
+            for cell in row:
+                if cell.number_format:
+                    # Store format for each cell (0-indexed)
+                    cell_idx = (cell.row - 1, cell.column - 1)
+                    cell_formats[cell_idx] = cell.number_format
+                    
+        return cell_formats
+    
     def _extract_merge_info(self, worksheet) -> MergeInfo:
         """Extract all merge information from worksheet."""
         
@@ -381,8 +408,11 @@ class MergeAwareLoader:
         
         for (row, col), value in merge_info.value_map.items():
             if row < len(df) and col < len(df.columns):
+                # Get cell format if available
+                cell_format = getattr(self, '_cell_formats', {}).get((row, col), None)
+                
                 # Normalize data types from openpyxl
-                normalized_value = self._normalize_value(value)
+                normalized_value = self._normalize_value(value, cell_format=cell_format)
                 
                 # Always propagate for headers (first 5 rows)
                 if row < 5 or self._is_likely_category(df, row, col):
@@ -390,7 +420,7 @@ class MergeAwareLoader:
                     
         return df_filled
     
-    def _normalize_value(self, value):
+    def _normalize_value(self, value, cell_format=None):
         """Normalize values from openpyxl to match pandas types."""
         
         if value is None:
@@ -398,19 +428,37 @@ class MergeAwareLoader:
             
         # Handle date/time normalization with Excel epoch handling
         if hasattr(value, 'date'):  # datetime object from openpyxl
-            # openpyxl already handles date conversion correctly
-            # but we should validate for edge cases
+            # IMPORTANT: When load_workbook is called with data_only=True,
+            # openpyxl automatically applies the correct date system offset
+            # based on the workbook's date1904 property. We just need to
+            # convert to pandas Timestamp.
             return pd.Timestamp(value)
         
         # Handle Excel serial dates (numeric values that represent dates)
-        if isinstance(value, (int, float)) and 1 < value < 60000:  # Reasonable date range
-            try:
-                # Use openpyxl's from_excel utility with the correct date system
-                excel_date = from_excel(value, date_system=self.date_mode)
-                return pd.Timestamp(excel_date)
-            except Exception as e:
-                logger.debug(f"Could not convert {value} to date: {e}")
-                # Fall through to return as numeric
+        # Excel dates are stored as days since epoch (1900-01-01 or 1904-01-01)
+        if isinstance(value, (int, float)):
+            # Check if this could be a date serial number
+            # Valid Excel dates: 1 to ~2958465 (year 9999)
+            if 1 <= value <= 2958465:
+                # Check if cell has date format before converting
+                if cell_format and self._is_date_format(cell_format):
+                    try:
+                        # Use openpyxl's from_excel with the correct date system
+                        # The function signature is from_excel(value, epoch1904)
+                        # epoch1904 is True for 1904 system, False for 1900 system
+                        epoch1904 = (self.date_mode == 1904)
+                        
+                        # Handle Excel 1900 leap year bug
+                        # Excel wrongly treats 1900 as a leap year
+                        if not epoch1904 and value < 61:
+                            # For dates before 1900-03-01, subtract 1 day
+                            value = value - 1 if value > 1 else value
+                        
+                        excel_date = from_excel(value, epoch1904)
+                        return pd.Timestamp(excel_date)
+                    except Exception as e:
+                        logger.debug(f"Could not convert {value} to date with epoch1904={epoch1904}: {e}")
+                        # Fall through to return as numeric
             
         # Handle numeric strings with locale awareness
         if isinstance(value, str):
@@ -428,6 +476,25 @@ class MergeAwareLoader:
                 return value
                 
         return value
+    
+    def _is_date_format(self, format_string: str) -> bool:
+        """Check if a number format string indicates a date/time format."""
+        if not format_string:
+            return False
+            
+        # Common date format indicators
+        date_indicators = [
+            'yy', 'yyyy',  # Year
+            'mm', 'mmm', 'mmmm',  # Month
+            'dd', 'd',  # Day
+            'hh', 'h',  # Hour
+            'ss', 's',  # Second
+            'am/pm', 'a/p',  # AM/PM
+            '/', '-',  # Date separators
+        ]
+        
+        format_lower = format_string.lower()
+        return any(indicator in format_lower for indicator in date_indicators)
     
     def _handle_cross_sheet_merges(self, worksheet, fail_on_cross_sheet=True):
         """Detect and handle cross-sheet merges."""
@@ -475,6 +542,12 @@ class AdaptiveTableDetector:
     def __init__(self, merge_info: MergeInfo):
         self.merge_info = merge_info
         self.anchor_gmm = GaussianMixture(n_components=2, random_state=42)
+        
+        # Pre-allocate reusable buffers for chunked analysis
+        self._buffer_size = 500_000  # Can hold up to 250k edges (2 entries per edge)
+        self._rows_buffer = None
+        self._cols_buffer = None
+        self._data_buffer = None
         
     def detect_boundaries(self, df: pd.DataFrame) -> List[BoundaryCandidate]:
         """Detect boundaries using ensemble of methods."""
@@ -631,6 +704,25 @@ class AdaptiveTableDetector:
         
         return anchors
     
+    def _estimate_nonzero_ratio(self, df: pd.DataFrame) -> float:
+        """Estimate the ratio of non-zero entries for memory optimization."""
+        # Sample a subset of the DataFrame for efficiency
+        sample_size = min(1000, len(df))
+        sample_rows = np.random.choice(len(df), sample_size, replace=False)
+        
+        non_zero_count = 0
+        total_cells = 0
+        
+        for row_idx in sample_rows:
+            for col_idx in range(len(df.columns)):
+                total_cells += 1
+                val = df.iloc[row_idx, col_idx]
+                if not pd.isna(val):
+                    non_zero_count += 1
+        
+        # Return ratio with minimum threshold to avoid division issues
+        return max(non_zero_count / total_cells, 0.0001) if total_cells > 0 else 0.01
+    
     def _sparse_component_analysis(self, df: pd.DataFrame) -> List[Component]:
         """Memory-efficient component detection for large sheets."""
         
@@ -644,9 +736,22 @@ class AdaptiveTableDetector:
         max_chunk_cells = 250_000
         if n_cells > max_chunk_cells:
             return self._chunked_sparse_analysis(df, chunk_size=max_chunk_cells)
-            
-        # Build sparse adjacency matrix
-        rows, cols, data = [], [], []
+        
+        # Estimate sparsity for memory optimization
+        nnz_estimate = self._estimate_nonzero_ratio(df)
+        logger.debug(f"Estimated sparsity: {nnz_estimate:.4f} for {n_cells} cells")
+        
+        # Use int32 for pathologically sparse matrices to save memory
+        use_int32 = nnz_estimate < 0.001 and n_cells > 1_000_000
+        dtype = np.int32 if use_int32 else np.int64
+        
+        # Pre-allocate buffers for better memory management
+        # Estimate max edges: each cell can have at most 2 neighbors (right, bottom)
+        max_edges = int(n_cells * 2 * nnz_estimate * 1.5)  # 1.5x safety margin
+        rows = np.empty(max_edges, dtype=dtype)
+        cols = np.empty(max_edges, dtype=dtype)
+        data = np.ones(max_edges, dtype=np.int8)  # All weights are 1
+        edge_count = 0
         
         for i in range(len(df)):
             for j in range(len(df.columns)):
@@ -661,15 +766,19 @@ class AdaptiveTableDetector:
                             # Check if this is part of a boundary-indicating blank band
                             if not self._has_excessive_blank_run(df, i, j):
                                 neighbor_idx = i * len(df.columns) + (j + 1)
-                                rows.extend([cell_idx, neighbor_idx])
-                                cols.extend([neighbor_idx, cell_idx])
-                                data.extend([1, 1])
+                                rows[edge_count] = cell_idx
+                                cols[edge_count] = neighbor_idx
+                                rows[edge_count + 1] = neighbor_idx
+                                cols[edge_count + 1] = cell_idx
+                                edge_count += 2
                         else:
                             # Non-blank similar cells, always connect
                             neighbor_idx = i * len(df.columns) + (j + 1)
-                            rows.extend([cell_idx, neighbor_idx])
-                            cols.extend([neighbor_idx, cell_idx])
-                            data.extend([1, 1])
+                            rows[edge_count] = cell_idx
+                            cols[edge_count] = neighbor_idx
+                            rows[edge_count + 1] = neighbor_idx
+                            cols[edge_count + 1] = cell_idx
+                            edge_count += 2
                 
                 # Bottom neighbor
                 if i + 1 < len(df):
@@ -680,23 +789,33 @@ class AdaptiveTableDetector:
                             # Check if this is part of a boundary-indicating blank band
                             if not self._has_excessive_blank_run(df, i, j):
                                 neighbor_idx = (i + 1) * len(df.columns) + j
-                                rows.extend([cell_idx, neighbor_idx])
-                                cols.extend([neighbor_idx, cell_idx])
-                                data.extend([1, 1])
+                                rows[edge_count] = cell_idx
+                                cols[edge_count] = neighbor_idx
+                                rows[edge_count + 1] = neighbor_idx
+                                cols[edge_count + 1] = cell_idx
+                                edge_count += 2
                         else:
                             # Non-blank similar cells, always connect
                             neighbor_idx = (i + 1) * len(df.columns) + j
-                            rows.extend([cell_idx, neighbor_idx])
-                            cols.extend([neighbor_idx, cell_idx])
-                            data.extend([1, 1])
+                            rows[edge_count] = cell_idx
+                            cols[edge_count] = neighbor_idx
+                            rows[edge_count + 1] = neighbor_idx
+                            cols[edge_count + 1] = cell_idx
+                            edge_count += 2
         
-        adjacency = csr_matrix((data, (rows, cols)), shape=(n_cells, n_cells))
+        # Trim arrays to actual size
+        rows = rows[:edge_count]
+        cols = cols[:edge_count]
+        data = data[:edge_count]
+        
+        # Create CSR matrix with appropriate dtype
+        adjacency = csr_matrix((data, (rows, cols)), shape=(n_cells, n_cells), dtype=np.int8)
         n_components, labels = connected_components(adjacency, directed=False)
         
         return self._labels_to_components(labels, df.shape)
     
     def _chunked_sparse_analysis(self, df: pd.DataFrame, chunk_size: int = 250_000) -> List[Component]:
-        """Process DataFrame in chunks to keep memory under control."""
+        """Process DataFrame in chunks to keep memory under control with buffer reuse."""
         
         n_cells = df.shape[0] * df.shape[1]
         n_chunks = math.ceil(n_cells / chunk_size)
@@ -711,10 +830,23 @@ class AdaptiveTableDetector:
         
         logger.debug(f"Chunking {n_cells} cells into chunks of {chunk_rows} rows")
         
+        # Initialize reusable buffers if not already done
+        if self._rows_buffer is None:
+            dtype = np.int32 if n_cells > 10_000_000 else np.int64
+            self._rows_buffer = np.empty(self._buffer_size, dtype=dtype)
+            self._cols_buffer = np.empty(self._buffer_size, dtype=dtype)
+            self._data_buffer = np.ones(self._buffer_size, dtype=np.int8)
+        
         components = []
         for i in range(0, len(df), chunk_rows):
             chunk = df.iloc[i:i+chunk_rows]
-            chunk_components = self._analyze_chunk(chunk, offset=i)
+            # Pass buffers to chunk analysis for reuse
+            chunk_components = self._analyze_chunk_with_buffers(
+                chunk, offset=i, 
+                rows_buf=self._rows_buffer,
+                cols_buf=self._cols_buffer,
+                data_buf=self._data_buffer
+            )
             components.extend(chunk_components)
         
         # Merge components across chunk boundaries
