@@ -342,7 +342,9 @@ class MergeAwareLoader:
                     "Workbook contains uncalculated formulas. Options:\n"
                     "1. Open and save the file in Excel first\n"
                     "2. Install xlcalculator: pip install xlcalculator\n"
-                    "3. Use --allow-formulas flag to load formulas as strings"
+                    "3. Use --allow-formulas flag to load formulas as strings\n"
+                    "\n"
+                    "Note: External workbook references in formulas return None even with data_only=True"
                 )
     
     def _is_likely_category(self, df: pd.DataFrame, row: int, col: int) -> bool:
