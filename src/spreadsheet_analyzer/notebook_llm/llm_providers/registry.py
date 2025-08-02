@@ -7,6 +7,7 @@ from spreadsheet_analyzer.notebook_llm.llm_providers.anthropic_provider import (
     AnthropicProvider,
 )
 from spreadsheet_analyzer.notebook_llm.llm_providers.base import LLMInterface, LLMProvider
+from spreadsheet_analyzer.notebook_llm.llm_providers.ollama_provider import OllamaProvider
 from spreadsheet_analyzer.notebook_llm.llm_providers.openai_provider import OpenAIProvider
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 PROVIDERS: dict[str, type[LLMProvider]] = {
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
+    "ollama": OllamaProvider,
 }
 
 
