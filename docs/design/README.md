@@ -26,6 +26,7 @@ This directory contains the comprehensive design documentation for the Spreadshe
 - **[llm-function-definitions.md](./llm-function-definitions.md)** - Function definitions for LLM interactions
 - **[progress-tracking-system.md](./progress-tracking-system.md)** - System for tracking analysis progress
 - **[ALGORITHM_RATIONALE_SUMMARY.md](./ALGORITHM_RATIONALE_SUMMARY.md)** - Summary of algorithm design decisions
+- **[multi-table-detection-system.md](./multi-table-detection-system.md)** - Production-ready system for detecting multiple tables within spreadsheets, including merged cell handling, benchmarking, and deployment considerations
 
 ## 📁 Historical Conversations
 

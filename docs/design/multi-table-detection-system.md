@@ -174,11 +174,48 @@ class MergeAwareLoader:
         
         for (row, col), value in merge_info.value_map.items():
             if row < len(df) and col < len(df.columns):
+                # Normalize data types from openpyxl
+                normalized_value = self._normalize_value(value)
+                
                 # Always propagate for headers (first 5 rows)
                 if row < 5 or self._is_likely_category(df, row, col):
-                    df_filled.iloc[row, col] = value
+                    df_filled.iloc[row, col] = normalized_value
                     
         return df_filled
+    
+    def _normalize_value(self, value):
+        """Normalize values from openpyxl to match pandas types."""
+        
+        if value is None:
+            return np.nan
+            
+        # Handle date/time normalization
+        if hasattr(value, 'date'):  # datetime object from openpyxl
+            return pd.Timestamp(value)
+            
+        # Handle numeric strings
+        if isinstance(value, str):
+            # Try numeric conversion
+            try:
+                return pd.to_numeric(value)
+            except:
+                # Keep as string
+                return value
+                
+        return value
+    
+    def _handle_cross_sheet_merges(self, worksheet) -> bool:
+        """Detect and handle cross-sheet merges."""
+        
+        # Check for 3D references in merged cells
+        for merge_range in worksheet.merged_cells.ranges:
+            anchor_cell = worksheet.cell(merge_range.min_row, merge_range.min_col)
+            if anchor_cell.value and '!' in str(anchor_cell.value):
+                # Cross-sheet reference detected
+                logger.warning(f"Cross-sheet merge detected at {merge_range}")
+                return True
+        
+        return False
 ```
 
 ### Stage 1: Scalable Algorithmic Detection
@@ -213,10 +250,17 @@ class AdaptiveTableDetector:
     def _adaptive_anchor_detection(self, df: pd.DataFrame) -> List[Anchor]:
         """Use GMM instead of fixed thresholds."""
         
+        # Header detection first
+        header_rows = self._detect_header_rows(df)
+        
         # Extract features per row
         features = []
         for idx in range(len(df)):
             row = df.iloc[idx]
+            
+            # Skip if identified as header
+            if idx in header_rows:
+                continue
             
             # Distinguish merge NaNs from missing data
             merge_nan_count = sum(1 for j in range(len(row)) 
@@ -230,6 +274,11 @@ class AdaptiveTableDetector:
                 len(set(row.dropna())),  # Unique values
             ])
         
+        # Handle small datasets
+        if len(features) < 20:
+            # Fallback to percentile-based detection
+            return self._percentile_based_anchors(df, features)
+        
         # Fit GMM to find natural clusters
         features_array = np.array(features)
         self.anchor_gmm.fit(features_array)
@@ -241,6 +290,30 @@ class AdaptiveTableDetector:
         
         return [Anchor('row', idx, self.anchor_gmm.predict_proba(features_array[idx:idx+1])[0].max()) 
                 for idx in anchor_indices]
+    
+    def _detect_header_rows(self, df: pd.DataFrame) -> set:
+        """Detect likely header rows to exclude from anchor detection."""
+        
+        header_rows = set()
+        
+        for idx in range(min(10, len(df))):  # Check first 10 rows
+            row = df.iloc[idx]
+            
+            # Count string vs numeric
+            string_count = sum(1 for val in row if isinstance(val, str))
+            numeric_count = sum(1 for val in row if isinstance(val, (int, float)))
+            
+            # Header heuristics
+            if string_count > numeric_count * 2:  # Heavily string-based
+                if idx < 5:  # In typical header range
+                    header_rows.add(idx)
+                elif any(keyword in str(row).lower() for keyword in ['total', 'sum', 'average']):
+                    # Summary row, not header
+                    pass
+                else:
+                    header_rows.add(idx)
+        
+        return header_rows
     
     def _sparse_component_analysis(self, df: pd.DataFrame) -> List[Component]:
         """Memory-efficient component detection for large sheets."""
@@ -323,7 +396,7 @@ class TokenEfficientLLMResolver:
             # Use GPT-4 only for complex cases
             return await self._llm_resolve_efficient(df, candidates, merge_info)
     
-    def _llm_resolve_efficient(self, df, candidates, merge_info):
+    def _llm_resolve_efficient(self, df, candidates, merge_info, redact_values=True):
         """Token-efficient GPT-4 resolution."""
         
         # Create minimal context
@@ -341,13 +414,40 @@ class TokenEfficientLLMResolver:
                 {
                     "name": col,
                     "dtype": str(df[col].dtype),
-                    "sample": df[col].dropna().head(3).tolist()[:3],  # Limit samples
+                    "sample": self._redact_samples(
+                        df[col].dropna().head(3).tolist()[:3], 
+                        redact_values
+                    ),
                     "has_merges": any((r, i) in merge_info.merge_map 
                                      for r in range(min(5, len(df))))
                 } for i, col in enumerate(df.columns)
             ],
             "merge_patterns": self._summarize_merges(merge_info)
         }
+    
+    def _redact_samples(self, samples: list, redact: bool) -> list:
+        """Redact sensitive values if requested."""
+        
+        if not redact:
+            return samples
+            
+        redacted = []
+        for sample in samples:
+            if isinstance(sample, (int, float)):
+                # Replace numbers with ranges
+                redacted.append(f"<numeric:{len(str(sample))}_digits>")
+            elif isinstance(sample, str):
+                # Hash strings
+                import hashlib
+                hash_val = hashlib.sha256(sample.encode()).hexdigest()[:8]
+                redacted.append(f"<string:hash_{hash_val}>")
+            else:
+                redacted.append(f"<{type(sample).__name__}>")
+                
+        return redacted
+    
+    async def _complete_llm_request(self, context: dict) -> dict:
+        """Complete the LLM request with the prepared context."""
         
         # Function calling for structured output
         response = await self.llm_client.complete(
@@ -474,6 +574,29 @@ benchmark_dataset:
       sizes: ["10k×1k", "50k×5k", "100k×16k"]
 ```
 
+### Ground Truth Annotation Guidelines
+
+```yaml
+annotation_policy:
+  overlap_handling:
+    - rule: "IoU >= 0.9 counts as correct match"
+    - split_headers: "If prediction splits a header row, penalize by 50%"
+    - partial_tables: "Credit proportional to correctly identified cells"
+    
+  labeling_consistency:
+    - training: "All annotators complete 10 sample sheets with review"
+    - inter_annotator_agreement: "Require 95% agreement on table boundaries"
+    - edge_cases:
+        merged_headers: "Include in table if >50% spans table columns"
+        floating_cells: "Exclude unless connected to main table"
+        summary_rows: "Include if they reference table data"
+    
+  quality_control:
+    - double_annotation: "20% of sheets annotated by 2 people"
+    - expert_review: "Domain expert validates complex cases"
+    - version_control: "Track all annotation changes with reasons"
+```
+
 ### Evaluation Metrics
 
 ```python
@@ -544,8 +667,19 @@ class RobustDetectionService:
             return await self.pipeline.detect_chunked(file_path)
             
         except LLMError as e:
-            # LLM unavailable - use algorithmic only
-            self.alert_manager.warn(f"LLM error: {e}, using algorithmic only")
+            # Retry with exponential backoff before degrading
+            for attempt in range(2):  # 2 retries
+                wait_time = 2 ** (attempt + 1)  # 2s, 4s
+                self.alert_manager.info(f"LLM error, retrying in {wait_time}s: {e}")
+                await asyncio.sleep(wait_time)
+                
+                try:
+                    return await self.pipeline.detect_tables(file_path)
+                except LLMError:
+                    continue
+            
+            # After retries, fall back to algorithmic only
+            self.alert_manager.warn(f"LLM failed after retries, using algorithmic only")
             return await self.pipeline.detect_algorithmic_only(file_path)
             
         except TimeoutError:
@@ -562,14 +696,31 @@ class RobustDetectionService:
 ### Monitoring & Observability
 
 ```python
-# Prometheus metrics
-detection_latency = Histogram('table_detection_duration_seconds')
-detection_errors = Counter('table_detection_errors_total')
-llm_token_usage = Counter('llm_tokens_used_total')
-cache_hits = Counter('detection_cache_hits_total')
+# Structured event IDs for better tracking
+class EventID(Enum):
+    DETECTION_START = "TD001"
+    DETECTION_SUCCESS = "TD002"
+    CACHE_HIT = "TD003"
+    CACHE_MISS = "TD004"
+    LLM_RETRY = "TD005"
+    LLM_FALLBACK = "TD006"
+    MEMORY_CHUNKING = "TD007"
+    TIMEOUT_ERROR = "TD008"
+    UNKNOWN_ERROR = "TD009"
 
-# Structured logging
+# Prometheus metrics with labels
+detection_latency = Histogram('table_detection_duration_seconds', 
+                            labels=['stage', 'file_size_category'])
+detection_errors = Counter('table_detection_errors_total',
+                         labels=['error_type', 'event_id'])
+llm_token_usage = Counter('llm_tokens_used_total',
+                        labels=['model', 'purpose'])
+cache_hits = Counter('detection_cache_hits_total',
+                   labels=['cache_type'])
+
+# Structured logging with event IDs
 logger.info("Table detection completed", extra={
+    "event_id": EventID.DETECTION_SUCCESS,
     "file_size": file_size,
     "sheet_dimensions": f"{rows}x{cols}",
     "tables_found": len(tables),
@@ -578,6 +729,77 @@ logger.info("Table detection completed", extra={
     "llm_used": llm_was_used,
     "token_cost": token_cost
 })
+```
+
+### Cache Migration Strategy
+
+```python
+class CacheManager:
+    """Manages cache with version migration."""
+    
+    CACHE_VERSION = "1.2.0"
+    
+    def __init__(self):
+        self.cache = LRUCache(maxsize=1000)
+        self._migrate_if_needed()
+    
+    def _migrate_if_needed(self):
+        """Migrate cache entries from old versions."""
+        
+        current_version = self._load_cache_version()
+        
+        if current_version != self.CACHE_VERSION:
+            logger.info(f"Migrating cache from {current_version} to {self.CACHE_VERSION}")
+            
+            # Clear incompatible entries
+            old_entries = self.cache.get_all()
+            self.cache.clear()
+            
+            # Re-process compatible entries
+            for key, value in old_entries.items():
+                if self._is_compatible(value, current_version):
+                    migrated = self._migrate_entry(value, current_version)
+                    self.cache.put(key, migrated)
+            
+            self._save_cache_version(self.CACHE_VERSION)
+```
+
+### Complexity Assessment Learning
+
+```python
+class ComplexityAssessor:
+    """Learns optimal complexity thresholds from feedback."""
+    
+    def __init__(self, initial_threshold=0.7):
+        self.threshold = initial_threshold
+        self.feedback_buffer = []
+        self.learning_rate = 0.1
+    
+    def assess_complexity(self, df, candidates, merge_info) -> float:
+        """Calculate complexity score with learned features."""
+        
+        features = {
+            'table_candidates': len(candidates),
+            'merge_density': len(merge_info.ranges) / (df.shape[0] * df.shape[1]),
+            'type_diversity': self._calculate_type_diversity(df),
+            'candidate_confidence_variance': np.std([c.confidence for c in candidates]),
+            'scale_factor': min(df.shape[0] * df.shape[1] / 10000, 1.0)
+        }
+        
+        # Use learned weights
+        weights = self._get_learned_weights()
+        complexity = sum(features[k] * weights.get(k, 0.2) for k in features)
+        
+        return min(complexity, 1.0)
+    
+    def update_from_feedback(self, complexity_score: float, was_correct: bool):
+        """Update threshold based on outcome."""
+        
+        self.feedback_buffer.append((complexity_score, was_correct))
+        
+        # Batch update every 100 examples
+        if len(self.feedback_buffer) >= 100:
+            self._batch_update_threshold()
 ```
 
 ### Deployment Checklist
