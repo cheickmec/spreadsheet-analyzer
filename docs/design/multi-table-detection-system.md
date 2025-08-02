@@ -535,11 +535,31 @@ class AdaptiveTableDetector:
                 for idx in anchor_indices]
     
     def _calculate_entropy(self, row: pd.Series) -> float:
-        """Calculate information entropy of a row."""
-        value_counts = row.value_counts(normalize=True)
-        if len(value_counts) == 0:
+        """Calculate information entropy of a row with optimization for wide sheets."""
+        # Skip entropy for very wide sheets to avoid performance issues
+        if len(row) > 2000:
+            logger.debug(f"Skipping entropy calculation for wide row ({len(row)} columns)")
             return 0.0
-        return -sum(p * np.log2(p) for p in value_counts if p > 0)
+        
+        # Cache string conversion for efficiency
+        row_values = row.dropna().astype(str).tolist()
+        if not row_values:
+            return 0.0
+            
+        # Calculate value frequencies
+        value_freq = {}
+        for val in row_values:
+            value_freq[val] = value_freq.get(val, 0) + 1
+        
+        # Convert to probabilities and calculate entropy
+        total = len(row_values)
+        entropy = 0.0
+        for count in value_freq.values():
+            if count > 0:
+                p = count / total
+                entropy -= p * np.log2(p)
+        
+        return entropy
     
     def _detect_header_rows(self, df: pd.DataFrame, is_rtl: bool = False) -> set:
         """Detect likely header rows to exclude from anchor detection."""
@@ -634,11 +654,41 @@ class AdaptiveTableDetector:
                 
                 # Right neighbor
                 if j + 1 < len(df.columns):
+                    # Check similarity but prevent merging across blank bands
                     if self._cells_similar(df.iloc[i, j], df.iloc[i, j + 1]):
-                        neighbor_idx = i * len(df.columns) + (j + 1)
-                        rows.extend([cell_idx, neighbor_idx])
-                        cols.extend([neighbor_idx, cell_idx])
-                        data.extend([1, 1])
+                        # Additional check for blank runs that indicate boundaries
+                        if pd.isna(df.iloc[i, j]) and pd.isna(df.iloc[i, j + 1]):
+                            # Check if this is part of a boundary-indicating blank band
+                            if not self._has_excessive_blank_run(df, i, j):
+                                neighbor_idx = i * len(df.columns) + (j + 1)
+                                rows.extend([cell_idx, neighbor_idx])
+                                cols.extend([neighbor_idx, cell_idx])
+                                data.extend([1, 1])
+                        else:
+                            # Non-blank similar cells, always connect
+                            neighbor_idx = i * len(df.columns) + (j + 1)
+                            rows.extend([cell_idx, neighbor_idx])
+                            cols.extend([neighbor_idx, cell_idx])
+                            data.extend([1, 1])
+                
+                # Bottom neighbor
+                if i + 1 < len(df):
+                    # Check similarity but prevent merging across blank bands
+                    if self._cells_similar(df.iloc[i, j], df.iloc[i + 1, j]):
+                        # Additional check for blank runs that indicate boundaries
+                        if pd.isna(df.iloc[i, j]) and pd.isna(df.iloc[i + 1, j]):
+                            # Check if this is part of a boundary-indicating blank band
+                            if not self._has_excessive_blank_run(df, i, j):
+                                neighbor_idx = (i + 1) * len(df.columns) + j
+                                rows.extend([cell_idx, neighbor_idx])
+                                cols.extend([neighbor_idx, cell_idx])
+                                data.extend([1, 1])
+                        else:
+                            # Non-blank similar cells, always connect
+                            neighbor_idx = (i + 1) * len(df.columns) + j
+                            rows.extend([cell_idx, neighbor_idx])
+                            cols.extend([neighbor_idx, cell_idx])
+                            data.extend([1, 1])
         
         adjacency = csr_matrix((data, (rows, cols)), shape=(n_cells, n_cells))
         n_components, labels = connected_components(adjacency, directed=False)
@@ -651,8 +701,15 @@ class AdaptiveTableDetector:
         n_cells = df.shape[0] * df.shape[1]
         n_chunks = math.ceil(n_cells / chunk_size)
         
-        # Calculate optimal chunk dimensions
+        # Calculate optimal chunk dimensions with bounds
+        # Prevent 0-row chunks and avoid single-row chunks that thrash disk
         chunk_rows = max(1, int(chunk_size / df.shape[1]))
+        # Ensure minimum 1000 rows per chunk (unless DataFrame is smaller)
+        chunk_rows = max(chunk_rows, min(1000, len(df)))
+        # But also cap at reasonable maximum to prevent memory issues
+        chunk_rows = min(chunk_rows, 10000)
+        
+        logger.debug(f"Chunking {n_cells} cells into chunks of {chunk_rows} rows")
         
         components = []
         for i in range(0, len(df), chunk_rows):
@@ -665,14 +722,55 @@ class AdaptiveTableDetector:
     
     def _cells_similar(self, cell1, cell2) -> bool:
         """Check if two cells are similar enough to be in same component."""
-        # Both NaN
+        # Both NaN - but check for blank run-length to avoid false merging
         if pd.isna(cell1) and pd.isna(cell2):
+            # This will be validated by blank run-length detection
             return True
         # One NaN
         if pd.isna(cell1) or pd.isna(cell2):
             return False
         # Same type and value
         return type(cell1) == type(cell2)
+    
+    def _has_excessive_blank_run(self, df: pd.DataFrame, row: int, col: int, 
+                                 max_blank_rows: int = 5, max_blank_cols: int = 3) -> bool:
+        """Check if cell is part of an excessive blank run that indicates table boundary."""
+        
+        # Check vertical blank run
+        blank_rows_above = 0
+        for r in range(row - 1, -1, -1):
+            if pd.isna(df.iloc[r, col]):
+                blank_rows_above += 1
+            else:
+                break
+        
+        blank_rows_below = 0
+        for r in range(row + 1, len(df)):
+            if pd.isna(df.iloc[r, col]):
+                blank_rows_below += 1
+            else:
+                break
+        
+        # Check horizontal blank run
+        blank_cols_left = 0
+        for c in range(col - 1, -1, -1):
+            if pd.isna(df.iloc[row, c]):
+                blank_cols_left += 1
+            else:
+                break
+                
+        blank_cols_right = 0
+        for c in range(col + 1, len(df.columns)):
+            if pd.isna(df.iloc[row, c]):
+                blank_cols_right += 1
+            else:
+                break
+        
+        # Total runs
+        vertical_run = blank_rows_above + blank_rows_below + 1
+        horizontal_run = blank_cols_left + blank_cols_right + 1
+        
+        return vertical_run > max_blank_rows or horizontal_run > max_blank_cols
     
     def _labels_to_components(self, labels: np.ndarray, shape: tuple) -> List[Component]:
         """Convert connected component labels to Component objects."""
