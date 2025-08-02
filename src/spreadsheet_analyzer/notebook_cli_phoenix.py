@@ -16,7 +16,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from langchain_core.tools import tool
 from structlog import get_logger
 
 from spreadsheet_analyzer.notebook_session import notebook_session
@@ -34,7 +33,6 @@ from spreadsheet_analyzer.pipeline.types import (
     ContentAnalysis,
     FormulaAnalysis,
     IntegrityResult,
-    PipelineResult,
     SecurityReport,
     WorkbookStructure,
 )
@@ -446,65 +444,6 @@ def format_integrity_section(integrity: IntegrityResult) -> str:
     return "\n".join(content)
 
 
-def create_pipeline_summary_tool(pipeline_result: PipelineResult):
-    """Create a tool that provides the pipeline analysis summary."""
-
-    @tool
-    async def get_excel_analysis_summary() -> str:
-        """Get the comprehensive Excel file analysis summary from the deterministic pipeline.
-
-        Returns a detailed markdown report of the Excel file analysis including:
-        - Security assessment
-        - Workbook structure
-        - Formula analysis
-        - Content analysis
-        - Data integrity checks
-        """
-        sections = []
-
-        # Header
-        sections.append("# 📊 Excel Analysis Summary\n")
-        sections.append(f"**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        sections.append(f"**Analysis Status**: {'✅ Successful' if pipeline_result.success else '❌ Failed'}\n")
-
-        if pipeline_result.success:
-            # Security Analysis
-            sections.append("## 🔒 Security Analysis")
-            sections.append(format_security_section(pipeline_result.security))
-
-            # Structure Analysis
-            sections.append("\n## 📁 Structure Analysis")
-            sections.append(format_structure_section(pipeline_result.structure))
-
-            # Formula Analysis
-            sections.append("\n## 🧮 Formula Analysis")
-            sections.append(format_formulas_section(pipeline_result.formulas))
-
-            # Content Analysis
-            sections.append("\n## 📝 Content Analysis")
-            sections.append(format_content_section(pipeline_result.content))
-
-            # Integrity Check
-            sections.append("\n## ✅ Integrity Check")
-            sections.append(format_integrity_section(pipeline_result.integrity))
-
-            # Summary statistics
-            sections.append("\n## 📈 Summary Statistics")
-            sections.append(f"- **Total Sheets**: {pipeline_result.structure.sheet_count}")
-            sections.append(f"- **Total Cells**: {pipeline_result.structure.total_cells:,}")
-            sections.append(f"- **Total Formulas**: {len(pipeline_result.formulas.dependency_graph):,}")
-            sections.append(f"- **Formula Complexity**: {pipeline_result.formulas.formula_complexity_score:.1f}")
-            sections.append(f"- **Security Risk**: {pipeline_result.security.risk_level}")
-
-        else:
-            sections.append("## ❌ Analysis Failed")
-            sections.append(f"**Error**: {pipeline_result.error}")
-
-        return "\n".join(sections)
-
-    return get_excel_analysis_summary
-
-
 class NotebookCLI:
     """CLI for notebook-based Excel analysis."""
 
@@ -856,9 +795,6 @@ All tools are available through the tool-calling interface. Use graph-based anal
 
                 # Get all notebook tools
                 tools = list(get_notebook_tools())
-
-                # Add pipeline summary tool
-                tools.append(create_pipeline_summary_tool(pipeline_result))
 
                 # Import LangChain components
                 try:
