@@ -193,8 +193,29 @@ async def add_markdown_cell(content: str) -> str:
         Success or error message
     """
     try:
-        # Call add_cell with markdown type, position=None for simplicity
-        return await add_cell(content, "markdown", None)
+        # CLAUDE-GOTCHA: LangChain may pass extra arguments to async tools
+        # Avoid nested tool calls by using toolkit API directly
+        session_manager = get_session_manager()
+        session_result = await session_manager.get_session("default_session")
+
+        if session_result.is_err():
+            return f"Error: {session_result.err_value}"
+
+        session = session_result.ok_value
+
+        # Create a unique cell ID for the markdown cell
+        import uuid
+
+        cell_id = f"md_{uuid.uuid4().hex[:8]}"
+
+        # Add the markdown cell using the toolkit's render_markdown method
+        result = await session.toolkit.render_markdown(content, cell_id)
+
+        if result.is_err():
+            return f"Error adding markdown cell: {result.err_value}"
+        else:
+            return f"✅ Markdown cell added successfully\nCell ID: {cell_id}"
+
     except Exception as e:
         # Provide a fallback that continues analysis
         return f"Note: Markdown cell creation failed ({e!s}), but analysis continues."
@@ -216,8 +237,8 @@ async def delete_cell(cell_id: str) -> str:
 
         if isinstance(result, Err):
             return f"Failed to delete cell: {result.value}"
-
-        return f"✅ Cell {cell_id} deleted successfully"
+        else:
+            return f"✅ Cell {cell_id} deleted successfully"
 
     except Exception as e:
         return f"Error deleting cell: {e!s}"
@@ -338,7 +359,7 @@ def create_notebook_tool_descriptions() -> str:
     tools = get_notebook_tools()
     descriptions = []
 
-    for tool in tools:
-        descriptions.append(f"- {tool.name}: {tool.description}")
+    for tool_item in tools:
+        descriptions.append(f"- {tool_item.name}: {tool_item.description}")
 
     return "\n".join(descriptions)
