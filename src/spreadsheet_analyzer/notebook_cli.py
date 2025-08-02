@@ -480,11 +480,14 @@ class NotebookCLI:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  # Basic analysis with default model
+  # Basic analysis with default Claude model
   %(prog)s data.xlsx
 
-  # Use specific model and sheet
+  # Use GPT-4 instead of Claude
   %(prog)s data.xlsx --model gpt-4 --sheet-index 1
+
+  # Use a specific Claude model
+  %(prog)s data.xlsx --model claude-3-opus-20240229
 
   # Custom output location and session
   %(prog)s data.xlsx --output-dir results --session-id analysis-001
@@ -502,7 +505,7 @@ Examples:
             "--model",
             type=str,
             default="claude-3-5-sonnet-20241022",
-            help="LLM model to use (e.g., 'claude-3-5-sonnet-20241022', 'gpt-4').",
+            help="LLM model to use. Default: Claude 3.5 Sonnet. Examples: 'gpt-4', 'claude-3-opus-20240229'",
         )
         parser.add_argument(
             "--api-key",
@@ -1364,35 +1367,9 @@ Then STOP the analysis - do not ask for further instructions."""
                                         if hasattr(response, "tool_calls") and response.tool_calls:
                                             llm_logger.info(f"Tool calls: {json.dumps(response.tool_calls, indent=2)}")
 
-                                    except Exception as api_error:
-                                        logger.warning(f"Primary model API call failed: {api_error}")
-
-                                        # Try fallback if we haven't already
-                                        if not isinstance(llm, ChatOpenAI):
-                                            try:
-                                                logger.info("Switching to fallback model: gpt-4")
-                                                llm = ChatOpenAI(model_name="gpt-4")
-                                                llm_with_tools = llm.bind_tools(tools)
-                                                response = await llm_with_tools.ainvoke(messages)
-
-                                                # Track token usage for fallback
-                                                await track_llm_usage(response, "gpt-4")
-
-                                                # Log response from fallback LLM
-                                                llm_logger.info(f"\n{'═' * 20} LLM Response (FALLBACK) {'═' * 20}")
-                                                llm_logger.info(f"Response type: {type(response).__name__}")
-                                                llm_logger.info(f"Content: {response.content}")
-                                                if hasattr(response, "tool_calls") and response.tool_calls:
-                                                    llm_logger.info(
-                                                        f"Tool calls: {json.dumps(response.tool_calls, indent=2)}"
-                                                    )
-
-                                            except Exception:
-                                                logger.exception("Fallback model also failed")
-                                                break
-                                        else:
-                                            logger.exception("API call failed")
-                                            break
+                                    except Exception:
+                                        logger.exception("Model API call failed")
+                                        break
 
                                     if args.verbose:
                                         logger.info("Received response from LLM:", response=response)
