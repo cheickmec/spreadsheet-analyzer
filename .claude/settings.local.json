@@ -18,7 +18,8 @@
       "WebFetch(domain:pypi.org)",
       "WebFetch(domain:docs.litellm.ai)",
       "Bash(uv sync:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   },
