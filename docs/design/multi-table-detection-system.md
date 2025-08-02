@@ -111,6 +111,7 @@ Input Excel File
 
 ```python
 from openpyxl import load_workbook
+from openpyxl.utils.datetime import from_excel
 import pandas as pd
 import numpy as np
 from dataclasses import dataclass
@@ -270,7 +271,9 @@ class MergeAwareLoader:
         if has_none_formulas:
             # Re-read with data_only=False to get formula strings
             logger.warning("Formula cells returned None, re-reading with formula preservation")
-            df = self._load_with_formulas(file_path, sheet_name)
+            # Check if allow_formulas flag is set (would come from config/CLI)
+            allow_formulas = getattr(self, 'allow_formulas', False)
+            df = self._load_with_formulas(file_path, sheet_name, allow_formulas=allow_formulas)
         else:
             # Load with pandas for proper type inference
             df = pd.read_excel(file_path, sheet_name=sheet_name)
@@ -293,14 +296,47 @@ class MergeAwareLoader:
                     return True
         return False
     
-    def _load_with_formulas(self, file_path: str, sheet_name: str = None) -> pd.DataFrame:
+    def _load_with_formulas(self, file_path: str, sheet_name: str = None, allow_formulas: bool = False) -> pd.DataFrame:
         """Fallback loader when formulas return None."""
-        # Option 1: Use pandas with engine='openpyxl' to get formula strings
-        # Option 2: Fail fast and require pre-calculated workbook
-        raise ValueError(
-            "Workbook contains uncalculated formulas. "
-            "Please open and save the file in Excel first, or use a calculation library."
-        )
+        
+        if allow_formulas:
+            # Option 1: Treat formulas as literal strings
+            logger.warning("Loading formulas as strings - values will not be calculated")
+            wb = load_workbook(file_path, read_only=True, data_only=False)
+            ws = wb[sheet_name] if sheet_name else wb.active
+            
+            # Convert to DataFrame manually, preserving formula strings
+            data = []
+            for row in ws.iter_rows():
+                row_data = []
+                for cell in row:
+                    if cell.data_type == 'f':  # Formula
+                        row_data.append(f"={cell.value}")  # Prefix with = to indicate formula
+                    else:
+                        row_data.append(cell.value)
+                data.append(row_data)
+            
+            wb.close()
+            return pd.DataFrame(data)
+        
+        else:
+            # Option 2: Try lightweight calculation engine
+            try:
+                from xlcalculator import ModelCompiler, Evaluator
+                
+                logger.info("Attempting to calculate formulas with xlcalculator")
+                # Implementation would go here
+                # For now, fall back to error
+                raise ImportError("xlcalculator not available")
+                
+            except ImportError:
+                # Option 3: Fail with helpful message
+                raise ValueError(
+                    "Workbook contains uncalculated formulas. Options:\n"
+                    "1. Open and save the file in Excel first\n"
+                    "2. Install xlcalculator: pip install xlcalculator\n"
+                    "3. Use --allow-formulas flag to load formulas as strings"
+                )
     
     def _is_likely_category(self, df: pd.DataFrame, row: int, col: int) -> bool:
         """Determine if a cell is likely a category/header within data."""
@@ -362,11 +398,19 @@ class MergeAwareLoader:
             
         # Handle date/time normalization with Excel epoch handling
         if hasattr(value, 'date'):  # datetime object from openpyxl
-            # Use instance date_mode for proper conversion
-            if self.date_mode == 1904:
-                # macOS Excel default - dates are 4 years and 1 day different
-                logger.debug("Using 1904 date system")
+            # openpyxl already handles date conversion correctly
+            # but we should validate for edge cases
             return pd.Timestamp(value)
+        
+        # Handle Excel serial dates (numeric values that represent dates)
+        if isinstance(value, (int, float)) and 1 < value < 60000:  # Reasonable date range
+            try:
+                # Use openpyxl's from_excel utility with the correct date system
+                excel_date = from_excel(value, date_system=self.date_mode)
+                return pd.Timestamp(excel_date)
+            except Exception as e:
+                logger.debug(f"Could not convert {value} to date: {e}")
+                # Fall through to return as numeric
             
         # Handle numeric strings with locale awareness
         if isinstance(value, str):
@@ -1242,6 +1286,113 @@ def _chunked_sparse_analysis(self, df: pd.DataFrame, chunk_size: int = 250_000) 
     
     # Merge components across chunk boundaries
     return self._merge_cross_chunk_components(components)
+```
+
+## API Documentation & Client Guidelines
+
+### Error Handling and Retry Strategy
+
+```yaml
+# OpenAPI Specification Fragment
+components:
+  responses:
+    CrossSheetMergeConflict:
+      description: Cross-sheet merges detected - manual intervention required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "cross_sheet_merges_detected"
+              message:
+                type: string
+              merges:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    range:
+                      type: string
+                    value:
+                      type: string
+              retry_with:
+                type: string
+                example: "flatten_mode"
+              x-retry-policy:
+                type: object
+                properties:
+                  should_retry:
+                    type: boolean
+                    example: false
+                  reason:
+                    type: string
+                    example: "409 errors require user intervention or configuration change"
+```
+
+### Client Implementation Guidelines
+
+```python
+class SpreadsheetAnalyzerClient:
+    """Reference client implementation with proper retry logic."""
+    
+    def analyze_spreadsheet(self, file_path: str, **options):
+        """Analyze with automatic retry handling."""
+        
+        try:
+            response = self._make_request(file_path, **options)
+            return response
+            
+        except HTTPError as e:
+            if e.response.status_code == 409:
+                # 409 Conflict - DO NOT RETRY automatically
+                error_data = e.response.json()
+                
+                if error_data.get('error') == 'cross_sheet_merges_detected':
+                    # Options for handling:
+                    # 1. Prompt user for decision
+                    # 2. Automatically retry with flatten_mode
+                    # 3. Fail and log for manual review
+                    
+                    logger.warning(
+                        f"Cross-sheet merges detected: {error_data['merges']}"
+                    )
+                    
+                    if self.auto_flatten:
+                        # Retry with flatten mode
+                        logger.info("Retrying with flatten_mode=True")
+                        return self._make_request(
+                            file_path, 
+                            flatten_mode=True,
+                            **options
+                        )
+                    else:
+                        # Re-raise for user handling
+                        raise CrossSheetMergeException(
+                            "Manual intervention required",
+                            merges=error_data['merges']
+                        )
+                        
+            elif e.response.status_code >= 500:
+                # 5xx errors - safe to retry with backoff
+                return self._retry_with_backoff(
+                    lambda: self._make_request(file_path, **options)
+                )
+            else:
+                # Other client errors - don't retry
+                raise
+```
+
+### CLI Flag Documentation
+
+```bash
+# Command-line interface options
+spreadsheet-analyzer analyze file.xlsx \
+  --allow-formulas      # Load uncalculated formulas as strings instead of failing
+  --flatten-mode        # Automatically flatten cross-sheet merges (may reduce accuracy)
+  --max-retries 3       # Number of retries for transient errors (5xx only)
+  --no-llm             # Disable LLM verification entirely (faster but less accurate)
 ```
 
 ## Conclusion
