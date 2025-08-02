@@ -8,10 +8,12 @@ Automated Excel analysis using LLM function calling with the notebook tools inte
 import argparse
 import asyncio
 import logging
+import os
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from structlog import get_logger
 
@@ -19,6 +21,15 @@ from spreadsheet_analyzer.graph_db.query_interface import (
     create_enhanced_query_interface,
 )
 from spreadsheet_analyzer.notebook_session import notebook_session
+
+# Import observability components
+from spreadsheet_analyzer.observability import (
+    PhoenixConfig,
+    get_cost_tracker,
+    initialize_cost_tracker,
+    initialize_phoenix,
+    instrument_all,
+)
 from spreadsheet_analyzer.pipeline import DeterministicPipeline
 from spreadsheet_analyzer.pipeline.types import (
     ContentAnalysis,
@@ -134,6 +145,33 @@ class StructuredFileNameGenerator:
 
         # Join parts and add extension
         return f"{'_'.join(parts)}.ipynb"
+
+    def get_cost_tracking_path(self, output_dir: Path | None = None) -> Path:
+        """Get the path for the cost tracking file."""
+        parts = [
+            self.excel_file.stem,
+            f"sheet{self.sheet_index}",
+        ]
+        if self.sheet_name:
+            parts.append(self.sheet_name)
+        parts.append(self.model)
+        parts.append(f"r{self.max_rounds}")
+        parts.append("cost_tracking")
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        parts.append(timestamp)
+
+        cost_name = f"{'_'.join(parts)}.json"
+
+        if output_dir:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            return output_dir / cost_name
+        else:
+            # Use logs directory with date organization
+            date_str = datetime.now().strftime("%Y%m%d")
+            logs_dir = Path("logs") / date_str
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            return logs_dir / cost_name
 
     def generate_log_name(self, include_timestamp: bool = True) -> str:
         """
@@ -385,6 +423,51 @@ class PipelineResultsToMarkdown:
         return md
 
 
+async def track_llm_usage(response: Any, model: str) -> None:
+    """
+    Track token usage from LLM response.
+
+    Args:
+        response: LLM response object
+        model: Model name
+    """
+    try:
+        # Extract usage metadata from response
+        usage_metadata = None
+
+        # Try different ways to get usage data based on provider
+        if hasattr(response, "usage_metadata"):
+            usage_metadata = response.usage_metadata
+        elif hasattr(response, "usage"):
+            usage_metadata = response.usage
+        elif hasattr(response, "response_metadata"):
+            usage_metadata = response.response_metadata.get("usage", {})
+
+        if usage_metadata:
+            input_tokens = (
+                usage_metadata.get("input_tokens", 0)
+                or usage_metadata.get("prompt_tokens", 0)
+                or usage_metadata.get("total_tokens", 0) // 2  # Rough estimate
+            )
+            output_tokens = (
+                usage_metadata.get("output_tokens", 0)
+                or usage_metadata.get("completion_tokens", 0)
+                or usage_metadata.get("total_tokens", 0) // 2  # Rough estimate
+            )
+
+            if input_tokens > 0 or output_tokens > 0:
+                cost_tracker = get_cost_tracker()
+                cost_tracker.track_usage(
+                    model=model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    metadata={"source": "notebook_cli"},
+                )
+
+    except Exception as e:
+        logger.debug(f"Failed to track LLM usage: {e}")
+
+
 class NotebookCLI:
     """CLI interface for automated Excel analysis with LLM integration."""
 
@@ -392,7 +475,28 @@ class NotebookCLI:
         self.parser = self._create_parser()
 
     def _create_parser(self):
-        parser = argparse.ArgumentParser(description="Automated Excel analysis using LLM function calling.")
+        parser = argparse.ArgumentParser(
+            description="Automated Excel analysis using LLM function calling with Phoenix observability.",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+Examples:
+  # Basic analysis with default model
+  %(prog)s data.xlsx
+
+  # Use specific model and sheet
+  %(prog)s data.xlsx --model gpt-4 --sheet-index 1
+
+  # Custom output location and session
+  %(prog)s data.xlsx --output-dir results --session-id analysis-001
+
+  # Configure Phoenix observability
+  %(prog)s data.xlsx --phoenix-mode docker --phoenix-host localhost
+
+  # Set cost limit
+  %(prog)s data.xlsx --cost-limit 5.0
+""",
+        )
+
         parser.add_argument("excel_file", type=Path, help="Path to the Excel file to analyze.")
         parser.add_argument(
             "--model",
@@ -430,13 +534,82 @@ class NotebookCLI:
             default=0,
             help="Index of the sheet to analyze (0-based). Default is 0 (first sheet).",
         )
+        parser.add_argument(
+            "-o",
+            "--output-dir",
+            type=Path,
+            help="Output directory for results (default: analysis_results/YYYYMMDD/)",
+        )
         parser.add_argument("--verbose", action="store_true", help="Enable verbose logging.")
+
+        # Phoenix observability options
+        phoenix_group = parser.add_argument_group("Phoenix Observability")
+        phoenix_group.add_argument(
+            "--phoenix-mode",
+            choices=["local", "cloud", "docker", "none"],
+            default="docker",
+            help="Phoenix deployment mode (default: docker)",
+        )
+        phoenix_group.add_argument(
+            "--phoenix-host",
+            default="localhost",
+            help="Phoenix host for docker mode (default: localhost)",
+        )
+        phoenix_group.add_argument(
+            "--phoenix-port",
+            type=int,
+            default=6006,
+            help="Phoenix port for local mode (default: 6006)",
+        )
+        phoenix_group.add_argument(
+            "--phoenix-api-key",
+            help="Phoenix API key for cloud mode (or set PHOENIX_API_KEY env var)",
+        )
+        phoenix_group.add_argument(
+            "--phoenix-project",
+            default="spreadsheet-analyzer",
+            help="Phoenix project name (default: spreadsheet-analyzer)",
+        )
+
+        # Cost tracking options
+        cost_group = parser.add_argument_group("Cost Tracking")
+        cost_group.add_argument(
+            "--cost-limit",
+            type=float,
+            help="Set spending limit in USD",
+        )
+        cost_group.add_argument(
+            "--track-costs",
+            action="store_true",
+            default=True,
+            help="Enable cost tracking (default: True)",
+        )
+
         return parser
 
     async def run_analysis(self, args):
         """Run the automated analysis loop."""
         # Resolve the excel file path to be absolute
         excel_path = args.excel_file.resolve()
+
+        # Initialize Phoenix observability
+        tracer_provider = None
+        if args.phoenix_mode != "none":
+            phoenix_config = PhoenixConfig(
+                mode=args.phoenix_mode,
+                host=args.phoenix_host,
+                port=args.phoenix_port,
+                api_key=args.phoenix_api_key or os.getenv("PHOENIX_API_KEY"),
+                project_name=args.phoenix_project,
+            )
+            tracer_provider = initialize_phoenix(phoenix_config)
+
+            if tracer_provider:
+                # Instrument all providers
+                results = instrument_all(tracer_provider)
+                logger.info("Phoenix instrumentation complete", results=results)
+            else:
+                logger.warning("Phoenix initialization failed, continuing without observability")
 
         # Get sheet name from Excel file if possible
         sheet_name = None
@@ -479,6 +652,14 @@ class NotebookCLI:
         llm_logger.addHandler(llm_file_handler)
         llm_logger.info(f"Starting LLM message logging for: {excel_path}")
 
+        # Initialize cost tracking
+        cost_tracking_path = file_name_generator.get_cost_tracking_path(args.output_dir)
+        if args.track_costs:
+            cost_tracker = initialize_cost_tracker(cost_limit=args.cost_limit, save_path=cost_tracking_path)
+            logger.info(f"💰 Cost tracking enabled: {cost_tracking_path}")
+            if args.cost_limit:
+                logger.info(f"💰 Cost limit set: ${args.cost_limit:.2f}")
+
         # Check if file exists
         if not excel_path.exists():
             logger.error(f"Excel file not found: {excel_path}")
@@ -514,7 +695,7 @@ class NotebookCLI:
                     cache_filename = f"{excel_path.stem}_formula_analysis.pkl"
                     formula_cache_path = cache_dir / cache_filename
 
-                    with open(formula_cache_path, "wb") as f:
+                    with formula_cache_path.open("wb") as f:
                         pickle.dump(pipeline_result.formulas, f)
 
                     logger.info(f"Saved formula analysis to cache: {formula_cache_path}")
@@ -527,8 +708,8 @@ class NotebookCLI:
                 for error in pipeline_result.errors:
                     logger.error(f"  - {error}")
 
-        except Exception as e:
-            logger.exception(f"Error running deterministic pipeline: {e}")
+        except Exception:
+            logger.exception("Error running deterministic pipeline")
             # Continue anyway - we can still create a notebook
 
         # Step 2: Create notebook and add pipeline results
@@ -811,9 +992,9 @@ All tools are available through the tool-calling interface. Use graph-based anal
                     from langchain_anthropic import ChatAnthropic
                     from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
                     from langchain_openai import ChatOpenAI
-                except ImportError as e:
-                    logger.error(f"Failed to import LangChain components: {e}")
-                    logger.error("Please install langchain-anthropic and langchain-openai packages")
+                except ImportError:
+                    logger.exception("Failed to import LangChain components")
+                    logger.info("Please install langchain-anthropic and langchain-openai packages")
                 else:
                     # Get notebook tools
                     from spreadsheet_analyzer.notebook_llm_interface import get_notebook_tools
@@ -822,8 +1003,6 @@ All tools are available through the tool-calling interface. Use graph-based anal
 
                     # Initialize LLM based on model selection
                     try:
-                        import os
-
                         if "claude" in args.model.lower():
                             api_key = args.api_key or os.getenv("ANTHROPIC_API_KEY")
                             if not api_key:
@@ -857,8 +1036,8 @@ All tools are available through the tool-calling interface. Use graph-based anal
                             # Get current notebook state in py:percent format
                             try:
                                 notebook_state = session.toolkit.export_to_percent_format()
-                            except Exception as e:
-                                logger.error(f"Failed to export notebook state: {e}")
+                            except Exception:
+                                logger.exception("Failed to export notebook state")
                                 import traceback
 
                                 traceback.print_exc()
@@ -892,6 +1071,9 @@ You can:
 Focus on deeper analysis that builds upon what's already been done.
 
 IMPORTANT: Track your progress against the completion criteria and create a final summary when done."""
+
+                            # Import session tracking
+                            from spreadsheet_analyzer.observability import add_session_metadata, phoenix_session
 
                             messages = [
                                 SystemMessage(
@@ -1131,172 +1313,211 @@ Then STOP the analysis - do not ask for further instructions."""
                                 HumanMessage(content=initial_prompt),
                             ]
 
-                            for round_num in range(1, args.max_rounds + 1):
-                                logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
+                            # Wrap analysis in session tracking
+                            with phoenix_session(
+                                session_id=session_id,
+                                user_id=None,  # Could be set from args or env
+                            ):
+                                # Add session metadata
+                                add_session_metadata(
+                                    session_id,
+                                    {
+                                        "excel_file": excel_path.name,
+                                        "sheet_index": args.sheet_index,
+                                        "sheet_name": sheet_name or f"Sheet {args.sheet_index}",
+                                        "model": args.model,
+                                        "max_rounds": args.max_rounds,
+                                        "cost_limit": args.cost_limit if args.track_costs else None,
+                                    },
+                                )
 
-                                # Log round start with clear visual delimiter
-                                llm_logger.info(f"\n{'🔄' * 40}")
-                                llm_logger.info(f"{'🔄' * 15} ROUND {round_num} - Starting Analysis {'🔄' * 15}")
-                                llm_logger.info(f"{'🔄' * 40}\n")
+                                for round_num in range(1, args.max_rounds + 1):
+                                    logger.info(f"Starting analysis round {round_num}/{args.max_rounds}")
 
-                                # Log messages being sent to LLM
-                                llm_logger.info(f"{'═' * 20} Messages to LLM {'═' * 20}")
-                                for i, msg in enumerate(messages):
-                                    msg_type = type(msg).__name__
-                                    msg_content = getattr(msg, "content", str(msg))
-                                    llm_logger.info(f"\nMessage {i + 1} ({msg_type}):\n{msg_content}")
-                                    if hasattr(msg, "tool_calls") and msg.tool_calls:
-                                        llm_logger.info(f"Tool calls: {json.dumps(msg.tool_calls, indent=2)}")
+                                    # Log round start with clear visual delimiter
+                                    llm_logger.info(f"\n{'🔄' * 40}")
+                                    llm_logger.info(f"{'🔄' * 15} ROUND {round_num} - Starting Analysis {'🔄' * 15}")
+                                    llm_logger.info(f"{'🔄' * 40}\n")
 
-                                if args.verbose:
-                                    logger.info("Sending messages to LLM:", messages=messages)
+                                    # Log messages being sent to LLM
+                                    llm_logger.info(f"{'═' * 20} Messages to LLM {'═' * 20}")
+                                    for i, msg in enumerate(messages):
+                                        msg_type = type(msg).__name__
+                                        msg_content = getattr(msg, "content", str(msg))
+                                        llm_logger.info(f"\nMessage {i + 1} ({msg_type}):\n{msg_content}")
+                                        if hasattr(msg, "tool_calls") and msg.tool_calls:
+                                            llm_logger.info(f"Tool calls: {json.dumps(msg.tool_calls, indent=2)}")
 
-                                try:
-                                    response = await llm_with_tools.ainvoke(messages)
+                                    if args.verbose:
+                                        logger.info("Sending messages to LLM:", messages=messages)
 
-                                    # Log response from LLM
-                                    llm_logger.info(f"\n{'═' * 20} LLM Response {'═' * 20}")
-                                    llm_logger.info(f"Response type: {type(response).__name__}")
-                                    llm_logger.info(f"Content: {response.content}")
-                                    if hasattr(response, "tool_calls") and response.tool_calls:
-                                        llm_logger.info(f"Tool calls: {json.dumps(response.tool_calls, indent=2)}")
+                                    try:
+                                        response = await llm_with_tools.ainvoke(messages)
 
-                                except Exception as api_error:
-                                    logger.warning(f"Primary model API call failed: {api_error}")
+                                        # Track token usage
+                                        await track_llm_usage(response, args.model)
 
-                                    # Try fallback if we haven't already
-                                    if not isinstance(llm, ChatOpenAI):
-                                        try:
-                                            logger.info("Switching to fallback model: gpt-4")
-                                            llm = ChatOpenAI(model_name="gpt-4")
-                                            llm_with_tools = llm.bind_tools(tools)
-                                            response = await llm_with_tools.ainvoke(messages)
+                                        # Log response from LLM
+                                        llm_logger.info(f"\n{'═' * 20} LLM Response {'═' * 20}")
+                                        llm_logger.info(f"Response type: {type(response).__name__}")
+                                        llm_logger.info(f"Content: {response.content}")
+                                        if hasattr(response, "tool_calls") and response.tool_calls:
+                                            llm_logger.info(f"Tool calls: {json.dumps(response.tool_calls, indent=2)}")
 
-                                            # Log response from fallback LLM
-                                            llm_logger.info(f"\n{'═' * 20} LLM Response (FALLBACK) {'═' * 20}")
-                                            llm_logger.info(f"Response type: {type(response).__name__}")
-                                            llm_logger.info(f"Content: {response.content}")
-                                            if hasattr(response, "tool_calls") and response.tool_calls:
-                                                llm_logger.info(
-                                                    f"Tool calls: {json.dumps(response.tool_calls, indent=2)}"
-                                                )
+                                    except Exception as api_error:
+                                        logger.warning(f"Primary model API call failed: {api_error}")
 
-                                        except Exception as fallback_error:
-                                            logger.error(f"Fallback model also failed: {fallback_error}")
-                                            break
-                                    else:
-                                        logger.error(f"API call failed: {api_error}")
-                                        break
-
-                                if args.verbose:
-                                    logger.info("Received response from LLM:", response=response)
-
-                                # Process tool calls
-                                tool_output_messages = []
-                                if response.tool_calls:
-                                    llm_logger.info(f"\n{'═' * 20} Tool Executions {'═' * 20}")
-                                    # Add the AI response with tool calls to the conversation first
-                                    messages.append(response)
-
-                                    for tool_call in response.tool_calls:
-                                        tool_name = tool_call.get("name")
-                                        tool_args = tool_call.get("args")
-                                        logger.info(f"LLM called tool: {tool_name}", args=tool_args)
-
-                                        # Dynamically call the tool function
-                                        tool_func = next((t for t in tools if t.name == tool_name), None)
-                                        if tool_func:
+                                        # Try fallback if we haven't already
+                                        if not isinstance(llm, ChatOpenAI):
                                             try:
-                                                tool_output = await tool_func.ainvoke(tool_args)
-                                                logger.info(f"Tool output: {tool_output}")
-                                            except Exception as tool_error:
-                                                # Log the error but continue analysis
-                                                logger.error(f"Tool execution failed: {tool_error}", exc_info=True)
-                                                tool_output = (
-                                                    f"Tool execution failed: {tool_error!s}. "
-                                                    f"Continuing analysis with alternative approach. "
-                                                    f"The analysis will proceed without this specific operation."
-                                                )
-                                                # Don't break the analysis loop - let the LLM adapt
+                                                logger.info("Switching to fallback model: gpt-4")
+                                                llm = ChatOpenAI(model_name="gpt-4")
+                                                llm_with_tools = llm.bind_tools(tools)
+                                                response = await llm_with_tools.ainvoke(messages)
 
-                                            # Log tool call and output
-                                            llm_logger.info(f"\nTOOL CALL: {tool_name}")
-                                            llm_logger.info(f"Arguments: {json.dumps(tool_args, indent=2)}")
-                                            llm_logger.info(f"Output: {tool_output}")
+                                                # Track token usage for fallback
+                                                await track_llm_usage(response, "gpt-4")
 
-                                            tool_output_messages.append(
-                                                ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
-                                            )
+                                                # Log response from fallback LLM
+                                                llm_logger.info(f"\n{'═' * 20} LLM Response (FALLBACK) {'═' * 20}")
+                                                llm_logger.info(f"Response type: {type(response).__name__}")
+                                                llm_logger.info(f"Content: {response.content}")
+                                                if hasattr(response, "tool_calls") and response.tool_calls:
+                                                    llm_logger.info(
+                                                        f"Tool calls: {json.dumps(response.tool_calls, indent=2)}"
+                                                    )
+
+                                            except Exception:
+                                                logger.exception("Fallback model also failed")
+                                                break
                                         else:
-                                            logger.warning(f"LLM tried to call unknown tool: {tool_name}")
+                                            logger.exception("API call failed")
+                                            break
 
-                                    # Add tool results to conversation
-                                    messages.extend(tool_output_messages)
+                                    if args.verbose:
+                                        logger.info("Received response from LLM:", response=response)
 
-                                elif response.content:
-                                    logger.info(f"LLM response: {response.content}")
-
-                                    # Check if the response contains patterns indicating it's asking for user input
-                                    forbidden_patterns = [
-                                        "would you like me to",
-                                        "let me know if",
-                                        "do you need",
-                                        "should i proceed",
-                                        "would you prefer",
-                                        "shall i continue",
-                                        "feel free to ask",
-                                        "if you'd like",
-                                        "please let me know",
-                                    ]
-
-                                    response_lower = response.content.lower()
-                                    if any(pattern in response_lower for pattern in forbidden_patterns):
-                                        logger.warning(
-                                            "LLM attempted to ask for user input - enforcing autonomous completion"
-                                        )
-                                        # Add a system message to remind the LLM to complete autonomously
+                                    # Process tool calls
+                                    tool_output_messages = []
+                                    if response.tool_calls:
+                                        llm_logger.info(f"\n{'═' * 20} Tool Executions {'═' * 20}")
+                                        # Add the AI response with tool calls to the conversation first
                                         messages.append(response)
-                                        messages.append(
-                                            SystemMessage(
-                                                content="""
-REMINDER: You must complete the analysis autonomously.
-- Create a final comprehensive analysis report in markdown with "## 📊 Analysis Complete"
-- Follow the required report structure (Executive Summary, Data Overview, Key Findings, etc.)
-- Include all sections: findings, data quality, statistical insights, business implications, recommendations
-- Then STOP - do not ask for further instructions
-Complete the analysis now."""
-                                            )
-                                        )
-                                        continue  # Continue to next round instead of breaking
 
-                                    # Check if analysis is complete
-                                    if (
-                                        "analysis complete" in response_lower
-                                        or "📊 analysis complete" in response_lower
-                                    ):
-                                        logger.info("Analysis marked as complete by LLM")
+                                        for tool_call in response.tool_calls:
+                                            tool_name = tool_call.get("name")
+                                            tool_args = tool_call.get("args")
+                                            logger.info(f"LLM called tool: {tool_name}", args=tool_args)
+
+                                            # Dynamically call the tool function
+                                            tool_func = next((t for t in tools if t.name == tool_name), None)
+                                            if tool_func:
+                                                try:
+                                                    tool_output = await tool_func.ainvoke(tool_args)
+                                                    logger.info(f"Tool output: {tool_output}")
+                                                except Exception as tool_error:
+                                                    # Log the error but continue analysis
+                                                    logger.exception("Tool execution failed")
+                                                    tool_output = (
+                                                        f"Tool execution failed: {tool_error!s}. "
+                                                        f"Continuing analysis with alternative approach. "
+                                                        f"The analysis will proceed without this specific operation."
+                                                    )
+                                                    # Don't break the analysis loop - let the LLM adapt
+
+                                                # Log tool call and output
+                                                llm_logger.info(f"\nTOOL CALL: {tool_name}")
+                                                llm_logger.info(f"Arguments: {json.dumps(tool_args, indent=2)}")
+                                                llm_logger.info(f"Output: {tool_output}")
+
+                                                tool_output_messages.append(
+                                                    ToolMessage(content=str(tool_output), tool_call_id=tool_call["id"])
+                                                )
+                                            else:
+                                                logger.warning(f"LLM tried to call unknown tool: {tool_name}")
+
+                                        # Add tool results to conversation
+                                        messages.extend(tool_output_messages)
+
+                                    elif response.content:
+                                        logger.info(f"LLM response: {response.content}")
+
+                                        # Check if the response contains patterns indicating it's asking for user input
+                                        forbidden_patterns = [
+                                            "would you like me to",
+                                            "let me know if",
+                                            "do you need",
+                                            "should i proceed",
+                                            "would you prefer",
+                                            "shall i continue",
+                                            "feel free to ask",
+                                            "if you'd like",
+                                            "please let me know",
+                                        ]
+
+                                        response_lower = response.content.lower()
+                                        if any(pattern in response_lower for pattern in forbidden_patterns):
+                                            logger.warning(
+                                                "LLM attempted to ask for user input - enforcing autonomous completion"
+                                            )
+                                            # Add a system message to remind the LLM to complete autonomously
+                                            messages.append(response)
+                                            messages.append(
+                                                SystemMessage(
+                                                    content="""
+    REMINDER: You must complete the analysis autonomously.
+    - Create a final comprehensive analysis report in markdown with "## 📊 Analysis Complete"
+    - Follow the required report structure (Executive Summary, Data Overview, Key Findings, etc.)
+    - Include all sections: findings, data quality, statistical insights, business implications, recommendations
+    - Then STOP - do not ask for further instructions
+    Complete the analysis now."""
+                                                )
+                                            )
+                                            continue  # Continue to next round instead of breaking
+
+                                        # Check if analysis is complete
+                                        if (
+                                            "analysis complete" in response_lower
+                                            or "📊 analysis complete" in response_lower
+                                        ):
+                                            logger.info("Analysis marked as complete by LLM")
+                                            # Log round completion
+                                            llm_logger.info(f"\n{'✅' * 40}")
+                                            llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
+                                            llm_logger.info(f"{'✅' * 40}\n")
+                                            break
+
+                                        # If no tool calls and not asking for input, the LLM is done
+                                        # Log round completion
+                                        llm_logger.info(f"\n{'✅' * 40}")
+                                        llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
+                                        llm_logger.info(f"{'✅' * 40}\n")
+                                        break
+                                    else:
+                                        logger.warning("LLM response was empty.")
                                         # Log round completion
                                         llm_logger.info(f"\n{'✅' * 40}")
                                         llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
                                         llm_logger.info(f"{'✅' * 40}\n")
                                         break
 
-                                    # If no tool calls and not asking for input, the LLM is done
-                                    # Log round completion
-                                    llm_logger.info(f"\n{'✅' * 40}")
-                                    llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
-                                    llm_logger.info(f"{'✅' * 40}\n")
-                                    break
-                                else:
-                                    logger.warning("LLM response was empty.")
-                                    # Log round completion
-                                    llm_logger.info(f"\n{'✅' * 40}")
-                                    llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
-                                    llm_logger.info(f"{'✅' * 40}\n")
-                                    break
+                    except Exception:
+                        logger.exception("Failed to initialize LLM")
 
-                    except Exception as e:
-                        logger.error(f"Failed to initialize LLM: {e}")
+            # Log cost summary if tracking enabled
+            if args.track_costs:
+                cost_summary = cost_tracker.get_summary()
+                logger.info("\n💰 Cost Summary:")
+                logger.info(f"  Total Cost: ${cost_summary['total_cost_usd']:.4f}")
+                logger.info(f"  Total Tokens: {cost_summary['total_tokens']['total']:,}")
+                if cost_summary["cost_by_model"]:
+                    logger.info("  Cost by Model:")
+                    for model, cost in cost_summary["cost_by_model"].items():
+                        logger.info(f"    {model}: ${cost:.4f}")
+                if args.cost_limit:
+                    logger.info(
+                        f"  Budget Status: {'✅ Within' if cost_summary['within_budget'] else '❌ Exceeded'} limit (${args.cost_limit:.2f})"
+                    )
 
             # Ensure notebook is saved at the end
             logger.info("Analysis complete. Saving notebook...")
