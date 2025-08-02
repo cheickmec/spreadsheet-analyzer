@@ -7,6 +7,7 @@ Automated Excel analysis using LLM function calling with the notebook tools inte
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import re
@@ -96,6 +97,18 @@ class StructuredFileNameGenerator:
                 return "gpt3"
             else:
                 return "gpt"
+        elif any(name in model_clean.lower() for name in ["ollama", "mistral", "llama", "mixtral", "codellama"]):
+            # Extract Ollama/local model variant
+            if "mistral" in model_clean.lower():
+                return "ollama_mistral"
+            elif "llama" in model_clean.lower():
+                return "ollama_llama"
+            elif "mixtral" in model_clean.lower():
+                return "ollama_mixtral"
+            elif "codellama" in model_clean.lower():
+                return "ollama_codellama"
+            else:
+                return "ollama"
         else:
             # For other models, use a simplified version
             return model_clean.split("_")[0] if "_" in model_clean else model_clean
@@ -211,7 +224,10 @@ class StructuredFileNameGenerator:
         return f"{'_'.join(parts)}.log"
 
     def generate_session_id(self) -> str:
-        """Generate a structured session ID."""
+        """Generate a structured session ID with timestamp.
+        Returns:
+            Structured session ID matching log file naming convention
+        """
         parts = [
             self.excel_file.stem,  # Excel file name
             f"sheet{self.sheet_index}",  # Sheet index
@@ -229,6 +245,10 @@ class StructuredFileNameGenerator:
 
         # Add session suffix
         parts.append("analysis_session")
+
+        # Add timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        parts.append(timestamp)
 
         return "_".join(parts)
 
@@ -644,7 +664,6 @@ Examples:
         llm_log_path = excel_path.parent / llm_log_name
 
         # Set up LLM message logging to file
-        import json
 
         llm_logger = logging.getLogger("llm_messages")
         llm_logger.setLevel(logging.DEBUG)
@@ -994,10 +1013,11 @@ All tools are available through the tool-calling interface. Use graph-based anal
                 try:
                     from langchain_anthropic import ChatAnthropic
                     from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+                    from langchain_ollama import ChatOllama
                     from langchain_openai import ChatOpenAI
                 except ImportError:
                     logger.exception("Failed to import LangChain components")
-                    logger.info("Please install langchain-anthropic and langchain-openai packages")
+                    logger.info("Please install langchain-anthropic, langchain-openai, and langchain-ollama packages")
                 else:
                     # Get notebook tools
                     from spreadsheet_analyzer.notebook_llm_interface import get_notebook_tools
@@ -1028,12 +1048,39 @@ All tools are available through the tool-calling interface. Use graph-based anal
                                     api_key=api_key,
                                     temperature=0,
                                 )
+                        elif any(
+                            name in args.model.lower()
+                            for name in [
+                                "ollama",
+                                "mistral",
+                                "llama",
+                                "mixtral",
+                                "codellama",
+                                "qwen",
+                                "deepseek",
+                                "command",
+                                "phi",
+                            ]
+                        ):
+                            # Ollama models - no tool support validation
+                            logger.info(f"Using Ollama model: {args.model}")
+                            # Extract the model name (remove "ollama:" prefix if present)
+                            model_name = (
+                                args.model.replace("ollama:", "") if args.model.startswith("ollama:") else args.model
+                            )
+
+                            # Directly create ChatOllama instance without any checks
+                            llm = ChatOllama(
+                                model=model_name,
+                                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                                temperature=0,
+                            )
                         else:
                             logger.error(f"Unsupported model: {args.model}")
                             llm = None
 
                         if llm:
-                            # Bind tools to LLM
+                            # Bind tools to LLM - let it fail loudly if not supported
                             llm_with_tools = llm.bind_tools(tools)
 
                             # Get current notebook state in py:percent format
