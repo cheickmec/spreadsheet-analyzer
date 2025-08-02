@@ -129,8 +129,13 @@ class MergeAwareLoader:
         """Load Excel with intelligent merge handling."""
         
         # Extract merge info before pandas destroys it
+        # NOTE: data_only=True means formulas are evaluated to values
+        # Formula preservation would require data_only=False + formula parsing
         wb = load_workbook(file_path, read_only=True, data_only=True)
         ws = wb[sheet_name] if sheet_name else wb.active
+        
+        # Check date system (1900 vs 1904)
+        date_mode = 1904 if wb.properties.date1904 else 1900
         
         merge_info = self._extract_merge_info(ws)
         wb.close()
@@ -183,39 +188,65 @@ class MergeAwareLoader:
                     
         return df_filled
     
-    def _normalize_value(self, value):
+    def _normalize_value(self, value, date_mode=None):
         """Normalize values from openpyxl to match pandas types."""
         
         if value is None:
             return np.nan
             
-        # Handle date/time normalization
+        # Handle date/time normalization with Excel epoch handling
         if hasattr(value, 'date'):  # datetime object from openpyxl
+            # Check for 1900 vs 1904 date system
+            if date_mode == 1904:
+                # macOS Excel default
+                logger.debug("Using 1904 date system")
             return pd.Timestamp(value)
             
-        # Handle numeric strings
+        # Handle numeric strings with locale awareness
         if isinstance(value, str):
-            # Try numeric conversion
+            # Try numeric conversion with proper error handling
             try:
-                return pd.to_numeric(value)
-            except:
+                # Handle thousands separators
+                cleaned = value.replace(',', '')
+                return pd.to_numeric(cleaned, errors='raise')
+            except ValueError as e:
+                logger.debug(f"Could not convert '{value}' to numeric: {e}")
                 # Keep as string
+                return value
+            except Exception as e:
+                logger.warning(f"Unexpected error converting '{value}': {e}")
                 return value
                 
         return value
     
-    def _handle_cross_sheet_merges(self, worksheet) -> bool:
+    def _handle_cross_sheet_merges(self, worksheet, fail_on_cross_sheet=True):
         """Detect and handle cross-sheet merges."""
+        
+        cross_sheet_merges = []
         
         # Check for 3D references in merged cells
         for merge_range in worksheet.merged_cells.ranges:
             anchor_cell = worksheet.cell(merge_range.min_row, merge_range.min_col)
             if anchor_cell.value and '!' in str(anchor_cell.value):
                 # Cross-sheet reference detected
-                logger.warning(f"Cross-sheet merge detected at {merge_range}")
-                return True
+                cross_sheet_merges.append({
+                    'range': str(merge_range),
+                    'value': str(anchor_cell.value)
+                })
         
-        return False
+        if cross_sheet_merges:
+            if fail_on_cross_sheet:
+                raise ValueError(
+                    f"Cross-sheet merges detected and not supported: {cross_sheet_merges}"
+                )
+            else:
+                # Flatten by keeping local value only
+                logger.warning(
+                    f"Cross-sheet merges flattened (accuracy may degrade): {cross_sheet_merges}"
+                )
+                return cross_sheet_merges
+        
+        return None
 ```
 
 ### Stage 1: Scalable Algorithmic Detection
@@ -277,7 +308,7 @@ class AdaptiveTableDetector:
         # Handle small datasets
         if len(features) < 20:
             # Fallback to percentile-based detection
-            return self._percentile_based_anchors(df, features)
+            return self._percentile_based_anchors(df, features, header_rows)
         
         # Fit GMM to find natural clusters
         features_array = np.array(features)
@@ -299,29 +330,69 @@ class AdaptiveTableDetector:
         for idx in range(min(10, len(df))):  # Check first 10 rows
             row = df.iloc[idx]
             
-            # Count string vs numeric
-            string_count = sum(1 for val in row if isinstance(val, str))
-            numeric_count = sum(1 for val in row if isinstance(val, (int, float)))
+            # Language-agnostic: count numeric-convertible vs non-convertible
+            numeric_convertible = 0
+            non_convertible = 0
             
-            # Header heuristics
-            if string_count > numeric_count * 2:  # Heavily string-based
-                if idx < 5:  # In typical header range
-                    header_rows.add(idx)
-                elif any(keyword in str(row).lower() for keyword in ['total', 'sum', 'average']):
-                    # Summary row, not header
-                    pass
-                else:
-                    header_rows.add(idx)
+            for val in row:
+                if pd.isna(val):
+                    continue
+                    
+                # Try to convert to numeric
+                try:
+                    pd.to_numeric(str(val).replace(',', ''))
+                    numeric_convertible += 1
+                except:
+                    non_convertible += 1
+            
+            # Header heuristics: mostly non-numeric
+            total_values = numeric_convertible + non_convertible
+            if total_values > 0:
+                non_numeric_ratio = non_convertible / total_values
+                
+                if non_numeric_ratio > 0.7:  # 70%+ non-numeric
+                    if idx < 5:  # In typical header range
+                        header_rows.add(idx)
+                    elif any(keyword in str(row).lower() for keyword in ['total', 'sum', 'average', '合計', 'итого']):
+                        # Summary row in multiple languages, not header
+                        pass
+                    else:
+                        header_rows.add(idx)
         
         return header_rows
+    
+    def _percentile_based_anchors(self, df: pd.DataFrame, features: list, header_rows: set) -> List[Anchor]:
+        """Fallback anchor detection for small datasets."""
+        
+        if not features:
+            return []
+        
+        # Convert features to array
+        features_array = np.array(features)
+        
+        # Use 90th percentile for each feature dimension
+        anchors = []
+        for i, feature_row in enumerate(features_array):
+            # Skip if this was a header
+            if i in header_rows:
+                continue
+                
+            # High missing ratio (considering merge-aware distinction)
+            if feature_row[0] > np.percentile([f[0] for f in features], 90):
+                anchors.append(Anchor('row', i, 0.8))
+            # High type diversity
+            elif feature_row[1] > np.percentile([f[1] for f in features], 90):
+                anchors.append(Anchor('row', i, 0.7))
+        
+        return anchors
     
     def _sparse_component_analysis(self, df: pd.DataFrame) -> List[Component]:
         """Memory-efficient component detection for large sheets."""
         
         n_cells = len(df) * len(df.columns)
         
-        # Use sparse matrix for large sheets
-        if n_cells > 100_000:
+        # Lower threshold for chunking to handle extreme cases
+        if n_cells > 5_000_000:  # 5M cells
             return self._chunked_sparse_analysis(df)
             
         # Build sparse adjacency matrix
@@ -425,11 +496,16 @@ class TokenEfficientLLMResolver:
             "merge_patterns": self._summarize_merges(merge_info)
         }
     
-    def _redact_samples(self, samples: list, redact: bool) -> list:
+    def _redact_samples(self, samples: list, redact: bool, salt: str = None) -> list:
         """Redact sensitive values if requested."""
         
         if not redact:
             return samples
+            
+        # Generate request-specific salt if not provided
+        if salt is None:
+            import uuid
+            salt = str(uuid.uuid4())
             
         redacted = []
         for sample in samples:
@@ -437,9 +513,10 @@ class TokenEfficientLLMResolver:
                 # Replace numbers with ranges
                 redacted.append(f"<numeric:{len(str(sample))}_digits>")
             elif isinstance(sample, str):
-                # Hash strings
+                # Hash strings with salt to prevent cross-sheet correlation
                 import hashlib
-                hash_val = hashlib.sha256(sample.encode()).hexdigest()[:8]
+                salted = f"{salt}:{sample}"
+                hash_val = hashlib.sha256(salted.encode()).hexdigest()[:8]
                 redacted.append(f"<string:hash_{hash_val}>")
             else:
                 redacted.append(f"<{type(sample).__name__}>")
@@ -667,10 +744,12 @@ class RobustDetectionService:
             return await self.pipeline.detect_chunked(file_path)
             
         except LLMError as e:
-            # Retry with exponential backoff before degrading
+            # Retry with exponential backoff + jitter before degrading
             for attempt in range(2):  # 2 retries
-                wait_time = 2 ** (attempt + 1)  # 2s, 4s
-                self.alert_manager.info(f"LLM error, retrying in {wait_time}s: {e}")
+                base_wait = 2 ** (attempt + 1)  # 2s, 4s
+                jitter = random.uniform(0, base_wait * 0.3)  # Up to 30% jitter
+                wait_time = base_wait + jitter
+                self.alert_manager.info(f"LLM error, retrying in {wait_time:.1f}s: {e}")
                 await asyncio.sleep(wait_time)
                 
                 try:
@@ -799,7 +878,21 @@ class ComplexityAssessor:
         
         # Batch update every 100 examples
         if len(self.feedback_buffer) >= 100:
+            old_threshold = self.threshold
             self._batch_update_threshold()
+            new_threshold = self.threshold
+            
+            # Log threshold changes for monitoring
+            if abs(old_threshold - new_threshold) > 0.01:
+                logger.info(
+                    "Complexity threshold updated",
+                    extra={
+                        "old_threshold": old_threshold,
+                        "new_threshold": new_threshold,
+                        "change": new_threshold - old_threshold,
+                        "feedback_samples": len(self.feedback_buffer)
+                    }
+                )
 ```
 
 ### Deployment Checklist
