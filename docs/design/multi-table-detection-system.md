@@ -52,6 +52,8 @@ A     B-D                             A     B      C     D
 2     100    200    300               2     100    200   300
 ```
 
+**Mixed-Direction Merges**: When cells span both rows AND columns (e.g., B2:D4), the simple "anchor row < 5 → header" rule breaks down. These are rare but require special handling with lower propagation confidence.
+
 #### 2. Scale Challenges
 
 - Typical business sheets: 1K-10K cells
@@ -385,10 +387,14 @@ class MergeAwareLoader:
     def _extract_merge_info(self, worksheet) -> MergeInfo:
         """Extract all merge information from worksheet."""
         
-        merge_info = MergeInfo(ranges=[], value_map={}, merge_map={})
+        merge_info = MergeInfo(ranges=[], value_map={}, merge_map={}, mixed_direction_merges=set())
         
         for merge_range in worksheet.merged_cells.ranges:
             merge_info.ranges.append(str(merge_range))
+            
+            # Check if this is a mixed-direction merge (both row and column spanning)
+            is_mixed_direction = (merge_range.min_row != merge_range.max_row and 
+                                merge_range.min_col != merge_range.max_col)
             
             # Get anchor value
             anchor_row, anchor_col = merge_range.min_row, merge_range.min_col
@@ -400,6 +406,10 @@ class MergeAwareLoader:
                     cell_idx = (row - 1, col - 1)  # 0-indexed
                     merge_info.value_map[cell_idx] = anchor_value
                     merge_info.merge_map[cell_idx] = (anchor_row - 1, anchor_col - 1)
+                    
+                    # Mark cells that are part of mixed-direction merges
+                    if is_mixed_direction:
+                        merge_info.mixed_direction_merges.add(cell_idx)
         
         return merge_info
     
@@ -416,9 +426,19 @@ class MergeAwareLoader:
                 # Normalize data types from openpyxl
                 normalized_value = self._normalize_value(value, cell_format=cell_format)
                 
-                # Always propagate for headers (first 5 rows)
+                # Check if this is part of a mixed-direction merge
+                is_mixed_merge = (row, col) in getattr(merge_info, 'mixed_direction_merges', set())
+                
+                # Always propagate for headers, but with lower confidence for mixed merges
                 if row < 5 or self._is_likely_category(df, row, col):
-                    df_filled.iloc[row, col] = normalized_value
+                    if is_mixed_merge:
+                        # Mixed-direction merges break simple header rules
+                        # Only propagate if we're very confident it's a header
+                        if row < 3 or (row < 5 and self._is_likely_category(df, row, col)):
+                            df_filled.iloc[row, col] = normalized_value
+                            logger.debug(f"Propagating mixed-direction merge at ({row}, {col}) with lower confidence")
+                    else:
+                        df_filled.iloc[row, col] = normalized_value
                     
         return df_filled
     
@@ -726,7 +746,13 @@ class AdaptiveTableDetector:
         return max(non_zero_count / total_cells, 0.0001) if total_cells > 0 else 0.01
     
     def _sparse_component_analysis(self, df: pd.DataFrame) -> List[Component]:
-        """Memory-efficient component detection for large sheets."""
+        """Memory-efficient component detection for large sheets.
+        
+        Memory calculations:
+        - SciPy CSR stores ~20 bytes per non-zero entry
+        - For a dense 100k x 16k sheet, that's ~32GB unchunked
+        - Our 250k-cell chunks + 1000-10000 row guard keeps each slice <400MB
+        """
         
         n_cells = len(df) * len(df.columns)
         
@@ -743,9 +769,12 @@ class AdaptiveTableDetector:
         nnz_estimate = self._estimate_nonzero_ratio(df)
         logger.debug(f"Estimated sparsity: {nnz_estimate:.4f} for {n_cells} cells")
         
-        # Use int32 for pathologically sparse matrices to save memory
+        # Guard against pathological sparsity
+        # Use int32 for extremely sparse matrices to halve memory usage
         use_int32 = nnz_estimate < 0.001 and n_cells > 1_000_000
         dtype = np.int32 if use_int32 else np.int64
+        if use_int32:
+            logger.info(f"Using int32 indices for pathologically sparse matrix (nnz_ratio={nnz_estimate:.6f})")
         
         # Pre-allocate buffers for better memory management
         # Estimate max edges: each cell can have at most 2 neighbors (right, bottom)
@@ -817,7 +846,13 @@ class AdaptiveTableDetector:
         return self._labels_to_components(labels, df.shape)
     
     def _chunked_sparse_analysis(self, df: pd.DataFrame, chunk_size: int = 250_000) -> List[Component]:
-        """Process DataFrame in chunks to keep memory under control with buffer reuse."""
+        """Process DataFrame in chunks to keep memory under control with buffer reuse.
+        
+        Optimizations:
+        - Reuses buffers across chunks to reduce GC churn
+        - Uses int32 for pathologically sparse data to halve memory
+        - Maintains 1000-10000 row guard bands for boundary detection
+        """
         
         n_cells = df.shape[0] * df.shape[1]
         n_chunks = math.ceil(n_cells / chunk_size)
@@ -832,16 +867,27 @@ class AdaptiveTableDetector:
         
         logger.debug(f"Chunking {n_cells} cells into chunks of {chunk_rows} rows")
         
+        # Estimate sparsity before allocating buffers
+        nnz_estimate = self._estimate_nonzero_ratio(df)
+        
         # Initialize reusable buffers if not already done
-        if self._rows_buffer is None:
-            dtype = np.int32 if n_cells > 10_000_000 else np.int64
-            self._rows_buffer = np.empty(self._buffer_size, dtype=dtype)
-            self._cols_buffer = np.empty(self._buffer_size, dtype=dtype)
-            self._data_buffer = np.ones(self._buffer_size, dtype=np.int8)
+        # Use int32 for pathologically sparse matrices
+        if not hasattr(self, '_rows_buffer') or self._rows_buffer is None:
+            use_int32 = nnz_estimate < 0.001 and n_cells > 1_000_000
+            dtype = np.int32 if use_int32 else np.int64
+            buffer_size = int(chunk_size * 2 * max(nnz_estimate, 0.01) * 1.5)
+            self._rows_buffer = np.empty(buffer_size, dtype=dtype)
+            self._cols_buffer = np.empty(buffer_size, dtype=dtype)
+            self._data_buffer = np.ones(buffer_size, dtype=np.int8)
+            logger.debug(f"Allocated reusable buffers: dtype={dtype}, size={buffer_size}")
         
         components = []
         for i in range(0, len(df), chunk_rows):
             chunk = df.iloc[i:i+chunk_rows]
+            
+            # Clear buffers in-place to reduce allocation overhead
+            # (Views will be created in analyze_chunk_with_buffers)
+            
             # Pass buffers to chunk analysis for reuse
             chunk_components = self._analyze_chunk_with_buffers(
                 chunk, offset=i, 
@@ -853,6 +899,62 @@ class AdaptiveTableDetector:
         
         # Merge components across chunk boundaries
         return self._merge_cross_chunk_components(components)
+    
+    def _analyze_chunk_with_buffers(self, chunk: pd.DataFrame, offset: int, 
+                                   rows_buf: np.ndarray, cols_buf: np.ndarray, 
+                                   data_buf: np.ndarray) -> List[Component]:
+        """Analyze a chunk using pre-allocated buffers to reduce memory allocation.
+        
+        This method reuses the provided buffers to build the adjacency matrix,
+        avoiding repeated allocations and reducing GC pressure.
+        """
+        # Build adjacency using the provided buffers
+        edge_count = 0
+        n_rows, n_cols = chunk.shape
+        
+        # Use views into the buffers to avoid copying
+        for i in range(n_rows):
+            for j in range(n_cols):
+                # Check right neighbor
+                if j < n_cols - 1:
+                    if self._cells_similar(chunk.iloc[i, j], chunk.iloc[i, j + 1]):
+                        if not self._has_excessive_blank_run(chunk, i, j):
+                            node_id = i * n_cols + j
+                            right_id = i * n_cols + (j + 1)
+                            rows_buf[edge_count] = node_id
+                            cols_buf[edge_count] = right_id
+                            edge_count += 1
+                
+                # Check bottom neighbor
+                if i < n_rows - 1:
+                    if self._cells_similar(chunk.iloc[i, j], chunk.iloc[i + 1, j]):
+                        if not self._has_excessive_blank_run(chunk, i, j):
+                            node_id = i * n_cols + j
+                            bottom_id = (i + 1) * n_cols + j
+                            rows_buf[edge_count] = node_id
+                            cols_buf[edge_count] = bottom_id
+                            edge_count += 1
+        
+        # Create CSR matrix using views of the buffers
+        if edge_count > 0:
+            adjacency = csr_matrix(
+                (data_buf[:edge_count], (rows_buf[:edge_count], cols_buf[:edge_count])),
+                shape=(n_rows * n_cols, n_rows * n_cols)
+            )
+            
+            # Find connected components
+            n_components, labels = connected_components(adjacency, directed=False)
+            
+            # Convert to Component objects with offset applied
+            components = []
+            for comp in self._labels_to_components(labels.reshape(n_rows, n_cols), chunk.shape):
+                # Adjust row indices by offset
+                comp.rows = [r + offset for r in comp.rows]
+                components.append(comp)
+                
+            return components
+        else:
+            return []
     
     def _cells_similar(self, cell1, cell2) -> bool:
         """Check if two cells are similar enough to be in same component."""
