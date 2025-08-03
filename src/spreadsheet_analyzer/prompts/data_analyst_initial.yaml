@@ -1,0 +1,34 @@
+_type: prompt
+input_variables:
+- excel_file_name
+- sheet_info
+- notebook_state
+- query_interface_note
+- query_instruction
+template: |
+  I've loaded the Excel file '{excel_file_name}'{sheet_info} into a Jupyter notebook.
+
+  ## Current Notebook State:
+  ```python
+  {notebook_state}
+  ```
+
+  The notebook already contains:
+  - Pipeline analysis results (Security, Structure, Formula Analysis)
+  - Data loaded into DataFrame 'df' with initial exploration showing shape and first rows
+  {query_interface_note}
+  - Formula analysis tools: graph-based for dependencies, formulas library for evaluation
+
+  Please continue the analysis from where it left off. **DO NOT re-execute cells that already have output.**
+
+  You can:
+  1. Execute NEW Python code to explore the data further
+  2. Use pandas operations to analyze patterns
+  3. Create visualizations if helpful
+  4. {query_instruction}
+  5. Use formulas library tools for formula evaluation and what-if analysis
+  6. Provide insights and recommendations
+
+  Focus on deeper analysis that builds upon what's already been done.
+
+  IMPORTANT: Track your progress against the completion criteria and create a final summary when done.
