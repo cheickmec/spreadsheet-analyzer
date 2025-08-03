@@ -57,6 +57,9 @@ class AnalysisConfig:
     # Cost tracking
     track_costs: bool = True
     cost_limit: float | None = None
+    # Auto-save configuration
+    auto_save_rounds: bool = True  # Save after each LLM round
+    auto_save_frequency: int = 0  # Save after N tool calls (0 = disabled)
 
 
 @dataclass(frozen=True)
@@ -670,7 +673,12 @@ async def run_notebook_analysis(config: AnalysisConfig, artifacts: AnalysisArtif
             from .llm_interaction import run_llm_analysis
 
             llm_result = await run_llm_analysis(
-                session=session, config=config, state=state, excel_path=config.excel_path, sheet_name=config.sheet_name
+                session=session,
+                config=config,
+                state=state,
+                excel_path=config.excel_path,
+                sheet_name=config.sheet_name,
+                notebook_path=artifacts.notebook_path,
             )
 
             if llm_result.is_err():
@@ -680,6 +688,18 @@ async def run_notebook_analysis(config: AnalysisConfig, artifacts: AnalysisArtif
         save_result = await save_notebook(session, artifacts.notebook_path)
         if save_result.is_err():
             logger.error(save_result.unwrap_err())
+        else:
+            # Clean up checkpoint files after successful completion
+            # CLAUDE-KNOWLEDGE: Remove checkpoints only after successful save
+            if config.auto_save_rounds:
+                checkpoint_pattern = f"{artifacts.notebook_path.stem}_checkpoint_round*.ipynb"
+                checkpoint_files = list(artifacts.notebook_path.parent.glob(checkpoint_pattern))
+                for checkpoint in checkpoint_files:
+                    try:
+                        checkpoint.unlink()
+                        logger.info(f"Removed checkpoint: {checkpoint}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove checkpoint {checkpoint}: {e}")
 
     # Step 9: Log cost summary
     if state.cost_tracker and config.track_costs:

@@ -9,6 +9,7 @@ swap providers or modify prompts without affecting core logic.
 
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,7 @@ from ..core.types import Result, err, ok
 from ..notebook_llm_interface import get_notebook_tools
 from ..notebook_session import NotebookSession
 from ..observability import add_session_metadata, phoenix_session
-from .notebook_analysis import AnalysisConfig, AnalysisState
+from .notebook_analysis import AnalysisConfig, AnalysisState, save_notebook
 
 logger = get_logger(__name__)
 
@@ -151,7 +152,7 @@ def create_system_prompt(excel_file_name: str, sheet_index: int, sheet_name: str
     system_template_path = prompts_dir / "data_analyst_system.yaml"
 
     try:
-        with open(system_template_path) as f:
+        with system_template_path.open() as f:
             prompt_data = yaml.safe_load(f)
 
         system_template = PromptTemplate(
@@ -164,8 +165,8 @@ def create_system_prompt(excel_file_name: str, sheet_index: int, sheet_name: str
             sheet_name=sheet_name or "Unknown",
             notebook_state=notebook_state,
         )
-    except Exception as e:
-        logger.error(f"Failed to load system prompt template: {e}")
+    except Exception:
+        logger.exception("Failed to load system prompt template")
         # Fallback to a minimal prompt if file loading fails
         return f"""You are an autonomous data analyst AI conducting comprehensive spreadsheet analysis.
 
@@ -211,7 +212,7 @@ def create_initial_prompt(
     )
 
     try:
-        with open(initial_template_path) as f:
+        with initial_template_path.open() as f:
             prompt_data = yaml.safe_load(f)
 
         initial_template = PromptTemplate(
@@ -225,8 +226,8 @@ def create_initial_prompt(
             query_interface_note=query_interface_note,
             query_instruction=query_instruction,
         )
-    except Exception as e:
-        logger.error(f"Failed to load initial prompt template: {e}")
+    except Exception:
+        logger.exception("Failed to load initial prompt template")
         # Fallback to a minimal prompt if file loading fails
         return f"""I've loaded the Excel file '{excel_file_name}'{sheet_info} into a Jupyter notebook.
 
@@ -319,7 +320,12 @@ def check_analysis_complete(response_content: str) -> bool:
 
 
 async def run_llm_analysis(
-    session: NotebookSession, config: AnalysisConfig, state: AnalysisState, excel_path: Any, sheet_name: str | None
+    session: NotebookSession,
+    config: AnalysisConfig,
+    state: AnalysisState,
+    excel_path: Any,
+    sheet_name: str | None,
+    notebook_path: Path,
 ) -> Result[None, str]:
     """Run LLM analysis rounds.
 
@@ -329,6 +335,7 @@ async def run_llm_analysis(
         state: Analysis state
         excel_path: Path to Excel file
         sheet_name: Optional sheet name
+        notebook_path: Path to save notebook for auto-save
 
     Returns:
         Result indicating success or failure
@@ -494,5 +501,24 @@ Complete the analysis now."""
                     state.llm_logger.info(f"{'✅' * 15} ROUND {round_num} Complete {'✅' * 15}")
                     state.llm_logger.info(f"{'✅' * 40}\n")
                 break
+
+        # CLAUDE-KNOWLEDGE: Auto-save after each round to prevent data loss
+        # Save notebook after each round completes if configured
+        if config.auto_save_rounds:
+            logger.info(f"Auto-saving notebook after round {round_num}")
+            save_result = await save_notebook(session, notebook_path)
+            if save_result.is_err():
+                logger.warning(f"Failed to auto-save notebook: {save_result.unwrap_err()}")
+                # Continue analysis even if auto-save fails
+            else:
+                logger.info(f"Notebook auto-saved successfully to {notebook_path}")
+
+                # Create checkpoint file
+                checkpoint_path = notebook_path.parent / f"{notebook_path.stem}_checkpoint_round{round_num}.ipynb"
+                try:
+                    shutil.copy2(notebook_path, checkpoint_path)
+                    logger.info(f"Created checkpoint: {checkpoint_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to create checkpoint: {e}")
 
     return ok(None)
