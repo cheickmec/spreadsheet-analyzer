@@ -17,36 +17,19 @@ from pathlib import Path
 
 from structlog import get_logger
 
-# Use absolute imports for script execution compatibility
-try:
-    from .cli.notebook_analysis import (
-        AnalysisArtifacts,
-        AnalysisConfig,
-        run_notebook_analysis,
-    )
-    from .cli.utils.naming import (
-        FileNameConfig,
-        generate_log_name,
-        generate_notebook_name,
-        generate_session_id,
-        get_cost_tracking_path,
-    )
-    from .observability import PhoenixConfig
-except ImportError:
-    # When running as a script, use absolute imports
-    from spreadsheet_analyzer.cli.notebook_analysis import (
-        AnalysisArtifacts,
-        AnalysisConfig,
-        run_notebook_analysis,
-    )
-    from spreadsheet_analyzer.cli.utils.naming import (
-        FileNameConfig,
-        generate_log_name,
-        generate_notebook_name,
-        generate_session_id,
-        get_cost_tracking_path,
-    )
-    from spreadsheet_analyzer.observability import PhoenixConfig
+from spreadsheet_analyzer.cli.notebook_analysis import (
+    AnalysisArtifacts,
+    AnalysisConfig,
+    run_notebook_analysis,
+)
+from spreadsheet_analyzer.cli.utils.naming import (
+    FileNameConfig,
+    generate_log_name,
+    generate_notebook_name,
+    generate_session_id,
+    get_cost_tracking_path,
+)
+from spreadsheet_analyzer.observability import PhoenixConfig
 
 logger = get_logger(__name__)
 
@@ -347,27 +330,12 @@ def run() -> None:
     asyncio.run(main())
 
 
-# Backward compatibility imports
-# These allow existing code to import the old classes
-try:
-    from .notebook_cli_compat import (
-        NotebookCLI,
-        PipelineResultsToMarkdown,
-        StructuredFileNameGenerator,
-    )
-except ImportError:
-    # When running as a script
-    from spreadsheet_analyzer.notebook_cli_compat import (
-        NotebookCLI,
-        PipelineResultsToMarkdown,
-        StructuredFileNameGenerator,
-    )
-
 __all__ = [
-    "NotebookCLI",
-    "PipelineResultsToMarkdown",
-    "StructuredFileNameGenerator",
+    "create_analysis_artifacts",
+    "create_analysis_config",
+    "create_parser",
     "main",
+    "parse_arguments",
     "run",
 ]
 
