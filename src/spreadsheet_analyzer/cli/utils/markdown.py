@@ -76,7 +76,7 @@ def create_header(result: PipelineResult) -> str:
 
 **File:** `{result.context.file_path.name}`
 **Analysis Date:** {timestamp}
-**Processing Time:** {result.context.total_duration:.2f}s"""
+**Processing Time:** {result.execution_time:.2f}s"""
 
 
 def integrity_to_markdown(integrity: IntegrityResult) -> str:
@@ -171,8 +171,6 @@ def structure_to_markdown(structure: WorkbookStructure, security: SecurityReport
         hidden_count = sum(
             1 for threat in security.threats if threat.threat_type in ("HIDDEN_SHEET", "VERY_HIDDEN_SHEET")
         )
-
-    total_with_hidden = structure.sheet_count + hidden_count
 
     md = f"""## 📋 Workbook Structure
 
@@ -320,3 +318,37 @@ def should_show_security(security: SecurityReport) -> bool:
         True if security section should be displayed
     """
     return security.risk_level not in ("LOW", "NONE")
+
+
+def create_summary(pipeline_result: PipelineResult) -> str:
+    """Create a summary markdown section.
+
+    Args:
+        pipeline_result: Complete pipeline result
+
+    Returns:
+        Summary markdown string
+    """
+    md = "## 📌 Analysis Summary\n\n"
+
+    if pipeline_result.errors:
+        md += "### ❌ Errors Encountered:\n"
+        for error in pipeline_result.errors:
+            md += f"- {error}\n"
+        md += "\n"
+
+    md += "### ✅ Completed Analysis Stages:\n"
+    if pipeline_result.integrity:
+        md += "- ✓ File Integrity Check\n"
+    if pipeline_result.security:
+        md += "- ✓ Security Scan\n"
+    if pipeline_result.structure:
+        md += "- ✓ Structural Analysis\n"
+    if pipeline_result.formulas:
+        md += "- ✓ Formula Analysis\n"
+    if pipeline_result.content:
+        md += "- ✓ Content Intelligence\n"
+
+    md += "\n---\n\n*This analysis was generated using the deterministic pipeline. Additional interactive analysis can be performed using the cells below.*"
+
+    return md
