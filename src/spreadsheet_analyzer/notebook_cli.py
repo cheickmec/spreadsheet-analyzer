@@ -298,10 +298,6 @@ async def main() -> None:
     # Parse arguments
     args = parse_arguments()
 
-    # Create logger with model-specific name
-    global logger
-    logger = get_logger(f"notebook_cli.{args.model}")
-
     # Create configuration
     config = create_analysis_config(args)
 
@@ -309,7 +305,7 @@ async def main() -> None:
     artifacts = create_analysis_artifacts(config)
 
     # Log startup information
-    logger.info("Starting notebook-based Excel analysis")
+    logger.info("Starting notebook-based Excel analysis", model=config.model)
     logger.info(f"Excel file: {config.excel_path}")
     logger.info(f"Model: {config.model}")
     logger.info(f"Session ID: {artifacts.session_id}")
@@ -328,16 +324,6 @@ async def main() -> None:
 def run() -> None:
     """Run the CLI application."""
     asyncio.run(main())
-
-
-__all__ = [
-    "create_analysis_artifacts",
-    "create_analysis_config",
-    "create_parser",
-    "main",
-    "parse_arguments",
-    "run",
-]
 
 
 if __name__ == "__main__":
