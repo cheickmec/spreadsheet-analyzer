@@ -221,7 +221,7 @@ class HierarchicalContextCompressor:
                 if len(exploration_buffer) > 3:
                     summary = self._create_exploration_summary(exploration_buffer)
                     # Use tool_call_id from first message in buffer, or generate new one
-                    first_tool_call_id = getattr(exploration_buffer[0], 'tool_call_id', str(uuid.uuid4()))
+                    first_tool_call_id = getattr(exploration_buffer[0], "tool_call_id", str(uuid.uuid4()))
                     compressed.append(ToolMessage(content=summary, tool_call_id=first_tool_call_id))
                     exploration_buffer = []
                 compressed.append(msg)
