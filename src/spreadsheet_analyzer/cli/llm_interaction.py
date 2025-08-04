@@ -80,8 +80,12 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
                 "gemini-flash": "gemini-2.5-flash-latest",  # Default to 2.5
             }
 
-            # Use mapped name if available, otherwise use as-is
-            actual_model = model_mapping.get(model.lower(), model)
+            # Use mapped name if available, otherwise use lowercase version of original
+            actual_model = model_mapping.get(model.lower(), model.lower())
+
+            # Add a CLAUDE-KNOWLEDGE comment to explain model mapping
+            # CLAUDE-KNOWLEDGE: Model aliases provide user-friendly names that map to official Gemini model IDs
+            # Supports both lowercase and mixed-case inputs for convenience
 
             logger.info(f"Using Gemini model: {actual_model}")
 
