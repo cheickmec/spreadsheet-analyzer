@@ -9,6 +9,7 @@ preserving maximum useful context while staying within model limits.
 
 import logging
 import re
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -187,10 +188,15 @@ class HierarchicalContextCompressor:
         for pattern, contents in pattern_groups.items():
             if len(contents) > 2:
                 summary = f"[Consolidated {len(contents)} similar operations: {pattern}]"
-                compressed.append(ToolMessage(content=summary))
+                # Create a new ToolMessage with the content of the first message's tool call ID
+                first_message = next((msg for msg in messages if isinstance(msg, ToolMessage)), None)
+                tool_call_id = first_message.tool_call_id if first_message else str(uuid.uuid4())
+                compressed.append(ToolMessage(content=summary, tool_call_id=tool_call_id))
             else:
                 for content in contents:
-                    compressed.append(ToolMessage(content=content))
+                    first_message = next((msg for msg in messages if isinstance(msg, ToolMessage)), None)
+                    tool_call_id = first_message.tool_call_id if first_message else str(uuid.uuid4())
+                    compressed.append(ToolMessage(content=content, tool_call_id=tool_call_id))
 
         return compressed
 
@@ -214,7 +220,9 @@ class HierarchicalContextCompressor:
                 # Flush exploration buffer if we have accumulated enough
                 if len(exploration_buffer) > 3:
                     summary = self._create_exploration_summary(exploration_buffer)
-                    compressed.append(ToolMessage(content=summary))
+                    # Use tool_call_id from first message in buffer, or generate new one
+                    first_tool_call_id = getattr(exploration_buffer[0], 'tool_call_id', str(uuid.uuid4()))
+                    compressed.append(ToolMessage(content=summary, tool_call_id=first_tool_call_id))
                     exploration_buffer = []
                 compressed.append(msg)
 
