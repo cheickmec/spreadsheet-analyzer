@@ -17,6 +17,7 @@ import yaml
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import PromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from structlog import get_logger
@@ -63,6 +64,33 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
                 model_name=model,
                 api_key=api_key,
                 temperature=0,
+            )
+            return ok(llm)
+
+        elif "gemini" in model.lower():
+            api_key = api_key or os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                return err("No API key provided. Set GEMINI_API_KEY or use --api-key")
+
+            # Map common model names to official Gemini model IDs
+            model_mapping = {
+                "gemini-2.5-pro": "gemini-2.5-pro-latest",
+                "gemini-2.5-flash": "gemini-2.5-flash-latest",
+                "gemini-pro": "gemini-2.5-pro-latest",  # Default to 2.5
+                "gemini-flash": "gemini-2.5-flash-latest",  # Default to 2.5
+            }
+
+            # Use mapped name if available, otherwise use as-is
+            actual_model = model_mapping.get(model.lower(), model)
+
+            logger.info(f"Using Gemini model: {actual_model}")
+
+            llm = ChatGoogleGenerativeAI(
+                model=actual_model,
+                api_key=api_key,
+                temperature=0,
+                max_tokens=None,  # Let Gemini use its default
+                max_retries=2,
             )
             return ok(llm)
 
