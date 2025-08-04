@@ -123,7 +123,9 @@ class HierarchicalContextCompressor:
         self.compression_stats["levels_applied"] = compression_level + 1
 
         # Log compression results
-        compressed_chars = sum(len(msg.content) for msg in compressed if hasattr(msg, "content") and msg.content is not None)
+        compressed_chars = sum(
+            len(msg.content) for msg in compressed if hasattr(msg, "content") and msg.content is not None
+        )
         reduction_pct = (1 - compressed_chars / total_chars) * 100 if total_chars > 0 else 0
         llm_logger.info(f"After Compression: {len(compressed)} messages, ~{compressed_chars // 4} tokens")
         llm_logger.info(f"Actual Reduction: {reduction_pct:.1f}%")
