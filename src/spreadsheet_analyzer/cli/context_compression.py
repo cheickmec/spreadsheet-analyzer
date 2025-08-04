@@ -116,14 +116,14 @@ class HierarchicalContextCompressor:
         llm_logger.info(f"Estimated Reduction: {level.estimated_reduction * 100:.0f}%")
 
         # Log initial message stats
-        total_chars = sum(len(msg.content) for msg in messages if hasattr(msg, "content"))
+        total_chars = sum(len(msg.content) for msg in messages if hasattr(msg, "content") and msg.content is not None)
         llm_logger.info(f"Before Compression: {len(messages)} messages, ~{total_chars // 4} tokens")
 
         compressed = level.compress_func(messages, reduction_target)
         self.compression_stats["levels_applied"] = compression_level + 1
 
         # Log compression results
-        compressed_chars = sum(len(msg.content) for msg in compressed if hasattr(msg, "content"))
+        compressed_chars = sum(len(msg.content) for msg in compressed if hasattr(msg, "content") and msg.content is not None)
         reduction_pct = (1 - compressed_chars / total_chars) * 100 if total_chars > 0 else 0
         llm_logger.info(f"After Compression: {len(compressed)} messages, ~{compressed_chars // 4} tokens")
         llm_logger.info(f"Actual Reduction: {reduction_pct:.1f}%")
@@ -178,25 +178,21 @@ class HierarchicalContextCompressor:
                     pattern = self._extract_pattern(content)
                     if pattern not in pattern_groups:
                         pattern_groups[pattern] = []
-                    pattern_groups[pattern].append(content)
+                    pattern_groups[pattern].append(msg)  # Store the full message, not just content
                 else:
                     compressed.append(msg)
             else:
                 compressed.append(msg)
 
         # Consolidate pattern groups
-        for pattern, contents in pattern_groups.items():
-            if len(contents) > 2:
-                summary = f"[Consolidated {len(contents)} similar operations: {pattern}]"
-                # Create a new ToolMessage with the content of the first message's tool call ID
-                first_message = next((msg for msg in messages if isinstance(msg, ToolMessage)), None)
-                tool_call_id = first_message.tool_call_id if first_message else str(uuid.uuid4())
-                compressed.append(ToolMessage(content=summary, tool_call_id=tool_call_id))
+        for pattern, msgs in pattern_groups.items():
+            if len(msgs) > 2:
+                summary = f"[Consolidated {len(msgs)} similar operations: {pattern}]"
+                # Use tool_call_id from first message in the group
+                compressed.append(ToolMessage(content=summary, tool_call_id=msgs[0].tool_call_id))
             else:
-                for content in contents:
-                    first_message = next((msg for msg in messages if isinstance(msg, ToolMessage)), None)
-                    tool_call_id = first_message.tool_call_id if first_message else str(uuid.uuid4())
-                    compressed.append(ToolMessage(content=content, tool_call_id=tool_call_id))
+                # Add all messages if there are 2 or fewer
+                compressed.extend(msgs)
 
         return compressed
 
@@ -394,7 +390,7 @@ def estimate_compression_reduction(messages: list[Any], level: int) -> int:
         return 0
 
     compression = compressor.compression_hierarchy[level]
-    total_chars = sum(len(msg.content) for msg in messages if hasattr(msg, "content"))
+    total_chars = sum(len(msg.content) for msg in messages if hasattr(msg, "content") and msg.content is not None)
     # Rough estimate: 4 chars per token
     estimated_tokens = total_chars // 4
     return int(estimated_tokens * compression.estimated_reduction)

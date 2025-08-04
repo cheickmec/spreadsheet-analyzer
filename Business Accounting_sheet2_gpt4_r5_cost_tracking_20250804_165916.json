@@ -1,0 +1,76 @@
+{
+  "summary": {
+    "total_cost_usd": 0.0,
+    "total_tokens": {
+      "input": 23703,
+      "output": 278,
+      "total": 23981
+    },
+    "cost_by_model": {
+      "gpt-4": 0.0
+    },
+    "tokens_by_model": {
+      "gpt-4": {
+        "input": 23703,
+        "output": 278,
+        "total": 23981
+      }
+    },
+    "call_count": 3,
+    "cost_limit": null,
+    "within_budget": true
+  },
+  "history": [
+    {
+      "timestamp": "2025-08-04T16:59:26.690473",
+      "model": "gpt-4",
+      "tokens": {
+        "input": 7570,
+        "output": 117,
+        "total": 7687
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    },
+    {
+      "timestamp": "2025-08-04T16:59:54.882813",
+      "model": "gpt-4",
+      "tokens": {
+        "input": 7976,
+        "output": 125,
+        "total": 8101
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    },
+    {
+      "timestamp": "2025-08-04T17:00:40.009455",
+      "model": "gpt-4",
+      "tokens": {
+        "input": 8157,
+        "output": 36,
+        "total": 8193
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    }
+  ]
+}

@@ -610,7 +610,7 @@ async def _call_llm_with_compression(llm_with_tools, messages, config, state, fo
 
             if is_context_error and compression_level < max_compression_levels - 1:
                 logger.warning(
-                    f"Context window exceeded, applying compression level {compression_level + 1}: "
+                    f"Context window exceeded, applying compression level {compression_level}: "
                     f"{compressor.compression_hierarchy[compression_level].name}"
                 )
 
@@ -618,7 +618,7 @@ async def _call_llm_with_compression(llm_with_tools, messages, config, state, fo
                     state.llm_logger.info(f"\n{'❌' * 20} CONTEXT ERROR DETECTED {'❌' * 20}")
                     state.llm_logger.info(f"Error: {str(e)[:200]}...")
                     state.llm_logger.info(
-                        f"Applying compression level {compression_level + 1}: "
+                        f"Applying compression level {compression_level}: "
                         f"{compressor.compression_hierarchy[compression_level].name}"
                     )
 
