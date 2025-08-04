@@ -25,6 +25,7 @@ from ..core.types import Result, err, ok
 from ..notebook_llm_interface import get_notebook_tools
 from ..notebook_session import NotebookSession
 from ..observability import add_session_metadata, phoenix_session
+from .context_compression import HierarchicalContextCompressor
 from .notebook_analysis import AnalysisConfig, AnalysisState, save_notebook
 
 logger = get_logger(__name__)
@@ -425,24 +426,27 @@ async def run_llm_analysis(
             if config.verbose:
                 logger.info("Sending messages to LLM:", messages=messages)
 
-            try:
-                # Call LLM
-                response = await llm_with_tools.ainvoke(messages)
+            # Try to call LLM with progressive compression on context errors
+            response, compressed_messages = await _call_llm_with_compression(llm_with_tools, messages, config, state)
 
-                # Track usage
-                await track_llm_usage(response, config.model)
-
-                # Log response
-                if state.llm_logger:
-                    state.llm_logger.info(f"\n{'═' * 20} LLM Response {'═' * 20}")
-                    state.llm_logger.info(f"Response type: {type(response).__name__}")
-                    state.llm_logger.info(f"Content: {response.content}")
-                    if hasattr(response, "tool_calls") and response.tool_calls:
-                        state.llm_logger.info(f"Tool calls: {json.dumps(response.tool_calls, indent=2)}")
-
-            except Exception:
-                logger.exception("Model API call failed")
+            if response is None:
+                logger.error("Failed to get LLM response even with maximum compression")
                 break
+
+            # Update messages if compression was applied
+            if compressed_messages is not None:
+                messages = compressed_messages
+
+            # Track usage
+            await track_llm_usage(response, config.model)
+
+            # Log response
+            if state.llm_logger:
+                state.llm_logger.info(f"\n{'═' * 20} LLM Response {'═' * 20}")
+                state.llm_logger.info(f"Response type: {type(response).__name__}")
+                state.llm_logger.info(f"Content: {response.content}")
+                if hasattr(response, "tool_calls") and response.tool_calls:
+                    state.llm_logger.info(f"Tool calls: {json.dumps(response.tool_calls, indent=2)}")
 
             if config.verbose:
                 logger.info("Received response from LLM:", response=response)
@@ -460,6 +464,35 @@ async def run_llm_analysis(
 
             elif response.content:
                 logger.info(f"LLM response: {response.content}")
+
+                # Check if this might be a context limit issue
+                # If we expect tool calls but get very short content, it might be hitting token limit
+                if len(response.content) < 200 and round_num < config.max_rounds:
+                    logger.warning(
+                        f"Received unusually short response ({len(response.content)} chars), may be hitting context limit"
+                    )
+
+                    # Try compression and retry
+                    logger.info("Attempting to compress context and retry...")
+                    if state.llm_logger:
+                        state.llm_logger.info("\n⚠️ SHORT RESPONSE DETECTED - Possible context limit reached")
+                        state.llm_logger.info(f"Response was only {len(response.content)} characters")
+                        state.llm_logger.info("Attempting context compression to recover...")
+
+                    response_retry, compressed_messages_retry = await _call_llm_with_compression(
+                        llm_with_tools, messages, config, state, force_compression_level=1
+                    )
+
+                    if response_retry and hasattr(response_retry, "tool_calls") and response_retry.tool_calls:
+                        logger.info("Successfully recovered with compression!")
+                        response = response_retry
+                        if compressed_messages_retry:
+                            messages = compressed_messages_retry
+                        # Process the tool calls as normal
+                        messages.append(response)
+                        tool_output_messages = await process_tool_calls(tools, response, state.llm_logger)
+                        messages.extend(tool_output_messages)
+                        continue
 
                 # Check for forbidden patterns
                 if check_forbidden_patterns(response.content):
@@ -522,3 +555,81 @@ Complete the analysis now."""
                     logger.warning(f"Failed to create checkpoint: {e}")
 
     return ok(None)
+
+
+async def _call_llm_with_compression(llm_with_tools, messages, config, state, force_compression_level=0):
+    """Call LLM with progressive compression on context errors.
+
+    Args:
+        llm_with_tools: LLM instance with tools bound
+        messages: Current message list
+        config: Analysis configuration
+        state: Analysis state
+        force_compression_level: Start at this compression level (default 0)
+
+    Returns:
+        Tuple of (LLM response, compressed messages) or (None, None) if all attempts fail
+    """
+    compressor = HierarchicalContextCompressor()
+    compression_level = force_compression_level
+    max_compression_levels = 7
+
+    # Make a copy of messages to avoid modifying the original
+    compressed_messages = messages.copy()
+
+    while compression_level < max_compression_levels:
+        try:
+            # Attempt to call LLM
+            response = await llm_with_tools.ainvoke(compressed_messages)
+
+            if compression_level > 0:
+                logger.info(f"Successfully sent request after {compression_level} compression levels")
+                if state.llm_logger:
+                    state.llm_logger.info(f"Applied {compression_level} compression levels to fit context window")
+
+            return response, compressed_messages if compression_level > 0 else None
+
+        except Exception as e:
+            error_str = str(e).lower()
+
+            # Check if this is a context length error
+            # Different providers have different error messages
+            context_error_patterns = [
+                "context length",
+                "context window",
+                "token limit",
+                "maximum context",
+                "too many tokens",
+                "exceeds maximum",
+                "model's maximum context",
+                "reduce the length",
+                "messages too long",
+            ]
+
+            is_context_error = any(pattern in error_str for pattern in context_error_patterns)
+
+            if is_context_error and compression_level < max_compression_levels - 1:
+                logger.warning(
+                    f"Context window exceeded, applying compression level {compression_level}: "
+                    f"{compressor.compression_hierarchy[compression_level].name}"
+                )
+
+                if state.llm_logger:
+                    state.llm_logger.info(f"\n{'❌' * 20} CONTEXT ERROR DETECTED {'❌' * 20}")
+                    state.llm_logger.info(f"Error: {str(e)[:200]}...")
+                    state.llm_logger.info(
+                        f"Applying compression level {compression_level}: "
+                        f"{compressor.compression_hierarchy[compression_level].name}"
+                    )
+
+                # Apply next level of compression
+                compressed_messages = compressor.compress_messages(compressed_messages, compression_level)
+                compression_level += 1
+
+            else:
+                # Not a context error or max compression reached
+                logger.exception(f"LLM API call failed: {e}")
+                return None, None
+
+    logger.error("Exhausted all compression levels")
+    return None, None

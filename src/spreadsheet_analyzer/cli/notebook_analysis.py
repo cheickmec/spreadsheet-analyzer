@@ -60,6 +60,9 @@ class AnalysisConfig:
     # Auto-save configuration
     auto_save_rounds: bool = True  # Save after each LLM round
     auto_save_frequency: int = 0  # Save after N tool calls (0 = disabled)
+    # Context compression configuration
+    enable_compression: bool = True  # Enable progressive context compression
+    compression_verbose: bool = False  # Log detailed compression info
 
 
 @dataclass(frozen=True)
