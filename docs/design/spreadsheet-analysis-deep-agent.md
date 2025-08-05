@@ -1,143 +1,104 @@
-# Spreadsheet Analysis Deep Agent — **Design Document**
+# Design Document
+
+**Spreadsheet Deep-Analysis Agent System (Microsoft AutoGen)**
 
 ______________________________________________________________________
 
 ## 1 Context & Motivation
 
-Excel files often combine **multiple disparate tables per sheet** and **complex cross‑sheet / cross‑workbook formulas**. Analysts need accurate lineage and robust profiling, yet existing loaders (e.g., `pandas.read_excel`) flatten structure and ignore formulas. We propose an **AutoGen‑based multi‑agent pipeline** that fully explains any workbook — tables, formulas, statistics — while keeping every code step reproducible in notebooks.
+Spreadsheets remain the **dominant self-service analytics tool in business**, yet they routinely evolve into semi-programs: dozens of worksheets, thousands of formulas, opaque links to external files, and multiple unrelated tables jammed into a single grid. Finance teams, auditors, data scientists, and regulators all struggle with the same pain points:
+
+| Pain Point                                                          | Why It Matters                                           |
+| ------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Hidden logic** – business rules live in formulas nobody remembers | Bugs propagate unnoticed; Sox/FDA audits fail            |
+| **Multiple tables per sheet** – no explicit schema                  | Automated loaders mis-parse, leading to data loss        |
+| **Cross-sheet & cross-file links**                                  | A single broken external workbook silently corrupts KPIs |
+| **Manual, error-prone review**                                      | High-value analysts spend hours eyeballing cells         |
+
+Existing tools attack fragments of the problem (table inference heuristics, separate lineage linters, basic descriptive stats) but **no end-to-end system "understands" the entire workbook** and produces a reproducible, code-backed analysis.
+
+**Vision** Architect an *AI-native pipeline* that ingests any Excel workbook and, through a team of specialised AutoGen agents—each with its own isolated Jupyter kernel—**discovers structure, maps dependencies, analyses every dataset, and emits a human-readable + machine-consumable explanation of the file**.
+The outcome is a turnkey artefact you can hand to auditors, BI teams, or downstream ETL jobs to eliminate manual spelunking and boost trust in spreadsheet-driven processes.
 
 ______________________________________________________________________
 
-## 2 Goals & Non‑Goals
+## 2 Goals & Non-Goals
 
-| Goals                                                      | Out‑of‑Scope                              |
-| ---------------------------------------------------------- | ----------------------------------------- |
-| Detect every table via an LLM agent (no rule heuristics).  | Extract charts, images, or VBA.           |
-| Build a whole‑workbook formula graph incl. external links. | Execute Excel macros.                     |
-| Isolate **each agent in its own Docker Jupyter kernel**.   | Real‑time co‑editing while pipeline runs. |
-| Persist artefacts so agents communicate via files.         | Threshold‑based ML gating (removed).      |
+| Goals                                                                               | Out of Scope                                                  |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Detect every rectangular table and classify it semantically (LLM-only).             | Detecting charts, images, or embedded VBA code (future work). |
+| Build a *whole-workbook* formula dependency graph, including external links.        | Executing Excel macros.                                       |
+| Run deep statistical/ML analysis on each detected table—no size thresholds.         | Real-time collaborative editing while agents run.             |
+| Produce a version-controlled Jupyter notebook per agent + a unified final report.   | Custom UI dashboards (left to consuming apps).                |
+| Provide observability, guardrails, and artefact persistence without kernel sharing. | Multi-language (non-Python) kernels.                          |
 
 ______________________________________________________________________
 
-## 3 High‑Level Architecture
+## 3 Proposed Architecture (High Level)
 
 ```
-User → Supervisor Agent
-        ├── Sheet‑Executor (one per sheet, light wrapper)
-        │     ├── Multi‑Table‑Detection Agent   (LLM‑only)
-        │     ├── Formula‑Graph Agent           (Python)
-        │     └── N × Data‑Analysis Agents      (Python, per table)
-        └── Workbook‑Synthesiser Agent          (Python)
-
-All agents --> Artefact Store (table_meta.json, graph.pkl, analysis/*.json)
-Tracing & Guardrails (OpenTelemetry, Langfuse, Docker resource limits)
+Excel Workbook
+      │
+      ▼
+Supervisor Agent ──▶  Sheet-Executor (one per sheet)
+      │                   ├── Multi-Table-Detection Agent  (LLM-only)
+      │                   ├── Formula-Graph Agent          (code)
+      │                   └── N × Data-Analysis Agents     (code, per table)
+      │
+      ▼
+Workbook-Synthesiser Agent  ──▶ Final Markdown + JSON + lineage graphs
 ```
+
+Every **agent runs in its own Docker-backed Jupyter kernel**, guaranteeing isolation while persisting artefacts (JSON, pickle, parquet) to a shared object store for downstream consumers.
 
 ______________________________________________________________________
 
-## 4 Agent Catalogue (Detailed)
-
-Each subsection follows **Purpose → Inputs → Outputs → Internal Flow → Kernel / Runtime**.
+## 4 Agent Catalogue
 
 ### 4.1 Supervisor Agent
 
-- **Purpose** – Orchestrate the run: load workbook, spawn Sheet‑Executors, collate results.
+*Purpose* Entry point; spawns one **Sheet-Executor** per worksheet, aggregates status.
+*Inputs* Excel binary. *Outputs* Global run log, error map.
 
-- **Inputs** – File path (xlsx/xlsm), config flags.
+### 4.2 Sheet-Executor (Wrapper)
 
-- **Outputs** – Return status, path to final artefacts.
+*Flow* Sequentially invokes Section 4.3 → 4.4 → 4.5 agents for its sheet.
+*Kernel* Ephemeral Docker image (`python:3.12-slim`, pandas, openpyxl).
 
-- **Flow** –
+### 4.3 Multi-Table-Detection Agent (LLM-only)
 
-  1. Validate file integrity.
-  1. For each worksheet → spin up Sheet‑Executor.
-  1. After all sheets finish → launch Workbook‑Synthesiser.
+*Prompt highlights*
 
-- **Kernel** – Lightweight Python process (no Jupyter kernel needed).
+- "Identify every contiguous rectangular region that forms a coherent table."
+- "Validate by sampling rows for consistent column counts and data types."
+- Output JSON: `{table_id, range, columns[], semantic_hint}`.
+  *No heuristics or thresholds*; reasoning is delegated entirely to the LLM.
+  *Artefacts* `tables.json` per sheet.
 
-### 4.2 Sheet‑Executor *(Wrapper)*
+### 4.4 Formula-Graph Agent
 
-- **Purpose** – Sequentially run the three per‑sheet agents; handle artefact paths.
-- **Inputs** – Worksheet object.
-- **Outputs** – Aggregated per‑sheet folder under artefact store.
-- **Kernel** – None (delegates to child agents).
+*Scope* Parses *all* formulas across the workbook **once**, expands cross-sheet & external references, detects cycles, flags volatile functions.
+*Stack* `formulas` → `excel-dependency-graph` → NetworkX.
+*Artefacts* `graph.pkl` and `graph_adj.json` for random-access lineage queries.
+*Runs* Immediately after 4.3 so Data-Analysis Agents can query lineage.
 
-### 4.3 Multi‑Table‑Detection Agent
+### 4.5 Data-Analysis Agent
 
-- **Purpose** – Locate every rectangular table using LLM reasoning.
+*Per table* Loads the table, performs schema inference, descriptive stats, optional ML (clustering/regression) **regardless of size**.
+*Uses* Formula graph helper to explain derived cells ("Column E is `C*D`").
+*Outputs* Notebook cells + `analysis_{table_id}.json`.
 
-- **Inputs** – Sheet dataframe (CSV serialised), system prompt with deep‑scan checklist.
+### 4.6 Workbook-Synthesiser Agent
 
-- **Outputs** – `table_meta.json` with `{table_id, range, columns, semantic_hint}` per table.
+*Aggregates* All artefacts, builds a narrative markdown report, embeds SVG of formula graph, lists external link health, and emits a machine-readable manifest.
 
-- **Internal Flow** –
+### 4.7 Prompt-Manager (Service)
 
-  1. Prompt instructs model to examine headers, data types, blank row/col patterns.
-  1. Model self‑audits by sampling three random rows; if schema mismatches, it revises ranges.
-  1. Emits final JSON.
+Version-controlled prompt store; injects context into 4.3 and 4.5 agents.
 
-- **Kernel** – Docker Jupyter kernel via `JupyterCodeExecutor` (hosts helper code only; LLM decides boundaries).
+### 4.8 Observability & Guardrails
 
-### 4.4 Formula‑Graph Agent
-
-- **Purpose** – Build/merge a **whole‑workbook** dependency DAG capturing cross‑sheet & external edges.
-
-- **Inputs** – Worksheet object, existing `graph.pkl` (may be empty).
-
-- **Outputs** – Updated `graph.pkl` (NetworkX), `adjacency.json` (lightweight view).
-
-- **Internal Flow** –
-
-  1. Parse all formulas via `formulas` lib.
-  1. Resolve references: same sheet, cross sheet, `[Workbook]Sheet` external, 3‑D ranges, named ranges.
-  1. Tag nodes: `external:true`, `external_missing:true`, `volatile:true`.
-  1. Detect cycles; write `cycles.csv` for future Error‑Fix agent.
-
-- **Kernel** – Dedicated Docker Jupyter kernel (Python scripts only).
-
-### 4.5 Data‑Analysis Agent *(one per table)*
-
-- **Purpose** – Profile and model the table.
-
-- **Inputs** – Table range, full dataframe slice, `graph.pkl` for lineage.
-
-- **Outputs** – `analysis/{table_id}.json`, markdown narrative, charts embedded in notebook.
-
-- **Internal Flow** –
-
-  1. Schema inference (dtype, nulls, uniqueness).
-  1. Descriptive stats & visualisations.
-  1. ML module: if numeric target exists → regression; if categorical → classification/clustering. **Runs unconditionally**.
-  1. Use lineage helpers (`get_precedents(cell)`) to explain derived metrics.
-
-- **Kernel** – Own Docker Jupyter; heavy libs (pandas, sklearn) installed.
-
-### 4.6 Workbook‑Synthesiser Agent
-
-- **Purpose** – Consolidate per‑sheet/table artefacts and compile final deliverables.
-
-- **Inputs** – All artefacts + `graph.pkl`.
-
-- **Outputs** – `final_report.md`, `influence_diagram.svg`, `manifest.json`.
-
-- **Internal Flow** –
-
-  1. Load table metadata, analysis summaries, and graph.
-  1. Generate high‑level description (workbook purpose, sheet relationships).
-  1. Highlight *Broken External Links* and *Circular References* (red edges).
-  1. Save files; notify supervisor.
-
-- **Kernel** – Docker Jupyter (lightweight).
-
-### 4.7 Prompt Manager (Supporting Service)
-
-- Stores versioned JSON prompts; ships Operator Glossary snapshot; updates glossary online if allowed.
-
-### 4.8 Observability & Guardrails (Cross‑cutting)
-
-- OpenTelemetry instrumentation; Langfuse sink.
-- Docker CPU/RAM quotas; import blacklist pre‑exec.
-- PII redaction before LLM calls.
+Cross-cutting AutoGen tracing, OpenTelemetry export, Docker resource limits, Llama-Guard for PII in prompts.
 
 ______________________________________________________________________
 
@@ -172,7 +133,29 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 9 References
+## 9 Milestones & Success Metrics
+
+| Date      | Deliverable                                      | Acceptance                                      |
+| --------- | ------------------------------------------------ | ----------------------------------------------- |
+| T + 2 wks | MVP: Supervisor + single-sheet pipeline          | All artefacts present; unit tests pass          |
+| T + 4 wks | Formula-Graph Agent integrated                   | Graph resolves cross-sheet edges on sample file |
+| T + 6 wks | Parallel Sheet-Executors + Data-Analysis Agents  | 80 % runtime ≤ 10 min for 20-sheet workbook     |
+| T + 8 wks | Observability, guardrails, final report template | Trace coverage ≥ 95 %, no PII leaks             |
+
+______________________________________________________________________
+
+## 10 Risks & Mitigations
+
+| Risk                                          | Mitigation                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------- |
+| LLM misidentifies table boundaries            | Self-reflection directive + random-row audit in prompt; manual override option. |
+| External links unreachable → graph incomplete | Flag nodes `external_missing:true`; Synthesiser surfaces warnings.              |
+| Container sprawl                              | Time-to-live + CI stress test to tune resource limits.                          |
+| Cost blow-up on large workbooks               | Token-usage monitoring in tracing; pricing alert thresholds.                    |
+
+______________________________________________________________________
+
+## 11 References
 
 1. AutoGen JupyterCodeExecutor docs
 1. AutoGen Group‑Chat pattern
