@@ -73,11 +73,11 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
                 return err("No API key provided. Set GEMINI_API_KEY or use --api-key")
 
             # Map common model names to official Gemini model IDs
+            # Only supporting Gemini Pro models as Flash has tool calling issues
             model_mapping = {
-                "gemini-2.5-pro": "gemini-2.5-pro-latest",
-                "gemini-2.5-flash": "gemini-2.5-flash-latest",
-                "gemini-pro": "gemini-2.5-pro-latest",  # Default to 2.5
-                "gemini-flash": "gemini-2.5-flash-latest",  # Default to 2.5
+                "gemini-2.5-pro": "models/gemini-2.5-pro",
+                "gemini-pro": "models/gemini-2.5-pro",  # Alias for 2.5 Pro
+                "gemini-1.5-pro": "models/gemini-1.5-pro",
             }
 
             # Use mapped name if available, otherwise use lowercase version of original
@@ -89,12 +89,14 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
 
             logger.info(f"Using Gemini model: {actual_model}")
 
+            # CLAUDE-KNOWLEDGE: Gemini requires disable_streaming="tool_calling" for proper tool support
             llm = ChatGoogleGenerativeAI(
                 model=actual_model,
                 api_key=api_key,
                 temperature=0,
                 max_tokens=None,  # Let Gemini use its default
                 max_retries=2,
+                disable_streaming="tool_calling",  # Important for tool calling
             )
             return ok(llm)
 
@@ -311,6 +313,26 @@ async def process_tool_calls(tools: list[Any], response: Any, llm_logger: Any) -
         else:
             logger.warning(f"LLM tried to call unknown tool: {tool_name}")
 
+            # Special handling for common Gemini mistakes
+            if tool_name in ["to_markdown", "tolist", "head", "tail", "describe", "info"]:
+                error_msg = (
+                    f"ERROR: '{tool_name}' is a pandas DataFrame method, NOT a tool!\n"
+                    f"To use DataFrame methods, you MUST use execute_code tool.\n"
+                    f'Example: execute_code(code="df.{tool_name}()")\n'
+                    f"Please retry using the execute_code tool."
+                )
+            else:
+                # For other unknown tools
+                error_msg = (
+                    f"Unknown tool '{tool_name}'. Available tools are: "
+                    f"{', '.join([t.name for t in tools[:5]])}... "
+                    f"Please use one of the available tools."
+                )
+
+            llm_logger.info(f"\nTOOL CALL ERROR: {tool_name}")
+            llm_logger.info(f"Error: {error_msg}")
+            tool_output_messages.append(ToolMessage(content=error_msg, tool_call_id=tool_call["id"]))
+
     return tool_output_messages
 
 
@@ -388,7 +410,9 @@ async def run_llm_analysis(
     # Bind tools to LLM
     try:
         llm_with_tools = llm.bind_tools(tools)
+        logger.info(f"Successfully bound {len(tools)} tools to {config.model}")
     except Exception as e:
+        logger.exception(f"Failed to bind tools to LLM {config.model}")
         return err(f"Failed to bind tools to LLM: {e}")
 
     # Get current notebook state
@@ -413,10 +437,40 @@ async def run_llm_analysis(
         ),
     )
 
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=initial_prompt),
-    ]
+    # Add tool usage clarification for Gemini models
+    if "gemini" in config.model.lower():
+        tool_clarification = SystemMessage(
+            content="""
+CRITICAL GEMINI-SPECIFIC INSTRUCTIONS - YOU MUST FOLLOW THESE:
+
+1. DO NOT call pandas DataFrame methods as tools. These are NOT tools:
+   - to_markdown, tolist, head, tail, describe, info, etc.
+
+2. To run ANY Python code, you MUST use the execute_code tool:
+   CORRECT: execute_code(code="df.head(30)")
+   WRONG: df.head(30) or head(df)
+
+3. For multi-table detection, use this EXACT pattern:
+   execute_code(code="# Multi-table detection\\nprint(f'Sheet dimensions: {df.shape}')\\nprint('\\\\n--- First 30 rows ---')\\nprint(df.head(30))")
+
+4. Available tools you can call:
+   - execute_code: Run Python code
+   - add_markdown_cell: Add documentation
+   - get_formula_statistics: Get formula stats
+
+NEVER attempt to call methods like to_markdown() or tolist() as tools!
+"""
+        )
+        messages = [
+            SystemMessage(content=system_prompt),
+            tool_clarification,
+            HumanMessage(content=initial_prompt),
+        ]
+    else:
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=initial_prompt),
+        ]
 
     # Wrap analysis in session tracking
     with phoenix_session(
@@ -484,7 +538,12 @@ async def run_llm_analysis(
                 logger.info("Received response from LLM:", response=response)
 
             # Process response
-            if response.tool_calls:
+            logger.debug(f"Response has tool_calls: {bool(getattr(response, 'tool_calls', None))}")
+            logger.debug(f"Response has content: {bool(getattr(response, 'content', None))}")
+
+            # CLAUDE-KNOWLEDGE: Gemini often returns empty content when making tool calls
+            # We should check for tool_calls first, regardless of content
+            if getattr(response, "tool_calls", None):
                 # Add the AI response to conversation
                 messages.append(response)
 
@@ -612,7 +671,9 @@ async def _call_llm_with_compression(llm_with_tools, messages, config, state, fo
     while compression_level < max_compression_levels:
         try:
             # Attempt to call LLM
+            logger.debug(f"Invoking LLM with {len(compressed_messages)} messages")
             response = await llm_with_tools.ainvoke(compressed_messages)
+            logger.debug(f"Received response type: {type(response)}")
 
             if compression_level > 0:
                 logger.info(f"Successfully sent request after {compression_level} compression levels")

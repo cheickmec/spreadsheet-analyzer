@@ -10,14 +10,13 @@ def test_gemini_model_name_mapping():
     """Test Gemini model name mapping."""
     test_cases = [
         # Full name mappings
-        ("gemini-2.5-pro", "gemini-2.5-pro-latest"),
-        ("gemini-2.5-flash", "gemini-2.5-flash-latest"),
+        ("gemini-2.5-pro", "models/gemini-2.5-pro"),
+        ("gemini-1.5-pro", "models/gemini-1.5-pro"),
         # Alias mappings
-        ("gemini-pro", "gemini-2.5-pro-latest"),
-        ("gemini-flash", "gemini-2.5-flash-latest"),
+        ("gemini-pro", "models/gemini-2.5-pro"),
         # Mixed case handling
-        ("Gemini-2.5-Pro", "gemini-2.5-pro-latest"),
-        ("Gemini-Pro", "gemini-2.5-pro-latest"),
+        ("Gemini-2.5-Pro", "models/gemini-2.5-pro"),
+        ("Gemini-Pro", "models/gemini-2.5-pro"),
     ]
 
     for input_model, expected_model in test_cases:
@@ -30,7 +29,12 @@ def test_gemini_model_name_mapping():
 
             # Verify model name passed to ChatGoogleGenerativeAI
             mock_llm.assert_called_once_with(
-                model=expected_model, api_key="test-key", temperature=0, max_tokens=None, max_retries=2
+                model=expected_model,
+                api_key="test-key",
+                temperature=0,
+                max_tokens=None,
+                max_retries=2,
+                disable_streaming="tool_calling",
             )
 
 
@@ -48,7 +52,12 @@ def test_gemini_api_key_validation():
         assert result.is_ok(), "Should succeed with custom API key"
 
         mock_llm.assert_called_once_with(
-            model="gemini-2.5-pro-latest", api_key="custom-test-key", temperature=0, max_tokens=None, max_retries=2
+            model="models/gemini-2.5-pro",
+            api_key="custom-test-key",
+            temperature=0,
+            max_tokens=None,
+            max_retries=2,
+            disable_streaming="tool_calling",
         )
 
 
@@ -58,9 +67,14 @@ def test_gemini_instantiation_with_env_var():
         mock.patch.dict(os.environ, {"GEMINI_API_KEY": "env-test-key"}),
         mock.patch("langchain_google_genai.ChatGoogleGenerativeAI") as mock_llm,
     ):
-        result = create_llm_instance("gemini-2.5-flash")
+        result = create_llm_instance("gemini-2.5-pro")
         assert result.is_ok(), "Should succeed with environment API key"
 
         mock_llm.assert_called_once_with(
-            model="gemini-2.5-flash-latest", api_key="env-test-key", temperature=0, max_tokens=None, max_retries=2
+            model="models/gemini-2.5-pro",
+            api_key="env-test-key",
+            temperature=0,
+            max_tokens=None,
+            max_retries=2,
+            disable_streaming="tool_calling",
         )

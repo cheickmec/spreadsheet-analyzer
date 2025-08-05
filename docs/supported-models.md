@@ -8,7 +8,7 @@ The Spreadsheet Analyzer supports multiple LLM providers and models for analysis
 | ------------------ | -------------------- | ---------------------------------------------------- |
 | Anthropic (Claude) | `ANTHROPIC_API_KEY`  | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
 | OpenAI (GPT)       | `OPENAI_API_KEY`     | `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`              |
-| Google (Gemini)    | `GEMINI_API_KEY`     | `gemini-2.5-pro`, `gemini-2.5-flash`                 |
+| Google (Gemini)    | `GEMINI_API_KEY`     | `gemini-2.5-pro`, `gemini-1.5-pro`                   |
 | Ollama (Local)     | None required        | `llama3.1:8b`, `mixtral:8x7b`, `qwen2.5`             |
 
 ## Provider Details
@@ -43,28 +43,29 @@ uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gpt-4-turbo
 
 ### Google Gemini Models
 
-Gemini 2.5 models offer state-of-the-art performance with advanced reasoning capabilities.
+Gemini Pro models offer state-of-the-art performance with advanced reasoning capabilities.
 
 ```bash
 export GEMINI_API_KEY='your-api-key'
 
-# Use Gemini 2.5 Pro
+# Use Gemini 2.5 Pro (recommended)
 uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gemini-2.5-pro
 
-# Use Gemini 2.5 Flash for faster, cost-effective analysis
-uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gemini-2.5-flash
+# Use Gemini 1.5 Pro
+uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gemini-1.5-pro
 
-# Model name aliases are supported
-uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gemini-pro    # Maps to gemini-2.5-pro-latest
-uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gemini-flash  # Maps to gemini-2.5-flash-latest
+# Model name alias
+uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gemini-pro    # Maps to gemini-2.5-pro
 ```
 
 #### Gemini Model Features
 
 - **Context Window**: Up to 2M tokens (depending on model variant)
 - **Multimodal Support**: Can analyze images embedded in spreadsheets
-- **Advanced Reasoning**: Supports "thinking" capabilities for complex analysis
-- **Cost-Effective**: Flash models offer excellent price-performance ratio
+- **Advanced Reasoning**: Supports complex analysis workflows
+- **Tool Calling**: Gemini Pro models have reliable tool calling support
+
+**Note**: Gemini Flash models are not supported due to tool calling compatibility issues.
 
 ### Ollama Local Models
 
@@ -94,7 +95,7 @@ See [ollama-models.md](./ollama-models.md) for a complete list of supported Olla
 ### For Cost-Effective Analysis
 
 - **Claude Sonnet 4**: Good balance of quality and cost (default)
-- **Gemini 2.5 Flash**: Fast and affordable with good quality
+- **Gemini 1.5 Pro**: More affordable than 2.5 Pro with good quality
 - **GPT-3.5 Turbo**: Budget option for simpler analysis
 
 ### For Privacy/Offline Use
@@ -107,7 +108,7 @@ See [ollama-models.md](./ollama-models.md) for a complete list of supported Olla
 
 Different models have different context window sizes, affecting how much data they can analyze at once:
 
-- **Gemini 2.5**: Up to 2M tokens (largest)
+- **Gemini Pro Models**: Up to 2M tokens (largest)
 - **Claude 3**: Up to 200K tokens
 - **GPT-4 Turbo**: 128K tokens
 - **GPT-4**: 8K tokens (may require context compression)
