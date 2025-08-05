@@ -1,0 +1,42 @@
+{
+  "summary": {
+    "total_cost_usd": 0.0,
+    "total_tokens": {
+      "input": 9137,
+      "output": 4568,
+      "total": 13705
+    },
+    "cost_by_model": {
+      "gemini-2.5-flash": 0.0
+    },
+    "tokens_by_model": {
+      "gemini-2.5-flash": {
+        "input": 9137,
+        "output": 4568,
+        "total": 13705
+      }
+    },
+    "call_count": 1,
+    "cost_limit": null,
+    "within_budget": true
+  },
+  "history": [
+    {
+      "timestamp": "2025-08-04T20:43:03.691617",
+      "model": "gemini-2.5-flash",
+      "tokens": {
+        "input": 9137,
+        "output": 4568,
+        "total": 13705
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    }
+  ]
+}

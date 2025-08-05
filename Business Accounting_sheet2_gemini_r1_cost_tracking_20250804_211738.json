@@ -1,0 +1,42 @@
+{
+  "summary": {
+    "total_cost_usd": 0.0,
+    "total_tokens": {
+      "input": 9376,
+      "output": 851,
+      "total": 10227
+    },
+    "cost_by_model": {
+      "gemini-2.5-pro": 0.0
+    },
+    "tokens_by_model": {
+      "gemini-2.5-pro": {
+        "input": 9376,
+        "output": 851,
+        "total": 10227
+      }
+    },
+    "call_count": 1,
+    "cost_limit": null,
+    "within_budget": true
+  },
+  "history": [
+    {
+      "timestamp": "2025-08-04T21:17:53.525268",
+      "model": "gemini-2.5-pro",
+      "tokens": {
+        "input": 9376,
+        "output": 851,
+        "total": 10227
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    }
+  ]
+}
