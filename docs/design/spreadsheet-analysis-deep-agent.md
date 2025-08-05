@@ -49,7 +49,7 @@ Supervisor Agent ──▶  Sheet-Executor (one per sheet)
 Workbook-Synthesiser Agent  ──▶ Final Markdown + JSON + lineage graphs
 ```
 
-Every **agent runs in its own Docker-backed Jupyter kernel**, guaranteeing isolation while persisting artefacts (JSON, pickle, parquet) to a shared object store for downstream consumers.
+Every **agent runs in its own local Jupyter kernel with dedicated Python virtual environment**, providing dependency isolation while maintaining fast execution and persisting artefacts (JSON, pickle, parquet) to a shared file system for downstream consumers.
 
 ______________________________________________________________________
 
@@ -63,7 +63,7 @@ ______________________________________________________________________
 ### 4.2 Sheet-Executor (Wrapper)
 
 *Flow* Sequentially invokes Section 4.3 → 4.4 → 4.5 agents for its sheet.
-*Kernel* Ephemeral Docker image (`python:3.12-slim`, pandas, openpyxl).
+*Execution* Local Jupyter notebook environment with dedicated Python virtual environment.
 
 ### 4.3 Multi-Table-Detection Agent (LLM-only)
 
@@ -75,6 +75,7 @@ ______________________________________________________________________
 - "Validate by sampling rows for consistent column counts and data types."
 - Output JSON: `{table_id, range, columns[], semantic_hint, table_type}`.
   *No heuristics or thresholds*; reasoning is delegated entirely to the LLM.
+  *Execution* Local Jupyter notebook via `LocalCommandLineCodeExecutor` with dedicated venv.
   *Artefacts* `tables.json` per sheet.
 
 ### 4.4 Formula-Graph Agent
@@ -83,6 +84,7 @@ ______________________________________________________________________
 *External Links* **Single-level traversal only** - catalogs immediate external `[Workbook]Sheet` references with metadata (file path, accessibility status) but doesn't auto-resolve or follow recursive links.
 *Stack* `formulas` → `excel-dependency-graph` → NetworkX.
 *Formula Limits* Handles standard functions; **defers complex array formulas and nested LAMBDA expressions** to manual review (logs to `complex_formulas.csv`).
+*Execution* Local Jupyter notebook with `LocalCommandLineCodeExecutor` and graph analysis libraries.
 *Artefacts* `graph.pkl` and `graph_adj.json` for random-access lineage queries.
 *Runs* Immediately after 4.3 so Data-Analysis Agents can query lineage.
 
@@ -90,12 +92,14 @@ ______________________________________________________________________
 
 *Per table* Loads the table, performs schema inference, descriptive stats, and **conditional ML analysis**.
 *ML Criteria* Runs ML only if: ≥10 rows, \<80% categorical data, not a lookup/reference table.
+*Execution* Local Jupyter notebook with `LocalCommandLineCodeExecutor` and ML libraries (pandas, sklearn) in isolated venv.
 *Uses* Formula graph helper to explain derived cells ("Column E is `C*D`").
 *Outputs* Notebook cells + `analysis_{table_id}.json`.
 
 ### 4.6 Workbook-Synthesiser Agent
 
 *Aggregates* All artefacts, builds a narrative markdown report, embeds SVG of formula graph, lists external link health, and emits a machine-readable manifest.
+*Execution* Lightweight local Jupyter notebook for report generation and visualization.
 
 ### 4.7 Prompt-Manager (Service)
 
@@ -118,17 +122,19 @@ Artefacts flow downward; no shared Python memory between kernels.
 
 ______________________________________________________________________
 
-## 6 Execution Environment & Kernel Strategy
+## 6 Execution Environment & Strategy
 
-**Primary Strategy**: **DockerJupyterServer** per agent → **JupyterCodeExecutor**.
-**Alternative**: Shared kernel with namespace isolation for lightweight agents.
+**Primary Strategy**: **Local Jupyter notebooks** with **AutoGen's LocalCommandLineCodeExecutor**.
+**Isolation**: Dedicated Python virtual environments per agent type.
 
-| Approach         | Pros                             | Cons                          | Recommended For                    |
-| ---------------- | -------------------------------- | ----------------------------- | ---------------------------------- |
-| Per-agent Docker | Complete isolation, reproducible | Higher memory, slower startup | Formula-Graph, Data-Analysis       |
-| Shared kernel    | Faster, lower resource usage     | Potential state pollution     | Multi-Table-Detection, Synthesiser |
+| Approach             | Pros                                 | Cons                           | Use Case                  |
+| -------------------- | ------------------------------------ | ------------------------------ | ------------------------- |
+| Local Jupyter + venv | Fast startup, direct notebook access | Less isolation than Docker     | Development, most agents  |
+| Docker (optional)    | Complete isolation, reproducible     | Slower, more complex setup     | Production, high-security |
+| Shared venv          | Fastest execution, lowest overhead   | Potential dependency conflicts | Lightweight agents only   |
 
-**External Link Handling**: Catalog external `[Workbook]Sheet` references with metadata (file path, reachability) but **do not auto-resolve** to avoid authentication and network complexity in MVP.
+**Dependency Management**: Each agent gets isolated virtual environment with only required packages.
+**Security**: Local execution with venv isolation provides reasonable security for trusted workbooks.
 
 ______________________________________________________________________
 
@@ -136,10 +142,12 @@ ______________________________________________________________________
 
 | Decision                 | Alternatives         | Rationale                                                                  |
 | ------------------------ | -------------------- | -------------------------------------------------------------------------- |
+| Local Jupyter execution  | Docker containers    | Faster development cycle, direct notebook access, simpler deployment.      |
+| Virtual env per agent    | Shared environment   | Dependency isolation without Docker overhead.                              |
 | Conditional ML analysis  | Always/never run ML  | Avoids noise on lookup tables while capturing insights from real datasets. |
 | External link cataloging | Full resolution      | Simpler MVP; defer auth/network complexity to Phase 2.                     |
 | LLM-only table detection | Hybrid heuristic+LLM | Aligns with "treat LLM like human analyst" requirement.                    |
-| AutoGen framework        | LangGraph, CrewAI    | Bundles Jupyter executor and group-chat orchestration out-of-box.          |
+| AutoGen LocalExecutor    | Custom execution     | Leverages AutoGen's built-in local execution with venv support.            |
 
 ## 7 Risks & Mitigations
 
@@ -156,10 +164,10 @@ ______________________________________________________________________
 | Phase   | Date       | Deliverable                                         | Acceptance                                      |
 | ------- | ---------- | --------------------------------------------------- | ----------------------------------------------- |
 | MVP     | T + 2 wks  | Supervisor + single-sheet pipeline + conditional ML | All artefacts present; ML skips lookup tables   |
-| MVP     | T + 4 wks  | Formula-Graph with external link cataloging         | Graph maps cross-sheet, catalogs externals      |
-| MVP     | T + 6 wks  | Parallel Sheet-Executors + hybrid kernel strategy   | 80% runtime ≤ 8 min for 20-sheet workbook       |
-| MVP     | T + 8 wks  | Observability, guardrails, final report template    | Trace coverage ≥ 95%, formula complexity limits |
-| Phase 2 | T + 12 wks | Chart detection, pivot analysis, data validation    | Visual elements mapped to source tables         |
+| MVP     | T + 3 wks  | Formula-Graph with external link cataloging         | Graph maps cross-sheet, catalogs externals      |
+| MVP     | T + 4 wks  | Parallel Sheet-Executors + local venv strategy      | 80% runtime ≤ 5 min for 20-sheet workbook       |
+| MVP     | T + 6 wks  | Observability, guardrails, final report template    | Trace coverage ≥ 95%, formula complexity limits |
+| Phase 2 | T + 10 wks | Chart detection, pivot analysis, data validation    | Visual elements mapped to source tables         |
 
 ______________________________________________________________________
 
@@ -169,9 +177,10 @@ ______________________________________________________________________
 | --------------------------------------------- | ------------------------------------------------------------------------------- |
 | LLM misidentifies table boundaries            | Self-reflection directive + random-row audit in prompt; manual override option. |
 | External links unreachable → graph incomplete | Catalog-only approach; flag nodes `external_missing:true` in Phase 2.           |
-| Conditional ML logic too complex              | Simple heuristics (row count, categorical %) with override flags.               |
+| Local execution security vulnerabilities      | Virtual environment isolation + code review for generated scripts.              |
+| Virtual environment dependency conflicts      | Agent-specific venvs with pinned requirements; automated conflict detection.    |
 | Complex formulas break parser                 | Graceful fallback: log to `complex_formulas.csv`, mark nodes as `unparseable`.  |
-| Mixed kernel strategy coordination            | Clear agent-to-kernel mapping; shared kernel only for stateless agents.         |
+| Notebook state pollution between agents       | Fresh venv per agent execution; clear workspace between runs.                   |
 | Cost blow-up on large workbooks               | Token-usage monitoring + conditional ML reduces unnecessary LLM calls.          |
 
 ______________________________________________________________________
