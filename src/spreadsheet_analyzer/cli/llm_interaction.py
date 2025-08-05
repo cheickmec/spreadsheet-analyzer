@@ -679,8 +679,9 @@ async def _call_llm_with_compression(llm_with_tools, messages, config, state, fo
                 logger.info(f"Successfully sent request after {compression_level} compression levels")
                 if state.llm_logger:
                     state.llm_logger.info(f"Applied {compression_level} compression levels to fit context window")
-
-            return response, compressed_messages if compression_level > 0 else None
+                return response, compressed_messages
+            else:
+                return response, None
 
         except Exception as e:
             error_str = str(e).lower()
@@ -721,7 +722,7 @@ async def _call_llm_with_compression(llm_with_tools, messages, config, state, fo
 
             else:
                 # Not a context error or max compression reached
-                logger.exception(f"LLM API call failed: {e}")
+                logger.exception("LLM API call failed", exc_info=e)
                 return None, None
 
     logger.error("Exhausted all compression levels")
