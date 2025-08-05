@@ -77,15 +77,12 @@ async def test_phoenix_integration():
     # 4. Test LangChain integration
     print("\n4️⃣ Testing LangChain integration...")
     try:
-        from langchain.schema import LLMResult
-        from langchain_core.messages import HumanMessage
+        import importlib.util
 
-        # Create a mock LLM response
-        mock_response = LLMResult(
-            generations=[],
-            llm_output={"token_usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}},
-        )
-        print("✅ LangChain types available")
+        if importlib.util.find_spec("langchain.schema"):
+            print("✅ LangChain types available")
+        else:
+            print("⚠️ LangChain not fully configured")
     except ImportError:
         print("⚠️ LangChain not fully configured")
 

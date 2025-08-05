@@ -40,7 +40,7 @@ class MessageBus:
         """
         from dataclasses import replace
 
-        return replace(self, pending_messages=self.pending_messages + (message,))
+        return replace(self, pending_messages=(*self.pending_messages, message))
 
     def broadcast(self, sender: AgentId, content: Any, topic: str) -> "MessageBus":
         """Broadcast a message to all subscribers of a topic.
@@ -68,7 +68,7 @@ class MessageBus:
         """
         current_subs = self.subscriptions.get(topic, ())
         if agent_id not in current_subs:
-            new_subs = current_subs + (agent_id,)
+            new_subs = (*current_subs, agent_id)
             from dataclasses import replace
 
             return replace(self, subscriptions={**self.subscriptions, topic: new_subs})
@@ -192,7 +192,7 @@ class RoundRobinRouter:
     agent_ids: tuple[AgentId, ...]
     current_index: int = 0
 
-    def route(self, message: AgentMessage, agents: dict[AgentId, Agent]) -> Result[Agent, AgentError]:
+    def route(self, _message: AgentMessage, agents: dict[AgentId, Agent]) -> Result[Agent, AgentError]:
         """Route to next agent in round-robin order."""
         if not self.agent_ids:
             return err(AgentError("No agents available for routing"))

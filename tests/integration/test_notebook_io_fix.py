@@ -69,7 +69,7 @@ def test_notebook_io_with_raw_execution_results():
         if output_path.exists():
             import json
 
-            with open(output_path) as f:
+            with Path(output_path).open() as f:
                 notebook_data = json.load(f)
 
             print(f"📊 Notebook contains {len(notebook_data['cells'])} cells")

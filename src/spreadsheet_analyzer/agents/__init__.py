@@ -60,7 +60,6 @@ from .types import (
 )
 
 __all__ = [
-    # Core types
     "Agent",
     "AgentCapability",
     "AgentId",
@@ -68,16 +67,25 @@ __all__ = [
     "AgentMessage",
     "AgentResponse",
     "AgentState",
-    # Communication
     "CapabilityRouter",
-    "chain_of_responsibility",
-    # Core agents
     "CompositeAgent",
-    # Coordination types
     "CoordinationPlan",
     "CoordinationStep",
     "CoordinationStrategy",
     "Coordinator",
+    "DirectRouter",
+    "FunctionalAgent",
+    "HierarchicalStrategy",
+    "MapReduceStrategy",
+    "MessageBus",
+    "MessageRouter",
+    "ParallelStrategy",
+    "RoundRobinRouter",
+    "SequentialStrategy",
+    "StatefulAgent",
+    "Task",
+    "TaskResult",
+    "chain_of_responsibility",
     "create_capability_router",
     "create_composite_agent",
     "create_context_optimizer",
@@ -94,19 +102,6 @@ __all__ = [
     "create_spreadsheet_analysis_team",
     "create_summary_generator",
     "create_transform_agent",
-    "DirectRouter",
-    "FunctionalAgent",
-    "HierarchicalStrategy",
-    "MapReduceStrategy",
-    "MessageBus",
-    "MessageRouter",
-    "ParallelStrategy",
     "request_response",
-    "RoundRobinRouter",
     "scatter_gather",
-    "SequentialStrategy",
-    "StatefulAgent",
-    # Task types
-    "Task",
-    "TaskResult",
 ]

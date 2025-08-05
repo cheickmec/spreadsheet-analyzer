@@ -41,14 +41,14 @@ __version__ = "1.0.0"
 
 __all__ = [
     # Core execution layer
-    "KernelService",
-    "KernelProfile",
+    "ExecutionBridge",
     "ExecutionResult",
+    "KernelProfile",
+    "KernelService",
     "NotebookBuilder",
     "NotebookIO",
-    "ExecutionBridge",
-    "QualityMetrics",
     "QualityInspector",
+    "QualityMetrics",
 ]
 
 

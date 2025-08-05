@@ -294,7 +294,7 @@ class MapReduceStrategy:
 
         # Create mapping steps
         map_step_ids = []
-        for i, (partition, mapper_id) in enumerate(zip(partitions, self.mapper_ids, strict=False)):
+        for _, (partition, mapper_id) in enumerate(zip(partitions, self.mapper_ids, strict=False)):
             if mapper_id not in agents:
                 return err(AgentError(f"Mapper not found: {mapper_id}"))
 
@@ -388,7 +388,7 @@ def create_map_reduce_coordinator(
     mappers: list[Agent], reducer: Agent, partitioner: Callable[[Any], list[Any]]
 ) -> Coordinator:
     """Create a coordinator for map-reduce pattern."""
-    all_agents = mappers + [reducer]
+    all_agents = [*mappers, reducer]
 
     strategy = MapReduceStrategy(
         mapper_ids=tuple(m.id for m in mappers), reducer_id=reducer.id, partitioner=partitioner

@@ -223,7 +223,7 @@ class ExcelFormulasEvaluator:
         formula_types = {}
         examples = []
 
-        for cell_id, cell in self.formula_cells.items():
+        for cell_id, _cell in self.formula_cells.items():
             # Extract sheet and cell reference
             if "]" in cell_id and "!" in cell_id:
                 sheet = cell_id.split("]")[1].split("!")[0].strip("'")
@@ -257,7 +257,7 @@ class ExcelFormulasEvaluator:
         max_dependencies = 0
         cells_with_deps = 0
 
-        for cell_id, cell in self.formula_cells.items():
+        for cell_id, _cell in self.formula_cells.items():
             deps = self.get_cell_dependencies(cell_id)
             if deps:
                 cells_with_deps += 1
@@ -347,27 +347,25 @@ def create_formulas_evaluator(excel_path: Path) -> ExcelFormulasEvaluator:
 
 
 # Example usage in notebook:
-"""
 # Load Excel file with formulas evaluator
-from pathlib import Path
-from spreadsheet_analyzer.excel_formulas_evaluator import create_formulas_evaluator
-
-evaluator = create_formulas_evaluator(Path("data/spreadsheet.xlsx"))
-
-# Get summary
-summary = evaluator.get_formulas_summary()
-print(f"Total formulas: {summary['total_formulas']}")
-
-# Get cell value
-value = evaluator.get_cell_value("Sheet1!A1")
-
-# Set value and recalculate
-evaluator.set_cell_value("Sheet1!A1", 100)
-result = evaluator.calculate(outputs=["Sheet1!B1", "Sheet1!C1"])
-
-# Get dependencies
-deps = evaluator.get_cell_dependencies("Sheet1!B1")
-
-# Export to JSON
-evaluator.export_to_json(Path("model.json"))
-"""
+# from pathlib import Path
+# from spreadsheet_analyzer.excel_formulas_evaluator import create_formulas_evaluator
+#
+# evaluator = create_formulas_evaluator(Path("data/spreadsheet.xlsx"))
+#
+# # Get summary
+# summary = evaluator.get_formulas_summary()
+# print(f"Total formulas: {summary['total_formulas']}")
+#
+# # Get cell value
+# value = evaluator.get_cell_value("Sheet1!A1")
+#
+# # Set value and recalculate
+# evaluator.set_cell_value("Sheet1!A1", 100)
+# result = evaluator.calculate(outputs=["Sheet1!B1", "Sheet1!C1"])
+#
+# # Get dependencies
+# deps = evaluator.get_cell_dependencies("Sheet1!B1")
+#
+# # Export to JSON
+# evaluator.export_to_json(Path("model.json"))
