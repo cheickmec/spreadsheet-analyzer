@@ -19,7 +19,10 @@
       "WebFetch(domain:docs.litellm.ai)",
       "Bash(uv sync:*)",
       "Bash(tree:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "mcp__tavily-mcp__tavily-search"
     ],
     "deny": []
   },
