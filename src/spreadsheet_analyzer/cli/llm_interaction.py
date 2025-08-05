@@ -31,6 +31,7 @@ from .notebook_analysis import AnalysisConfig, AnalysisState, save_notebook
 
 logger = get_logger(__name__)
 
+
 def generate_gemini_error_message(tool_name: str, tools: list[Any]) -> str:
     """Generate an appropriate error message for Gemini tool call mistakes.
 
@@ -56,6 +57,7 @@ def generate_gemini_error_message(tool_name: str, tools: list[Any]) -> str:
             f"{', '.join([t.name for t in tools[:5]])}... "
             f"Please use one of the available tools."
         )
+
 
 def get_gemini_messages(system_prompt: str, initial_prompt: str) -> list[Any]:
     """Create Gemini-specific message sequence with tool usage clarification.
@@ -89,7 +91,7 @@ CRITICAL GEMINI-SPECIFIC INSTRUCTIONS - YOU MUST FOLLOW THESE:
 NEVER attempt to call methods like to_markdown() or tolist() as tools!
 """
     )
-    
+
     return [
         SystemMessage(content=system_prompt),
         tool_clarification,
@@ -162,7 +164,7 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
                 temperature=0,
                 max_tokens=None,  # Let Gemini use its default
                 max_retries=2,
-                disable_streaming="tool_calling"
+                disable_streaming="tool_calling",
             )
             return ok(llm)
 
