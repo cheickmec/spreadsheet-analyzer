@@ -17,12 +17,15 @@ def test_gemini_model_name_mapping():
         # Mixed case handling
         ("Gemini-2.5-Pro", "models/gemini-2.5-pro"),
         ("Gemini-Pro", "models/gemini-2.5-pro"),
+        # Unmapped models should get models/ prefix
+        ("gemini-2.0-flash-experimental", "models/gemini-2.0-flash-experimental"),
+        ("Gemini-Custom-Model", "models/gemini-custom-model"),
     ]
 
     for input_model, expected_model in test_cases:
         with (
             mock.patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
-            mock.patch("langchain_google_genai.ChatGoogleGenerativeAI") as mock_llm,
+            mock.patch("spreadsheet_analyzer.cli.llm_interaction.ChatGoogleGenerativeAI") as mock_llm,
         ):
             result = create_llm_instance(input_model)
             assert result.is_ok(), f"Failed to create LLM instance for {input_model}"
@@ -47,7 +50,7 @@ def test_gemini_api_key_validation():
         assert "No API key provided" in result.unwrap_err()
 
     # Test with API key from function parameter
-    with mock.patch("langchain_google_genai.ChatGoogleGenerativeAI") as mock_llm:
+    with mock.patch("spreadsheet_analyzer.cli.llm_interaction.ChatGoogleGenerativeAI") as mock_llm:
         result = create_llm_instance("gemini-2.5-pro", api_key="custom-test-key")
         assert result.is_ok(), "Should succeed with custom API key"
 
@@ -65,7 +68,7 @@ def test_gemini_instantiation_with_env_var():
     """Test Gemini model instantiation using environment variable."""
     with (
         mock.patch.dict(os.environ, {"GEMINI_API_KEY": "env-test-key"}),
-        mock.patch("langchain_google_genai.ChatGoogleGenerativeAI") as mock_llm,
+        mock.patch("spreadsheet_analyzer.cli.llm_interaction.ChatGoogleGenerativeAI") as mock_llm,
     ):
         result = create_llm_instance("gemini-2.5-pro")
         assert result.is_ok(), "Should succeed with environment API key"

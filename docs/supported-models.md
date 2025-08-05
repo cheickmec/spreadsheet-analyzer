@@ -127,7 +127,7 @@ export OPENAI_API_KEY='your-openai-key'
 export GEMINI_API_KEY='your-gemini-key'
 
 # Then choose model at runtime
-uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gemini-2.5-flash
+uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gemini-2.5-pro
 uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model gpt-4
 uv run src/spreadsheet_analyzer/notebook_cli.py data.xlsx --model claude-sonnet-4-20250514
 ```

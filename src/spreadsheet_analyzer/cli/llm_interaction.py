@@ -80,12 +80,12 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
                 "gemini-1.5-pro": "models/gemini-1.5-pro",
             }
 
-            # Use mapped name if available, otherwise use lowercase version of original
-            actual_model = model_mapping.get(model.lower(), model.lower())
+            # Use mapped name if available, otherwise ensure model has "models/" prefix
+            actual_model = model_mapping.get(model.lower(), f"models/{model.lower()}")
 
-            # Add a CLAUDE-KNOWLEDGE comment to explain model mapping
-            # CLAUDE-KNOWLEDGE: Model aliases provide user-friendly names that map to official Gemini model IDs
-            # Supports both lowercase and mixed-case inputs for convenience
+            # CLAUDE-KNOWLEDGE: Gemini API requires all model names to have "models/" prefix
+            # e.g., "models/gemini-2.5-pro" not just "gemini-2.5-pro"
+            # The mapping handles common aliases and ensures proper formatting
 
             logger.info(f"Using Gemini model: {actual_model}")
 
