@@ -114,7 +114,6 @@ PHOENIX_MODE=docker
 COST_LIMIT=10.0
 ANTHROPIC_API_KEY=your-key
 OPENAI_API_KEY=your-key
-GEMINI_API_KEY=your-key
 ```
 
 ## Viewing Results
