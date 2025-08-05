@@ -31,6 +31,71 @@ from .notebook_analysis import AnalysisConfig, AnalysisState, save_notebook
 
 logger = get_logger(__name__)
 
+def generate_gemini_error_message(tool_name: str, tools: list[Any]) -> str:
+    """Generate an appropriate error message for Gemini tool call mistakes.
+
+    Args:
+        tool_name: Name of the incorrectly called tool
+        tools: List of available tools
+
+    Returns:
+        A descriptive error message
+    """
+    # Special handling for common Gemini mistakes with pandas DataFrame methods
+    if tool_name in ["to_markdown", "tolist", "head", "tail", "describe", "info"]:
+        return (
+            f"ERROR: '{tool_name}' is a pandas DataFrame method, NOT a tool!\n"
+            f"To use DataFrame methods, you MUST use execute_code tool.\n"
+            f'Example: execute_code(code="df.{tool_name}()")\n'
+            f"Please retry using the execute_code tool."
+        )
+    else:
+        # For other unknown tools
+        return (
+            f"Unknown tool '{tool_name}'. Available tools are: "
+            f"{', '.join([t.name for t in tools[:5]])}... "
+            f"Please use one of the available tools."
+        )
+
+def get_gemini_messages(system_prompt: str, initial_prompt: str) -> list[Any]:
+    """Create Gemini-specific message sequence with tool usage clarification.
+
+    Args:
+        system_prompt: The system prompt for the analysis
+        initial_prompt: The initial human prompt for the analysis
+
+    Returns:
+        A list of messages tailored for Gemini tool calling
+    """
+    tool_clarification = SystemMessage(
+        content="""
+CRITICAL GEMINI-SPECIFIC INSTRUCTIONS - YOU MUST FOLLOW THESE:
+
+1. DO NOT call pandas DataFrame methods as tools. These are NOT tools:
+   - to_markdown, tolist, head, tail, describe, info, etc.
+
+2. To run ANY Python code, you MUST use the execute_code tool:
+   CORRECT: execute_code(code="df.head(30)")
+   WRONG: df.head(30) or head(df)
+
+3. For multi-table detection, use this EXACT pattern:
+   execute_code(code="# Multi-table detection\\nprint(f'Sheet dimensions: {df.shape}')\\nprint('\\\\n--- First 30 rows ---')\\nprint(df.head(30))")
+
+4. Available tools you can call:
+   - execute_code: Run Python code
+   - add_markdown_cell: Add documentation
+   - get_formula_statistics: Get formula stats
+
+NEVER attempt to call methods like to_markdown() or tolist() as tools!
+"""
+    )
+    
+    return [
+        SystemMessage(content=system_prompt),
+        tool_clarification,
+        HumanMessage(content=initial_prompt),
+    ]
+
 
 def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, str]:
     """Create LLM instance based on model selection.
@@ -89,14 +154,15 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
 
             logger.info(f"Using Gemini model: {actual_model}")
 
-            # CLAUDE-KNOWLEDGE: Gemini requires disable_streaming="tool_calling" for proper tool support
+            # CLAUDE-KNOWLEDGE: Gemini requires disable_streaming="tool_calling" to enable tool calls
+            # Omitting or changing this specific value will prevent tool calling functionality
             llm = ChatGoogleGenerativeAI(
                 model=actual_model,
                 api_key=api_key,
                 temperature=0,
                 max_tokens=None,  # Let Gemini use its default
                 max_retries=2,
-                disable_streaming="tool_calling",  # Important for tool calling
+                disable_streaming="tool_calling"
             )
             return ok(llm)
 
@@ -439,33 +505,7 @@ async def run_llm_analysis(
 
     # Add tool usage clarification for Gemini models
     if "gemini" in config.model.lower():
-        tool_clarification = SystemMessage(
-            content="""
-CRITICAL GEMINI-SPECIFIC INSTRUCTIONS - YOU MUST FOLLOW THESE:
-
-1. DO NOT call pandas DataFrame methods as tools. These are NOT tools:
-   - to_markdown, tolist, head, tail, describe, info, etc.
-
-2. To run ANY Python code, you MUST use the execute_code tool:
-   CORRECT: execute_code(code="df.head(30)")
-   WRONG: df.head(30) or head(df)
-
-3. For multi-table detection, use this EXACT pattern:
-   execute_code(code="# Multi-table detection\\nprint(f'Sheet dimensions: {df.shape}')\\nprint('\\\\n--- First 30 rows ---')\\nprint(df.head(30))")
-
-4. Available tools you can call:
-   - execute_code: Run Python code
-   - add_markdown_cell: Add documentation
-   - get_formula_statistics: Get formula stats
-
-NEVER attempt to call methods like to_markdown() or tolist() as tools!
-"""
-        )
-        messages = [
-            SystemMessage(content=system_prompt),
-            tool_clarification,
-            HumanMessage(content=initial_prompt),
-        ]
+        messages = get_gemini_messages(system_prompt, initial_prompt)
     else:
         messages = [
             SystemMessage(content=system_prompt),

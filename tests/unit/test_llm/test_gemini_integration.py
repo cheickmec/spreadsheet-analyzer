@@ -81,3 +81,33 @@ def test_gemini_instantiation_with_env_var():
             max_retries=2,
             disable_streaming="tool_calling",
         )
+
+def test_gemini_error_handling_dataframe_methods():
+    """Test Gemini-specific error handling for DataFrame method mistakes."""
+    from spreadsheet_analyzer.cli.llm_interaction import generate_gemini_error_message
+
+    dataframe_methods = ["to_markdown", "tolist", "head", "tail", "describe", "info"]
+    mock_tools = [type('MockTool', (), {'name': 'execute_code'}) for _ in range(1)]
+
+    for method in dataframe_methods:
+        error_msg = generate_gemini_error_message(method, mock_tools)
+        assert f"ERROR: '{method}' is a pandas DataFrame method, NOT a tool!" in error_msg
+        assert "execute_code(code=" in error_msg
+        assert "Please retry using the execute_code tool" in error_msg
+
+def test_gemini_error_handling_unknown_tools():
+    """Test Gemini-specific error handling for unknown tools."""
+    from spreadsheet_analyzer.cli.llm_interaction import generate_gemini_error_message
+
+    mock_tools = [
+        type('MockTool', (), {'name': 'tool1'}),
+        type('MockTool', (), {'name': 'tool2'}),
+        type('MockTool', (), {'name': 'tool3'}),
+        type('MockTool', (), {'name': 'tool4'}),
+        type('MockTool', (), {'name': 'tool5'}),
+    ]
+
+    error_msg = generate_gemini_error_message("unknown_tool", mock_tools)
+    assert "Unknown tool 'unknown_tool'" in error_msg
+    assert "Available tools are: tool1, tool2, tool3, tool4, tool5..." in error_msg
+    assert "Please use one of the available tools" in error_msg
