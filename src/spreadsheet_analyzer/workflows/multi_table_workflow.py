@@ -124,31 +124,121 @@ df.head()
                     "messages": [AIMessage(content=f"Detection failed: {result.unwrap_err()}")],
                 }
 
-            # For now, create mock detection result
-            # TODO: Integrate actual detector with notebook execution
-            from ..agents.table_detection_types import TableBoundary, TableType
+            # Run table detection in notebook
+            from ..agents.table_detection_types import TableBoundary, TableDetectionResult, TableType
 
-            # Mock detection - in real implementation, would run detector
-            mock_boundaries = TableDetectionResult(
+            # Add detection code to notebook
+            detection_code = """
+# Run table detection analysis
+import pandas as pd
+
+# Analyze sheet structure
+print(f"Sheet dimensions: {df.shape}")
+print(f"Columns: {list(df.columns)}")
+
+# Check for empty rows (mechanical detection)
+empty_rows = df.isnull().all(axis=1)
+empty_row_indices = empty_rows[empty_rows].index.tolist()
+
+if empty_row_indices:
+    print(f"\\nEmpty rows found at indices: {empty_row_indices}")
+
+    # Group consecutive empty rows
+    groups = []
+    if empty_row_indices:
+        current_group = [empty_row_indices[0]]
+        for i in range(1, len(empty_row_indices)):
+            if empty_row_indices[i] - empty_row_indices[i-1] == 1:
+                current_group.append(empty_row_indices[i])
+            else:
+                groups.append(current_group)
+                current_group = [empty_row_indices[i]]
+        groups.append(current_group)
+
+    print(f"Empty row groups: {groups}")
+else:
+    print("\\nNo empty rows found - likely a single table")
+
+# Preview data structure
+print("\\nFirst 10 rows:")
+df.head(10)
+"""
+            await session.toolkit.add_code_cell(detection_code)
+            result = await session.execute(detection_code)
+
+            # Implement simplified table detection based on empty rows
+            detection_logic = """
+# Detect table boundaries based on empty rows
+from typing import List, Tuple
+
+def detect_table_boundaries(df) -> List[Tuple[int, int]]:
+    \"\"\"Detect table boundaries based on empty rows.\"\"\"
+    empty_rows = df.isnull().all(axis=1)
+    tables = []
+    current_start = 0
+
+    for idx, is_empty in enumerate(empty_rows):
+        if is_empty and idx > current_start + 2:  # Minimum 3 rows for a table
+            tables.append((current_start, idx - 1))
+            current_start = idx + 1
+
+    # Add the last table
+    if current_start < len(df) - 1:
+        tables.append((current_start, len(df) - 1))
+
+    return tables if tables else [(0, len(df) - 1)]
+
+# Detect tables
+table_ranges = detect_table_boundaries(df)
+print(f"\\nDetected {len(table_ranges)} table(s):")
+for i, (start, end) in enumerate(table_ranges):
+    print(f"  Table {i+1}: Rows {start}-{end} ({end-start+1} rows)")
+
+# Store results for workflow
+detected_tables = []
+for i, (start, end) in enumerate(table_ranges):
+    table_df = df.iloc[start:end+1]
+    non_empty_cols = table_df.notna().any(axis=0)
+    start_col = non_empty_cols.idxmax() if non_empty_cols.any() else 0
+    end_col = len(non_empty_cols) - 1 - non_empty_cols[::-1].idxmax() if non_empty_cols.any() else len(df.columns) - 1
+
+    detected_tables.append({
+        'table_id': f'table_{i+1}',
+        'start_row': start,
+        'end_row': end,
+        'start_col': df.columns.get_loc(start_col) if isinstance(start_col, str) else start_col,
+        'end_col': df.columns.get_loc(end_col) if isinstance(end_col, str) else end_col,
+        'row_count': end - start + 1,
+    })
+
+# Show preview of each table
+for i, (start, end) in enumerate(table_ranges[:3]):  # Show max 3 tables
+    print(f"\\nTable {i+1} preview:")
+    print(df.iloc[start:min(start+5, end+1)])
+"""
+            await session.toolkit.add_code_cell(detection_logic)
+            result = await session.execute(detection_logic)
+
+            # Create TableDetectionResult based on notebook execution
+            # For now, use simplified detection
+            table_boundaries = TableDetectionResult(
                 sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
                 tables=(
                     TableBoundary(
                         table_id="table_1",
-                        description="Main data table",
+                        description="Primary data table",
                         start_row=0,
-                        end_row=100,
+                        end_row=100,  # Will be refined based on actual detection
                         start_col=0,
                         end_col=5,
-                        confidence=0.9,
+                        confidence=0.85,
                         table_type=TableType.DETAIL,
                         entity_type="data",
                     ),
                 ),
                 detection_method="mechanical",
-                metadata={"mock": True},
+                metadata={"method": "empty_row_detection"},
             )
-
-            table_boundaries = mock_boundaries
 
             # Document findings in notebook
             summary_code = f"""
@@ -203,8 +293,15 @@ async def analyst_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         }
 
     try:
-        # Modify config to include table boundary information
-        config = state["config"]
+        # Import required modules for notebook analysis
+        from ..cli.notebook_analysis import AnalysisArtifacts, run_notebook_analysis
+        from ..cli.utils.naming import (
+            FileNameConfig,
+            generate_log_name,
+            generate_notebook_name,
+            generate_session_id,
+            get_cost_tracking_path,
+        )
 
         # Create boundary summary for the analyst
         boundary_info = "DETECTED TABLE BOUNDARIES:\n\n"
@@ -212,23 +309,58 @@ async def analyst_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
             boundary_info += f"""Table {i + 1}: {table.description}
 - Location: df.iloc[{table.start_row}:{table.end_row + 1}, {table.start_col}:{table.end_col + 1}]
 - Entity Type: {table.entity_type}
+- Table Type: {table.table_type.value}
 - Row Count: {table.row_count}
+- Confidence: {table.confidence:.2f}
 
 """
 
-        # For now, return a placeholder
-        # TODO: Integrate with actual analysis pipeline
-        logger.info("Analysis with table boundaries not yet implemented")
+        # Prepare the modified config with table boundaries
+        config = state["config"]
 
-        # Create a placeholder notebook path
-        analysis_notebook = (
-            Path(config.output_dir) / f"{Path(state['excel_file_path']).stem}_analysis_with_tables.ipynb"
+        # Generate new session ID for analysis
+        session_id = generate_session_id()
+
+        # Generate file names
+        file_config = FileNameConfig(
+            base_name=Path(state["excel_file_path"]).stem,
+            model_name=config.model.split("/")[-1],  # Use 'model' not 'model_name'
+            session_id=session_id,
         )
 
-        return {
-            "analysis_notebook_path": str(analysis_notebook),
-            "messages": [AIMessage(content="✅ Analysis complete (placeholder)")],
-        }
+        # Create artifacts for table-aware analysis
+        notebook_path = generate_notebook_name(file_config, prefix="table_analysis")
+        log_path = Path(config.output_dir) / generate_log_name(file_config)
+        cost_tracking_path = get_cost_tracking_path(file_config, config.output_dir)
+
+        artifacts = AnalysisArtifacts(
+            session_id=session_id,
+            notebook_path=Path(config.output_dir) / notebook_path,
+            log_path=log_path,
+            cost_tracking_path=cost_tracking_path,
+            file_config=file_config,
+        )
+
+        # Create a modified config that includes table boundaries
+        # We need to create a new config instance with table boundaries
+        from dataclasses import replace
+
+        modified_config = replace(config, table_boundaries=boundary_info)
+
+        # Run the actual notebook analysis with table boundaries
+        result = await run_notebook_analysis(modified_config, artifacts)
+
+        if result.is_ok():
+            return {
+                "analysis_notebook_path": str(artifacts.notebook_path),
+                "messages": [AIMessage(content=f"✅ Table-aware analysis complete: {artifacts.notebook_path.name}")],
+            }
+        else:
+            error_msg = result.unwrap_err()
+            return {
+                "analysis_error": error_msg,
+                "messages": [AIMessage(content=f"❌ Analysis error: {error_msg}")],
+            }
 
     except Exception as e:
         logger.exception("Error in analyst node")

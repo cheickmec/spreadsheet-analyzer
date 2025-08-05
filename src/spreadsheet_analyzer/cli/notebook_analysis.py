@@ -63,6 +63,8 @@ class AnalysisConfig:
     # Context compression configuration
     enable_compression: bool = True  # Enable progressive context compression
     compression_verbose: bool = False  # Log detailed compression info
+    # Table detection configuration
+    table_boundaries: str | None = None  # Pre-detected table boundaries for focused analysis
 
 
 @dataclass(frozen=True)

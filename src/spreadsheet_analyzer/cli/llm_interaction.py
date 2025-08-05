@@ -238,7 +238,13 @@ async def track_llm_usage(response: Any, model: str) -> None:
         logger.debug(f"Failed to track LLM usage: {e}")
 
 
-def create_system_prompt(excel_file_name: str, sheet_index: int, sheet_name: str | None, notebook_state: str) -> str:
+def create_system_prompt(
+    excel_file_name: str,
+    sheet_index: int,
+    sheet_name: str | None,
+    notebook_state: str,
+    table_boundaries: str | None = None,
+) -> str:
     """Create the system prompt for LLM analysis using external template.
 
     Args:
@@ -246,13 +252,19 @@ def create_system_prompt(excel_file_name: str, sheet_index: int, sheet_name: str
         sheet_index: Sheet index
         sheet_name: Optional sheet name
         notebook_state: Current notebook state
+        table_boundaries: Optional pre-detected table boundaries
 
     Returns:
         System prompt string
     """
     # CLAUDE-KNOWLEDGE: Load prompt from external YAML file
     prompts_dir = Path(__file__).parent.parent / "prompts"
-    system_template_path = prompts_dir / "data_analyst_system.yaml"
+
+    # Choose prompt based on whether table boundaries are provided
+    if table_boundaries:
+        system_template_path = prompts_dir / "table_aware_analyst_system.yaml"
+    else:
+        system_template_path = prompts_dir / "data_analyst_system.yaml"
 
     try:
         with system_template_path.open() as f:
@@ -262,12 +274,19 @@ def create_system_prompt(excel_file_name: str, sheet_index: int, sheet_name: str
             template=prompt_data["template"], input_variables=prompt_data["input_variables"]
         )
 
-        return system_template.format(
-            excel_file_name=excel_file_name,
-            sheet_index=sheet_index,
-            sheet_name=sheet_name or "Unknown",
-            notebook_state=notebook_state,
-        )
+        # Build kwargs based on available variables
+        kwargs = {
+            "excel_file_name": excel_file_name,
+            "sheet_index": sheet_index,
+            "sheet_name": sheet_name or "Unknown",
+            "notebook_state": notebook_state,
+        }
+
+        # Add table boundaries if using table-aware prompt
+        if table_boundaries:
+            kwargs["table_boundaries"] = table_boundaries
+
+        return system_template.format(**kwargs)
     except Exception:
         logger.exception("Failed to load system prompt template")
         # Fallback to a minimal prompt if file loading fails
@@ -493,7 +512,11 @@ async def run_llm_analysis(
     # Create initial messages
     sheet_info = f" (sheet index {config.sheet_index})" if config.sheet_index != 0 else ""
 
-    system_prompt = create_system_prompt(excel_path.name, config.sheet_index, sheet_name, notebook_state)
+    # Check if table boundaries are provided in config
+    table_boundaries = getattr(config, "table_boundaries", None)
+    system_prompt = create_system_prompt(
+        excel_path.name, config.sheet_index, sheet_name, notebook_state, table_boundaries
+    )
 
     initial_prompt = create_initial_prompt(
         excel_path.name,
