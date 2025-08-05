@@ -100,10 +100,17 @@ analysis_results/
 
 ## Prerequisites
 
-1. **Environment Variable**: Set the `ANTHROPIC_API_KEY` environment variable:
+1. **Environment Variable**: Set the appropriate API key for your chosen model:
 
    ```bash
+   # For Claude models (default)
    export ANTHROPIC_API_KEY='your-api-key'
+
+   # For GPT models
+   export OPENAI_API_KEY='your-api-key'
+
+   # For Gemini models
+   export GEMINI_API_KEY='your-api-key'
    ```
 
 1. **Dependencies**: Install project dependencies:
@@ -130,6 +137,6 @@ The tool performs a multi-step analysis:
 ## Troubleshooting
 
 - **"Sheet not found"**: Use `--list-sheets` to see available sheet names (case-sensitive)
-- **"ANTHROPIC_API_KEY not set"**: Export the API key as shown in Prerequisites
+- **"API_KEY not set"**: Export the appropriate API key as shown in Prerequisites
 - **LLM errors**: Use `--verbose` to see detailed error messages
 - **Memory issues**: For large files, consider using `--skip-deterministic`
