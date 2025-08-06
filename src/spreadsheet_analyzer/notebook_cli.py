@@ -246,7 +246,7 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
         )
 
     # Create the configuration
-    config = AnalysisConfig(
+    return AnalysisConfig(
         excel_path=excel_path,
         sheet_index=sheet_index,
         sheet_name=sheet_name,
@@ -261,12 +261,6 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
         track_costs=args.track_costs and not args.no_cost_tracking,
         cost_limit=args.cost_limit,
     )
-
-    # Store multi-table flags (not part of AnalysisConfig)
-    config._multi_table = getattr(args, "multi_table", False)
-    config._auto_detect_tables = getattr(args, "auto_detect_tables", False)
-
-    return config
 
 
 def create_analysis_artifacts(config: AnalysisConfig) -> AnalysisArtifacts:
@@ -336,8 +330,8 @@ async def main() -> None:
     logger.info(f"Output notebook: {artifacts.notebook_path}")
 
     # Check if we should use multi-table workflow
-    use_multi_table = getattr(config, "_multi_table", False)
-    auto_detect = getattr(config, "_auto_detect_tables", False)
+    use_multi_table = getattr(args, "multi_table", False)
+    auto_detect = getattr(args, "auto_detect_tables", False)
 
     if use_multi_table or auto_detect:
         # Auto-detect if needed
