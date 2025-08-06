@@ -99,8 +99,10 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 
     try:
         # Create detection-specific notebook path
+        output_dir = Path(state["config"].output_dir if state["config"].output_dir else "./outputs")
+        output_dir.mkdir(parents=True, exist_ok=True)
         detection_notebook = (
-            Path(state["config"].output_dir) / f"{Path(state['excel_file_path']).stem}_table_detection.ipynb"
+            output_dir / f"{Path(state['excel_file_path']).stem}_table_detection.ipynb"
         )
 
         # Run detection in isolated session
@@ -112,8 +114,8 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 import pandas as pd
 from pathlib import Path
 
-excel_path = Path(r"{state["excel_file_path"]}")
-df = pd.read_excel(excel_path, sheet_index={state["sheet_index"]})
+excel_path = Path(r"{state['excel_file_path']}")
+df = pd.read_excel(excel_path, sheet_index={state['sheet_index']})
 print(f"Loaded sheet with shape: {{df.shape}}")
 df.head()
 """
@@ -471,12 +473,14 @@ async def analyst_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 
         # Create artifacts for table-aware analysis
         notebook_path = generate_notebook_name(file_config)
-        log_path = Path(config.output_dir) / generate_log_name(file_config)
-        cost_tracking_path = get_cost_tracking_path(file_config, config.output_dir)
+        output_dir = Path(config.output_dir if config.output_dir else "./outputs")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        log_path = output_dir / generate_log_name(file_config)
+        cost_tracking_path = get_cost_tracking_path(file_config, output_dir)
 
         artifacts = AnalysisArtifacts(
             session_id=session_id,
-            notebook_path=Path(config.output_dir) / notebook_path,
+            notebook_path=output_dir / notebook_path,
             log_path=log_path,
             cost_tracking_path=cost_tracking_path,
             file_config=file_config,
