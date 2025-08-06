@@ -16,7 +16,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 from structlog import get_logger
 
-from ..agents.table_detection_types import TableDetectionResult, TableBoundary, TableType
+from ..agents.table_detection_types import TableDetectionResult
 from ..cli.notebook_analysis import AnalysisConfig
 from ..core.types import Result, err, ok
 from ..notebook_session import notebook_session
@@ -221,29 +221,31 @@ for i, (start, end) in enumerate(table_ranges[:3]):  # Show max 3 tables
 
             # Extract detected tables from notebook execution
             # The detection logic creates a 'detected_tables' variable with actual boundaries
-            detected_tables = result.get('detected_tables', [])
-            
+            detected_tables = result.get("detected_tables", [])
+
             if not detected_tables:
                 # Fallback to default if no tables detected
-                detected_tables = [{
-                    'table_id': 'table_1',
-                    'start_row': 0,
-                    'end_row': 100,
-                    'start_col': 0,
-                    'end_col': 5,
-                    'row_count': 101
-                }]
+                detected_tables = [
+                    {
+                        "table_id": "table_1",
+                        "start_row": 0,
+                        "end_row": 100,
+                        "start_col": 0,
+                        "end_col": 5,
+                        "row_count": 101,
+                    }
+                ]
 
             # Create TableDetectionResult based on actual detection results
             table_boundaries_list = []
             for i, table_info in enumerate(detected_tables):
                 table_boundary = TableBoundary(
-                    table_id=table_info.get('table_id', f'table_{i+1}'),
-                    description=f"Detected table {i+1}",
-                    start_row=table_info['start_row'],
-                    end_row=table_info['end_row'],
-                    start_col=table_info['start_col'],
-                    end_col=table_info['end_col'],
+                    table_id=table_info.get("table_id", f"table_{i + 1}"),
+                    description=f"Detected table {i + 1}",
+                    start_row=table_info["start_row"],
+                    end_row=table_info["end_row"],
+                    start_col=table_info["start_col"],
+                    end_col=table_info["end_col"],
                     confidence=0.85,  # Default confidence for mechanical detection
                     table_type=TableType.DETAIL,
                     entity_type="data",
