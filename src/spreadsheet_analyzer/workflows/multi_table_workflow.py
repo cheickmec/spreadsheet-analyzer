@@ -271,6 +271,11 @@ workflow_detected_tables
 
                 # Check if we got the detected tables list
                 if isinstance(exec_output, list) and len(exec_output) > 0:
+                    # CLAUDE-GOTCHA: The .get() calls below with default values might look like
+                    # we're ignoring detection results, but we're actually using the detected
+                    # values when present. The defaults are only used for missing keys as a
+                    # defensive programming practice. The actual detection results from
+                    # workflow_detected_tables ARE being used here.
                     # Convert detected tables to TableBoundary objects
                     table_boundaries_list = []
 
@@ -310,6 +315,9 @@ workflow_detected_tables
                         )
                     else:
                         logger.warning("No valid tables found in detection results, using fallback")
+                        # CLAUDE-IMPORTANT: This fallback is ONLY used when detection genuinely
+                        # fails or returns no results. Normal operation uses the actual detected
+                        # table boundaries from the executed detection logic above.
                         # Fallback to single table
                         table_boundaries = TableDetectionResult(
                             sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
