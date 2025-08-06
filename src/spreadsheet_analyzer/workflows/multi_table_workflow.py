@@ -109,10 +109,29 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
     )
 
     try:
-        # Create detection-specific notebook path
+        # Create detection-specific notebook path using same naming convention as analysis
+        from ..cli.utils.naming import FileNameConfig, generate_notebook_name
+
+        detector_model = state["config"].detector_model or state["config"].model
+
+        # Create file config for detector
+        detector_file_config = FileNameConfig(
+            excel_file=Path(state["excel_file_path"]),
+            model=detector_model,
+            sheet_index=state["sheet_index"],
+            sheet_name=state.get("sheet_name"),
+            max_rounds=state["config"].detector_max_rounds,
+            session_id=f"detection_{state['sheet_index']}",
+        )
+
         output_dir = Path(state["config"].output_dir if state["config"].output_dir else "./outputs")
         output_dir.mkdir(parents=True, exist_ok=True)
-        detection_notebook = output_dir / f"{Path(state['excel_file_path']).stem}_table_detection.ipynb"
+
+        # Generate detector notebook name with model info
+        detection_notebook_name = generate_notebook_name(detector_file_config, include_timestamp=True)
+        # Replace "analysis" with "detection" in the filename
+        detection_notebook_name = detection_notebook_name.replace("_analysis_", "_detection_")
+        detection_notebook = output_dir / detection_notebook_name
 
         # Run detection in isolated session
         async with notebook_session(
@@ -510,6 +529,7 @@ Detected {len(table_boundaries.tables)} tables:
             await session.toolkit.save_notebook()
 
             logger.info(f"Detection complete: found {len(table_boundaries.tables)} tables")
+            logger.info(f"Detection notebook saved to: {detection_notebook}")
 
             return {
                 "table_boundaries": table_boundaries,

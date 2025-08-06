@@ -355,8 +355,10 @@ async def main() -> None:
         if result.is_ok():
             analysis = result.unwrap()
             logger.info(f"Multi-table analysis complete: {analysis['tables_found']} tables found")
-            logger.info(f"Detection notebook: {analysis['detection_notebook']}")
-            logger.info(f"Analysis notebook: {analysis['analysis_notebook']}")
+            if analysis["detection_notebook"]:
+                logger.info(f"Detection notebook: {analysis['detection_notebook']}")
+            if analysis["analysis_notebook"]:
+                logger.info(f"Analysis notebook: {analysis['analysis_notebook']}")
             # Success - multi-table workflow handles everything
             return
         else:
