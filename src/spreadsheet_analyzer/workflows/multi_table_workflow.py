@@ -242,10 +242,10 @@ for i, (start, end) in enumerate(table_ranges[:3]):  # Show max 3 tables
                 table_boundary = TableBoundary(
                     table_id=table_info.get("table_id", f"table_{i + 1}"),
                     description=f"Detected table {i + 1}",
-                    start_row=table_info["start_row"],
-                    end_row=table_info["end_row"],
-                    start_col=table_info["start_col"],
-                    end_col=table_info["end_col"],
+                    start_row=table_info.get("start_row", 0),
+                    end_row=table_info.get("end_row", 100),
+                    start_col=table_info.get("start_col", 0),
+                    end_col=table_info.get("end_col", 5),
                     confidence=0.85,  # Default confidence for mechanical detection
                     table_type=TableType.DETAIL,
                     entity_type="data",
