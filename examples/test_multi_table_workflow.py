@@ -7,7 +7,8 @@ This demonstrates how the table detection and analysis agents work together.
 import asyncio
 from pathlib import Path
 
-from spreadsheet_analyzer.workflows import run_multi_table_analysis
+from spreadsheet_analyzer.cli.notebook_analysis import AnalysisConfig
+from spreadsheet_analyzer.workflows.multi_table_workflow import run_multi_table_analysis
 
 
 async def test_workflow() -> None:
@@ -23,7 +24,7 @@ async def test_workflow() -> None:
         import numpy as np
         import pandas as pd
 
-        # Table 1: Product inventory
+        # Table 1: Product inventory (30 rows)
         products = pd.DataFrame(
             {
                 "Product ID": [f"PROD-{i:03d}" for i in range(1, 31)],
@@ -33,30 +34,61 @@ async def test_workflow() -> None:
             }
         )
 
-        # Add some empty rows
-        empty_rows = pd.DataFrame([[None] * 4] * 3)
+        # Add some empty rows (3 rows)
+        empty_rows1 = pd.DataFrame([[None] * 4] * 3)
 
-        # Table 2: Sales summary
-        summary = pd.DataFrame(
+        # Table 2: Sales by region (5 rows)
+        sales_by_region = pd.DataFrame(
             {
-                "Region": ["North", "South", "East", "West"],
-                "Total Sales": [125000, 98000, 145000, 112000],
-                "Units Sold": [1250, 980, 1450, 1120],
+                "Region": ["North", "South", "East", "West", "Central"],
+                "Q1 Sales": [125000, 98000, 145000, 112000, 87000],
+                "Q2 Sales": [132000, 101000, 151000, 118000, 92000],
+                "Total": [257000, 199000, 296000, 230000, 179000],
             }
         )
 
-        # Combine with empty rows between
-        combined = pd.concat([products, empty_rows, summary], ignore_index=True)
+        # More empty rows (2 rows)
+        empty_rows2 = pd.DataFrame([[None] * 4] * 2)
+
+        # Table 3: Top customers (10 rows)
+        customers = pd.DataFrame(
+            {
+                "Customer ID": [f"CUST-{i:04d}" for i in range(1, 11)],
+                "Customer Name": [f"Customer {i}" for i in range(1, 11)],
+                "Total Orders": np.random.randint(5, 50, 10),
+                "Revenue": np.round(np.random.uniform(5000, 50000, 10), 2),
+            }
+        )
+
+        # Combine all parts
+        combined = pd.concat([products, empty_rows1, sales_by_region, empty_rows2, customers], ignore_index=True)
 
         # Save to Excel
         test_file.parent.mkdir(exist_ok=True)
         combined.to_excel(test_file, index=False)
         print(f"Created test file: {test_file}")
+        print(f"Total rows: {len(combined)}")
+        print(f"Empty rows at indices: {combined.isnull().all(axis=1).nonzero()[0].tolist()}")
 
     print("\nRunning multi-table analysis workflow...")
     print("=" * 60)
 
-    result = await run_multi_table_analysis(test_file, sheet_index=0)
+    # Create analysis config
+    output_dir = Path("outputs/multi_table_test")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    config = AnalysisConfig(
+        excel_path=test_file,
+        sheet_index=0,
+        output_dir=output_dir,
+        model="gpt-4o-mini",  # Or your preferred model
+        max_rounds=3,
+        auto_save_rounds=True,
+        verbose=True,
+    )
+
+    # Run the workflow
+    result = await run_multi_table_analysis(test_file, sheet_index=0, config=config)
 
     if result.is_ok():
         analysis = result.unwrap()
@@ -70,12 +102,27 @@ async def test_workflow() -> None:
             print(f"  ⚠️  Detection warning: {analysis['detection_error']}")
         if analysis.get("analysis_error"):
             print(f"  ⚠️  Analysis warning: {analysis['analysis_error']}")
+
+        # Show paths for inspection
+        if analysis["detection_notebook"]:
+            print("\nTo view detection details:")
+            print(f"  jupyter notebook {analysis['detection_notebook']}")
+
+        if analysis["analysis_notebook"]:
+            print("\nTo view analysis results:")
+            print(f"  jupyter notebook {analysis['analysis_notebook']}")
     else:
         print(f"\n❌ Analysis failed: {result.unwrap_err()}")
 
     print("\n" + "=" * 60)
     print("Workflow test complete!")
+    print("\nCheck the outputs directory for generated notebooks.")
 
 
 if __name__ == "__main__":
+    # Set up logging for better debugging
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+
     asyncio.run(test_workflow())

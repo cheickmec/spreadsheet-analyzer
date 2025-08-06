@@ -166,6 +166,15 @@ df.head(10)
             await session.toolkit.add_code_cell(detection_code)
             result = await session.execute(detection_code)
 
+            # Get dataframe dimensions for fallback scenarios
+            df_info_code = "df_shape = df.shape; df_shape"
+            shape_result = await session.execute(df_info_code)
+            if shape_result.is_ok():
+                df_shape = shape_result.unwrap()
+                df_rows, df_cols = df_shape if isinstance(df_shape, tuple) else (100, 10)
+            else:
+                df_rows, df_cols = 100, 10  # Default fallback
+
             # Implement simplified table detection based on empty rows
             detection_logic = """
 # Detect table boundaries based on empty rows
@@ -202,6 +211,24 @@ for i, (start, end) in enumerate(table_ranges):
     start_col = non_empty_cols.idxmax() if non_empty_cols.any() else 0
     end_col = len(non_empty_cols) - 1 - non_empty_cols[::-1].idxmax() if non_empty_cols.any() else len(df.columns) - 1
 
+    # Analyze table content for description
+    first_col_sample = table_df.iloc[:min(5, len(table_df)), 0].dropna()
+    if len(first_col_sample) > 0:
+        # Try to infer entity type from content
+        sample_str = str(first_col_sample.iloc[0])
+        if 'ORD' in sample_str or 'order' in str(table_df.columns).lower():
+            entity_type = 'orders'
+        elif 'PROD' in sample_str or 'product' in str(table_df.columns).lower():
+            entity_type = 'products'
+        elif 'EMP' in sample_str or 'employee' in str(table_df.columns).lower():
+            entity_type = 'employees'
+        elif 'total' in str(table_df.values).lower() or 'sum' in str(table_df.values).lower():
+            entity_type = 'summary'
+        else:
+            entity_type = 'data'
+    else:
+        entity_type = 'data'
+
     detected_tables.append({
         'table_id': f'table_{i+1}',
         'start_row': start,
@@ -209,36 +236,135 @@ for i, (start, end) in enumerate(table_ranges):
         'start_col': df.columns.get_loc(start_col) if isinstance(start_col, str) else start_col,
         'end_col': df.columns.get_loc(end_col) if isinstance(end_col, str) else end_col,
         'row_count': end - start + 1,
+        'entity_type': entity_type,
+        'description': f'{entity_type.capitalize()} table with {end - start + 1} rows'
     })
 
 # Show preview of each table
 for i, (start, end) in enumerate(table_ranges[:3]):  # Show max 3 tables
     print(f"\\nTable {i+1} preview:")
     print(df.iloc[start:min(start+5, end+1)])
+
+# Return detection results for the workflow to consume
+# Store in a retrievable variable
+workflow_detected_tables = detected_tables
+print(f"\\nStored {len(workflow_detected_tables)} tables for workflow")
+workflow_detected_tables
 """
             await session.toolkit.add_code_cell(detection_logic)
             result = await session.execute(detection_logic)
 
-            # Create TableDetectionResult based on notebook execution
-            # For now, use simplified detection
-            table_boundaries = TableDetectionResult(
-                sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
-                tables=(
-                    TableBoundary(
-                        table_id="table_1",
-                        description="Primary data table",
-                        start_row=0,
-                        end_row=100,  # Will be refined based on actual detection
-                        start_col=0,
-                        end_col=5,
-                        confidence=0.85,
-                        table_type=TableType.DETAIL,
-                        entity_type="data",
+            # Extract actual detection results
+            # Try to get the variable we stored
+            get_tables_code = "workflow_detected_tables"
+            tables_result = await session.execute(get_tables_code)
+
+            if tables_result.is_ok():
+                exec_output = tables_result.unwrap()
+                logger.info(f"Detection execution result type: {type(exec_output)}")
+
+                # Check if we got the detected tables list
+                if isinstance(exec_output, list) and len(exec_output) > 0:
+                    # Convert detected tables to TableBoundary objects
+                    table_boundaries_list = []
+
+                    for table_info in exec_output:
+                        if isinstance(table_info, dict):
+                            # Determine table type based on entity type and row count
+                            entity_type = table_info.get("entity_type", "data")
+                            row_count = table_info.get("row_count", 0)
+
+                            if entity_type == "summary" or row_count < 10:
+                                table_type = TableType.SUMMARY
+                            elif "header" in entity_type or row_count < 5:
+                                table_type = TableType.HEADER
+                            else:
+                                table_type = TableType.DETAIL
+
+                            table_boundaries_list.append(
+                                TableBoundary(
+                                    table_id=table_info.get("table_id", "table_1"),
+                                    description=table_info.get("description", "Detected table"),
+                                    start_row=table_info.get("start_row", 0),
+                                    end_row=table_info.get("end_row", df_rows - 1),
+                                    start_col=table_info.get("start_col", 0),
+                                    end_col=table_info.get("end_col", df_cols - 1),
+                                    confidence=0.9,  # High confidence for mechanical detection
+                                    table_type=table_type,
+                                    entity_type=entity_type,
+                                )
+                            )
+
+                    if table_boundaries_list:
+                        table_boundaries = TableDetectionResult(
+                            sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
+                            tables=tuple(table_boundaries_list),
+                            detection_method="mechanical",
+                            metadata={"method": "empty_row_detection", "total_rows": df_rows, "total_cols": df_cols},
+                        )
+                    else:
+                        logger.warning("No valid tables found in detection results, using fallback")
+                        # Fallback to single table
+                        table_boundaries = TableDetectionResult(
+                            sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
+                            tables=(
+                                TableBoundary(
+                                    table_id="table_1",
+                                    description="Full spreadsheet (fallback)",
+                                    start_row=0,
+                                    end_row=df_rows - 1,
+                                    start_col=0,
+                                    end_col=df_cols - 1,
+                                    confidence=0.7,
+                                    table_type=TableType.DETAIL,
+                                    entity_type="data",
+                                ),
+                            ),
+                            detection_method="mechanical",
+                            metadata={"fallback": True},
+                        )
+                else:
+                    logger.warning(f"Unexpected execution result type: {type(exec_output)}, using fallback")
+                    # Fallback to single table
+                    table_boundaries = TableDetectionResult(
+                        sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
+                        tables=(
+                            TableBoundary(
+                                table_id="table_1",
+                                description="Full spreadsheet (fallback)",
+                                start_row=0,
+                                end_row=df_rows - 1,
+                                start_col=0,
+                                end_col=df_cols - 1,
+                                confidence=0.7,
+                                table_type=TableType.DETAIL,
+                                entity_type="data",
+                            ),
+                        ),
+                        detection_method="mechanical",
+                        metadata={"fallback": True, "reason": "unexpected_result_type"},
+                    )
+            else:
+                logger.error(f"Failed to retrieve detection results: {tables_result.unwrap_err()}")
+                # Fallback to single table
+                table_boundaries = TableDetectionResult(
+                    sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
+                    tables=(
+                        TableBoundary(
+                            table_id="table_1",
+                            description="Full spreadsheet (fallback)",
+                            start_row=0,
+                            end_row=df_rows - 1,
+                            start_col=0,
+                            end_col=df_cols - 1,
+                            confidence=0.5,
+                            table_type=TableType.DETAIL,
+                            entity_type="data",
+                        ),
                     ),
-                ),
-                detection_method="mechanical",
-                metadata={"method": "empty_row_detection"},
-            )
+                    detection_method="mechanical",
+                    metadata={"fallback": True, "reason": "execution_error"},
+                )
 
             # Document findings in notebook
             summary_code = f"""
@@ -318,18 +444,19 @@ async def analyst_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         # Prepare the modified config with table boundaries
         config = state["config"]
 
-        # Generate new session ID for analysis
-        session_id = generate_session_id()
-
-        # Generate file names
+        # Generate file names config first
         file_config = FileNameConfig(
-            base_name=Path(state["excel_file_path"]).stem,
-            model_name=config.model.split("/")[-1],  # Use 'model' not 'model_name'
-            session_id=session_id,
+            excel_file=Path(state["excel_file_path"]),
+            model=config.model,
+            sheet_index=state["sheet_index"],
+            sheet_name=state.get("sheet_name"),
         )
 
+        # Generate new session ID for analysis
+        session_id = generate_session_id(file_config)
+
         # Create artifacts for table-aware analysis
-        notebook_path = generate_notebook_name(file_config, prefix="table_analysis")
+        notebook_path = generate_notebook_name(file_config)
         log_path = Path(config.output_dir) / generate_log_name(file_config)
         cost_tracking_path = get_cost_tracking_path(file_config, config.output_dir)
 
@@ -393,10 +520,10 @@ def create_multi_table_workflow() -> StateGraph:
         elif agent == "analyst":
             return "analyst"
         else:
-            return END
+            return "__end__"  # END is a sentinel value, return its string representation
 
     builder.add_conditional_edges(
-        "supervisor", route_supervisor, {"detector": "detector", "analyst": "analyst", END: END}
+        "supervisor", route_supervisor, {"detector": "detector", "analyst": "analyst", "__end__": END}
     )
 
     # After detector/analyst, go back to supervisor
