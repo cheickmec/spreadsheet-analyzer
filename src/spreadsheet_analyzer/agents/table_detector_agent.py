@@ -198,19 +198,17 @@ def _detect_semantic_boundaries(df: pd.DataFrame) -> list[dict[str, Any]]:
             after_patterns = []
 
             # Analyze first column patterns
-            for idx in range(len(before_window)):
-                val = str(before_window.iloc[idx, 0])
-                if pd.notna(before_window.iloc[idx, 0]) and _is_code_pattern(val):
+            for val in before_window.iloc[:, 0]:
+                if pd.notna(val) and _is_code_pattern(str(val)):
                     # Extract prefix from code pattern
-                    prefix = re.match(r"^([A-Z]+)", val)
+                    prefix = re.match(r"^([A-Z]+)", str(val))
                     if prefix:
                         before_patterns.append(prefix.group(1))
 
-            for idx in range(len(after_window)):
-                val = str(after_window.iloc[idx, 0])
-                if pd.notna(after_window.iloc[idx, 0]) and _is_code_pattern(val):
+            for val in after_window.iloc[:, 0]:
+                if pd.notna(val) and _is_code_pattern(str(val)):
                     # Extract prefix from code pattern
-                    prefix = re.match(r"^([A-Z]+)", val)
+                    prefix = re.match(r"^([A-Z]+)", str(val))
                     if prefix:
                         after_patterns.append(prefix.group(1))
 
@@ -320,19 +318,10 @@ def _create_table_boundary(
 
     # Get numeric indices for columns
     if non_empty_cols.any():
-        # Find first non-empty column
-        start_col = 0
-        for i, is_non_empty in enumerate(non_empty_cols):
-            if is_non_empty:
-                start_col = i
-                break
-
-        # Find last non-empty column
-        end_col = len(non_empty_cols) - 1
-        for i in range(len(non_empty_cols) - 1, -1, -1):
-            if non_empty_cols.iloc[i]:
-                end_col = i
-                break
+        # Find first and last non-empty columns using numpy for efficiency
+        non_empty_indices = non_empty_cols.values.nonzero()[0]
+        start_col = non_empty_indices[0]
+        end_col = non_empty_indices[-1]
     else:
         start_col = 0
         end_col = len(df.columns) - 1

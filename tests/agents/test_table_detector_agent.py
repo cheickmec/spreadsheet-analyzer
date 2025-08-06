@@ -234,7 +234,7 @@ class TestTableDetectorAgent:
         # Second table (Summary)
         table2 = detection_result.tables[1]
         assert table2.start_row == 52  # After 3 empty rows (49, 50, 51)
-        assert table2.end_row == 56  # Last row with data
+        assert table2.end_row == 56  # Last row with data (header at 53, 4 regions: 54-57, 0-indexed)
         assert "summary" in table2.description.lower() or "region" in table2.description.lower()
         assert table2.table_type == TableType.SUMMARY
 

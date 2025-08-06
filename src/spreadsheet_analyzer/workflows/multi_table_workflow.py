@@ -208,8 +208,14 @@ detected_tables = []
 for i, (start, end) in enumerate(table_ranges):
     table_df = df.iloc[start:end+1]
     non_empty_cols = table_df.notna().any(axis=0)
-    start_col = non_empty_cols.idxmax() if non_empty_cols.any() else 0
-    end_col = len(non_empty_cols) - 1 - non_empty_cols[::-1].idxmax() if non_empty_cols.any() else len(df.columns) - 1
+    if non_empty_cols.any():
+        # Find first non-empty column
+        start_col_idx = non_empty_cols.values.argmax()
+        # Find last non-empty column by reversing and finding first True
+        end_col_idx = len(non_empty_cols) - 1 - non_empty_cols.values[::-1].argmax()
+    else:
+        start_col_idx = 0
+        end_col_idx = len(df.columns) - 1
 
     # Analyze table content for description
     first_col_sample = table_df.iloc[:min(5, len(table_df)), 0].dropna()
@@ -233,8 +239,8 @@ for i, (start, end) in enumerate(table_ranges):
         'table_id': f'table_{i+1}',
         'start_row': start,
         'end_row': end,
-        'start_col': df.columns.get_loc(start_col) if isinstance(start_col, str) else start_col,
-        'end_col': df.columns.get_loc(end_col) if isinstance(end_col, str) else end_col,
+        'start_col': start_col_idx,
+        'end_col': end_col_idx,
         'row_count': end - start + 1,
         'entity_type': entity_type,
         'description': f'{entity_type.capitalize()} table with {end - start + 1} rows'
