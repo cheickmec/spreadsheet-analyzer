@@ -101,9 +101,7 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         # Create detection-specific notebook path
         output_dir = Path(state["config"].output_dir if state["config"].output_dir else "./outputs")
         output_dir.mkdir(parents=True, exist_ok=True)
-        detection_notebook = (
-            output_dir / f"{Path(state['excel_file_path']).stem}_table_detection.ipynb"
-        )
+        detection_notebook = output_dir / f"{Path(state['excel_file_path']).stem}_table_detection.ipynb"
 
         # Run detection in isolated session
         async with notebook_session(
@@ -114,8 +112,8 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 import pandas as pd
 from pathlib import Path
 
-excel_path = Path(r"{state['excel_file_path']}")
-df = pd.read_excel(excel_path, sheet_index={state['sheet_index']})
+excel_path = Path(r"{state["excel_file_path"]}")
+df = pd.read_excel(excel_path, sheet_index={state["sheet_index"]})
 print(f"Loaded sheet with shape: {{df.shape}}")
 df.head()
 """
