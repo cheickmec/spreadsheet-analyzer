@@ -325,23 +325,23 @@ async def main() -> None:
     use_multi_table = getattr(args, "multi_table", False)
 
     if use_multi_table:
-            logger.info("Using multi-table detection workflow")
-            from spreadsheet_analyzer.workflows.multi_table_workflow import run_multi_table_analysis
+        logger.info("Using multi-table detection workflow")
+        from spreadsheet_analyzer.workflows.multi_table_workflow import run_multi_table_analysis
 
-            # Run multi-table analysis
-            result = await run_multi_table_analysis(config.excel_path, sheet_index=config.sheet_index, config=config)
+        # Run multi-table analysis
+        result = await run_multi_table_analysis(config.excel_path, sheet_index=config.sheet_index, config=config)
 
-            if result.is_ok():
-                analysis = result.unwrap()
-                logger.info(f"Multi-table analysis complete: {analysis['tables_found']} tables found")
-                logger.info(f"Detection notebook: {analysis['detection_notebook']}")
-                logger.info(f"Analysis notebook: {analysis['analysis_notebook']}")
-                # Success - multi-table workflow handles everything
-                return
-            else:
-                # Fall back to standard analysis
-                logger.warning(f"Multi-table workflow failed: {result.unwrap_err()}")
-                logger.info("Falling back to standard analysis")
+        if result.is_ok():
+            analysis = result.unwrap()
+            logger.info(f"Multi-table analysis complete: {analysis['tables_found']} tables found")
+            logger.info(f"Detection notebook: {analysis['detection_notebook']}")
+            logger.info(f"Analysis notebook: {analysis['analysis_notebook']}")
+            # Success - multi-table workflow handles everything
+            return
+        else:
+            # Fall back to standard analysis
+            logger.warning(f"Multi-table workflow failed: {result.unwrap_err()}")
+            logger.info("Falling back to standard analysis")
 
     # Run the standard analysis using the functional orchestration
     result = await run_notebook_analysis(config, artifacts)

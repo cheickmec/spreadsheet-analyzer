@@ -162,9 +162,9 @@ result = detector.process(message, state)
 
 The multi-table workflow integrates seamlessly:
 
-1. **Backward Compatible**: Single-table sheets work as before  
-2. **Explicit Control**: Use `--multi-table` flag when you need table detection
-3. **LLM-Powered Detection**: The table detector agent uses sophisticated analysis, not simple heuristics
+1. **Backward Compatible**: Single-table sheets work as before
+1. **Explicit Control**: Use `--multi-table` flag when you need table detection
+1. **LLM-Powered Detection**: The table detector agent uses sophisticated analysis, not simple heuristics
 
 ```python
 # Use multi-table workflow when needed
