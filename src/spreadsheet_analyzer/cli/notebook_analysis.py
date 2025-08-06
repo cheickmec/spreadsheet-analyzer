@@ -67,6 +67,7 @@ class AnalysisConfig:
     table_boundaries: str | None = None  # Pre-detected table boundaries for focused analysis
     detector_max_rounds: int = 3  # Max rounds for table detection agent
     detector_model: str | None = None  # Specific model for detector (defaults to main model)
+    detector_only: bool = False  # Run only detector without analyst
 
 
 @dataclass(frozen=True)

@@ -200,6 +200,11 @@ Examples:
         type=str,
         help="Specific model to use for table detection (defaults to main --model)",
     )
+    parser.add_argument(
+        "--detector-only",
+        action="store_true",
+        help="Run only the table detection agent without the analyst (useful for testing)",
+    )
 
     return parser
 
@@ -267,6 +272,7 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
         cost_limit=args.cost_limit,
         detector_max_rounds=args.detector_max_rounds,
         detector_model=args.detector_model,
+        detector_only=args.detector_only,
     )
 
 

@@ -68,6 +68,15 @@ async def supervisor_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
     if state["table_boundaries"] is None and state.get("detection_error") is None:
         logger.info("No table boundaries found, running detector")
         return {"current_agent": "detector", "messages": [AIMessage(content="Running table detection agent...")]}
+    elif state["table_boundaries"] is not None and state["config"].detector_only:
+        logger.info("Detector-only mode: skipping analyst")
+        return {
+            "current_agent": "end",
+            "workflow_complete": True,
+            "messages": [
+                AIMessage(content=f"Detection complete. Found {len(state['table_boundaries'].tables)} tables.")
+            ],
+        }
     elif state["table_boundaries"] is not None and state.get("analysis_notebook_path") is None:
         logger.info("Table boundaries found, running analyst")
         return {
@@ -115,7 +124,7 @@ import pandas as pd
 from pathlib import Path
 
 excel_path = Path(r"{state["excel_file_path"]}")
-df = pd.read_excel(excel_path, sheet_index={state["sheet_index"]})
+df = pd.read_excel(excel_path, sheet_name={state["sheet_index"]})
 print(f"Loaded sheet with shape: {{df.shape}}")
 
 # Quick preview for LLM context
@@ -360,9 +369,22 @@ detection_results
                     else:
                         logger.warning("No valid tables found in LLM detection results, using fallback")
                         # Get dimensions for fallback
-                        dim_result = await session.execute("df.shape")
+                        dim_result = await session.execute("df_shape = df.shape; df_shape")
                         if dim_result.is_ok():
-                            df_rows, df_cols = dim_result.unwrap()
+                            shape_output = dim_result.unwrap()
+                            # Extract the actual shape tuple from the output
+                            if hasattr(shape_output, "outputs") and shape_output.outputs:
+                                shape_str = shape_output.outputs[-1].content
+                                # Parse (rows, cols) from string
+                                import re
+
+                                match = re.match(r"\((\d+),\s*(\d+)\)", shape_str)
+                                if match:
+                                    df_rows, df_cols = int(match.group(1)), int(match.group(2))
+                                else:
+                                    df_rows, df_cols = 100, 10
+                            else:
+                                df_rows, df_cols = 100, 10
                         else:
                             df_rows, df_cols = 100, 10
 
@@ -387,9 +409,22 @@ detection_results
                 else:
                     logger.warning(f"Unexpected LLM result type: {type(exec_output)}")
                     # Get dimensions for fallback
-                    dim_result = await session.execute("df.shape")
+                    dim_result = await session.execute("df_shape = df.shape; df_shape")
                     if dim_result.is_ok():
-                        df_rows, df_cols = dim_result.unwrap()
+                        shape_output = dim_result.unwrap()
+                        # Extract the actual shape tuple from the output
+                        if hasattr(shape_output, "outputs") and shape_output.outputs:
+                            shape_str = shape_output.outputs[-1].content
+                            # Parse (rows, cols) from string
+                            import re
+
+                            match = re.match(r"\((\d+),\s*(\d+)\)", shape_str)
+                            if match:
+                                df_rows, df_cols = int(match.group(1)), int(match.group(2))
+                            else:
+                                df_rows, df_cols = 100, 10
+                        else:
+                            df_rows, df_cols = 100, 10
                     else:
                         df_rows, df_cols = 100, 10
 
@@ -414,9 +449,22 @@ detection_results
             else:
                 logger.error(f"Failed to extract detection results: {extract_result.unwrap_err()}")
                 # Get dimensions for fallback
-                dim_result = await session.execute("df.shape")
+                dim_result = await session.execute("df_shape = df.shape; df_shape")
                 if dim_result.is_ok():
-                    df_rows, df_cols = dim_result.unwrap()
+                    shape_output = dim_result.unwrap()
+                    # Extract the actual shape tuple from the output
+                    if hasattr(shape_output, "outputs") and shape_output.outputs:
+                        shape_str = shape_output.outputs[-1].content
+                        # Parse (rows, cols) from string
+                        import re
+
+                        match = re.match(r"\((\d+),\s*(\d+)\)", shape_str)
+                        if match:
+                            df_rows, df_cols = int(match.group(1)), int(match.group(2))
+                        else:
+                            df_rows, df_cols = 100, 10
+                    else:
+                        df_rows, df_cols = 100, 10
                 else:
                     df_rows, df_cols = 100, 10
 
