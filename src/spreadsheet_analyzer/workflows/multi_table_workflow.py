@@ -12,7 +12,7 @@ import asyncio
 from pathlib import Path
 from typing import Annotated, Any, TypedDict
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from structlog import get_logger
 
@@ -86,16 +86,18 @@ async def supervisor_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 
 
 async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
-    """Run table detection in its own notebook session.
+    """Run table detection in its own notebook session using LLM.
 
     This node:
     1. Creates a dedicated notebook session for detection
     2. Loads the Excel file
-    3. Runs the table detector agent
+    3. Runs LLM-based table detection with iterative refinement
     4. Saves the detection notebook separately
     5. Returns only the table boundaries
     """
-    logger.info("Starting table detection", excel_file=state["excel_file_path"], sheet_index=state["sheet_index"])
+    logger.info(
+        "Starting LLM-based table detection", excel_file=state["excel_file_path"], sheet_index=state["sheet_index"]
+    )
 
     try:
         # Create detection-specific notebook path
@@ -107,7 +109,7 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         async with notebook_session(
             session_id=f"detection_{state['sheet_index']}", notebook_path=detection_notebook
         ) as session:
-            # Load Excel data
+            # Load Excel data first
             load_code = f"""
 import pandas as pd
 from pathlib import Path
@@ -115,7 +117,16 @@ from pathlib import Path
 excel_path = Path(r"{state["excel_file_path"]}")
 df = pd.read_excel(excel_path, sheet_index={state["sheet_index"]})
 print(f"Loaded sheet with shape: {{df.shape}}")
-df.head()
+
+# Quick preview for LLM context
+print("\\nFirst 10 rows:")
+print(df.head(10).to_string())
+print("\\nLast 5 rows:")
+print(df.tail(5).to_string())
+
+# Get basic info
+sheet_name = "{state.get("sheet_name", f"Sheet{state['sheet_index']}")}"
+sheet_dimensions = f"{{df.shape[0]}} rows x {{df.shape[1]}} columns"
 """
             result = await session.execute(load_code)
             if result.is_err():
@@ -124,185 +135,213 @@ df.head()
                     "messages": [AIMessage(content=f"Detection failed: {result.unwrap_err()}")],
                 }
 
-            # Run table detection in notebook
+            # Import required modules for LLM-based detection
+            import yaml
+
+            from ..cli.llm_interaction import create_llm_instance
+            from ..notebook_llm_interface import get_notebook_tools, get_session_manager
+
+            # Register session for tools access
+            session_manager = get_session_manager()
+            session_manager._sessions["detector_session"] = session
+
+            # Create detector-specific system prompt
+            prompts_dir = Path(__file__).parent.parent / "prompts"
+            detector_prompt_path = prompts_dir / "table_detector_system.yaml"
+
+            with detector_prompt_path.open() as f:
+                prompt_data = yaml.safe_load(f)
+
+            # Format the system prompt with actual data
+            from langchain_core.prompts import PromptTemplate
+
+            system_template = PromptTemplate(
+                template=prompt_data["template"], input_variables=prompt_data["input_variables"]
+            )
+
+            # Get sheet info from notebook
+            info_code = """
+excel_file_name = excel_path.name
+sheet_dimensions = f"{df.shape[0]} rows x {df.shape[1]} columns"
+sheet_name
+"""
+            await session.execute(info_code)  # Execute to ensure variables are set
+
+            system_prompt = system_template.format(
+                excel_file_name=Path(state["excel_file_path"]).name,
+                sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
+                sheet_dimensions="Shape from notebook execution",
+            )
+
+            # Create LLM instance for detection
+            # Use detector-specific model if provided, otherwise fall back to main model
+            detector_model = state["config"].detector_model or state["config"].model
+            llm_result = create_llm_instance(detector_model, state["config"].api_key)
+            if llm_result.is_err():
+                return {
+                    "detection_error": f"Failed to create LLM: {llm_result.unwrap_err()}",
+                    "messages": [AIMessage(content=f"Detection failed: {llm_result.unwrap_err()}")],
+                }
+
+            llm = llm_result.unwrap()
+
+            # Get tools for the detector
+            tools = get_notebook_tools()
+            llm_with_tools = llm.bind_tools(tools)
+
+            # Create messages for detection
+            from langchain_core.messages import HumanMessage, SystemMessage
+
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(
+                    content="""Please analyze the loaded spreadsheet and detect all table boundaries.
+
+Use the execute_code tool to:
+1. Check for empty rows that might separate tables
+2. Analyze ID patterns and column content for semantic boundaries
+3. Look for header patterns
+4. Identify each distinct table
+
+For each table found, document:
+- Exact boundaries (start_row, end_row, start_col, end_col)
+- Description of what the table contains
+- Entity type (orders, products, employees, summary, etc.)
+- Your confidence level
+- Table type (DETAIL, SUMMARY, HEADER, etc.)
+
+IMPORTANT: Create a variable called 'detected_tables' that contains a list of dictionaries with your findings.
+Example format:
+```python
+detected_tables = [
+    {
+        'table_id': 'table_1',
+        'start_row': 0,
+        'end_row': 48,
+        'start_col': 0,
+        'end_col': 3,
+        'description': 'Customer orders from January 2024',
+        'entity_type': 'orders',
+        'confidence': 0.9,
+        'table_type': 'DETAIL'
+    },
+    {
+        'table_id': 'table_2',
+        'start_row': 52,
+        'end_row': 58,
+        'start_col': 0,
+        'end_col': 2,
+        'description': 'Regional sales summary',
+        'entity_type': 'summary',
+        'confidence': 0.85,
+        'table_type': 'SUMMARY'
+    }
+]
+```
+
+Start by exploring the data structure to understand the sheet layout.
+
+When you have completed the detection, add a markdown cell with "Detection Complete" to signal completion."""
+                ),
+            ]
+
+            # Run detection with limited rounds (default 3 for detection)
+            max_detector_rounds = state["config"].detector_max_rounds
+
+            for round_num in range(max_detector_rounds):
+                logger.info(f"Detector round {round_num + 1}/{max_detector_rounds}")
+
+                # Get LLM response
+                try:
+                    response = await llm_with_tools.ainvoke(messages)
+                    messages.append(response)
+
+                    # Process any tool calls
+                    if hasattr(response, "tool_calls") and response.tool_calls:
+                        for tool_call in response.tool_calls:
+                            tool_name = tool_call["name"]
+                            tool_args = tool_call["args"]
+                            tool_id = tool_call["id"]
+
+                            # Find and execute the tool
+                            tool_func = next((t for t in tools if t.name == tool_name), None)
+                            if tool_func:
+                                try:
+                                    tool_result = tool_func.func(**tool_args)
+                                    messages.append(
+                                        ToolMessage(content=str(tool_result), tool_call_id=tool_id, name=tool_name)
+                                    )
+                                except Exception as e:
+                                    messages.append(
+                                        ToolMessage(content=f"Error: {e!s}", tool_call_id=tool_id, name=tool_name)
+                                    )
+
+                    # Check if detection is complete
+                    if response.content and "detection complete" in response.content.lower():
+                        break
+
+                except Exception:
+                    logger.exception("Error in detector LLM call")
+                    break
+
+            # Extract detection results from notebook
+            # The LLM should have created a variable called 'detected_tables'
+            extract_code = """
+# Extract detection results created by LLM
+# The detector should have created a 'detected_tables' variable with the results
+
+# Check if the LLM created the expected variable
+if 'detected_tables' in globals():
+    # Return the detected tables
+    detection_results = detected_tables
+    print(f"Found {len(detection_results)} tables from LLM detection")
+else:
+    # If no detection was made, return empty list to trigger fallback
+    print("No 'detected_tables' variable found - LLM may not have completed detection")
+    detection_results = []
+
+detection_results
+"""
+            extract_result = await session.execute(extract_code)
+
+            # Import types for result processing
             from ..agents.table_detection_types import TableBoundary, TableDetectionResult, TableType
 
-            # Add detection code to notebook
-            detection_code = """
-# Run table detection analysis
-import pandas as pd
-
-# Analyze sheet structure
-print(f"Sheet dimensions: {df.shape}")
-print(f"Columns: {list(df.columns)}")
-
-# Check for empty rows (mechanical detection)
-empty_rows = df.isnull().all(axis=1)
-empty_row_indices = empty_rows[empty_rows].index.tolist()
-
-if empty_row_indices:
-    print(f"\\nEmpty rows found at indices: {empty_row_indices}")
-
-    # Group consecutive empty rows
-    groups = []
-    if empty_row_indices:
-        current_group = [empty_row_indices[0]]
-        for i in range(1, len(empty_row_indices)):
-            if empty_row_indices[i] - empty_row_indices[i-1] == 1:
-                current_group.append(empty_row_indices[i])
-            else:
-                groups.append(current_group)
-                current_group = [empty_row_indices[i]]
-        groups.append(current_group)
-
-    print(f"Empty row groups: {groups}")
-else:
-    print("\\nNo empty rows found - likely a single table")
-
-# Preview data structure
-print("\\nFirst 10 rows:")
-df.head(10)
-"""
-            await session.toolkit.add_code_cell(detection_code)
-            result = await session.execute(detection_code)
-
-            # Get dataframe dimensions for fallback scenarios
-            df_info_code = "df_shape = df.shape; df_shape"
-            shape_result = await session.execute(df_info_code)
-            if shape_result.is_ok():
-                df_shape = shape_result.unwrap()
-                df_rows, df_cols = df_shape if isinstance(df_shape, tuple) else (100, 10)
-            else:
-                df_rows, df_cols = 100, 10  # Default fallback
-
-            # Implement simplified table detection based on empty rows
-            detection_logic = """
-# Detect table boundaries based on empty rows
-from typing import List, Tuple
-
-def detect_table_boundaries(df) -> List[Tuple[int, int]]:
-    \"\"\"Detect table boundaries based on empty rows.\"\"\"
-    empty_rows = df.isnull().all(axis=1)
-    tables = []
-    current_start = 0
-
-    for idx, is_empty in enumerate(empty_rows):
-        if is_empty and idx > current_start + 2:  # Minimum 3 rows for a table
-            tables.append((current_start, idx - 1))
-            current_start = idx + 1
-
-    # Add the last table
-    if current_start < len(df) - 1:
-        tables.append((current_start, len(df) - 1))
-
-    return tables if tables else [(0, len(df) - 1)]
-
-# Detect tables
-table_ranges = detect_table_boundaries(df)
-print(f"\\nDetected {len(table_ranges)} table(s):")
-for i, (start, end) in enumerate(table_ranges):
-    print(f"  Table {i+1}: Rows {start}-{end} ({end-start+1} rows)")
-
-# Store results for workflow
-detected_tables = []
-for i, (start, end) in enumerate(table_ranges):
-    table_df = df.iloc[start:end+1]
-    non_empty_cols = table_df.notna().any(axis=0)
-    if non_empty_cols.any():
-        # Find first non-empty column
-        start_col_idx = non_empty_cols.values.argmax()
-        # Find last non-empty column by reversing and finding first True
-        end_col_idx = len(non_empty_cols) - 1 - non_empty_cols.values[::-1].argmax()
-    else:
-        start_col_idx = 0
-        end_col_idx = len(df.columns) - 1
-
-    # Analyze table content for description
-    first_col_sample = table_df.iloc[:min(5, len(table_df)), 0].dropna()
-    if len(first_col_sample) > 0:
-        # Try to infer entity type from content
-        sample_str = str(first_col_sample.iloc[0])
-        if 'ORD' in sample_str or 'order' in str(table_df.columns).lower():
-            entity_type = 'orders'
-        elif 'PROD' in sample_str or 'product' in str(table_df.columns).lower():
-            entity_type = 'products'
-        elif 'EMP' in sample_str or 'employee' in str(table_df.columns).lower():
-            entity_type = 'employees'
-        elif 'total' in str(table_df.values).lower() or 'sum' in str(table_df.values).lower():
-            entity_type = 'summary'
-        else:
-            entity_type = 'data'
-    else:
-        entity_type = 'data'
-
-    detected_tables.append({
-        'table_id': f'table_{i+1}',
-        'start_row': start,
-        'end_row': end,
-        'start_col': start_col_idx,
-        'end_col': end_col_idx,
-        'row_count': end - start + 1,
-        'entity_type': entity_type,
-        'description': f'{entity_type.capitalize()} table with {end - start + 1} rows'
-    })
-
-# Show preview of each table
-for i, (start, end) in enumerate(table_ranges[:3]):  # Show max 3 tables
-    print(f"\\nTable {i+1} preview:")
-    print(df.iloc[start:min(start+5, end+1)])
-
-# Return detection results for the workflow to consume
-# Store in a retrievable variable
-workflow_detected_tables = detected_tables
-print(f"\\nStored {len(workflow_detected_tables)} tables for workflow")
-workflow_detected_tables
-"""
-            await session.toolkit.add_code_cell(detection_logic)
-            result = await session.execute(detection_logic)
-
-            # Extract actual detection results
-            # Try to get the variable we stored
-            get_tables_code = "workflow_detected_tables"
-            tables_result = await session.execute(get_tables_code)
-
-            if tables_result.is_ok():
-                exec_output = tables_result.unwrap()
-                logger.info(f"Detection execution result type: {type(exec_output)}")
+            if extract_result.is_ok():
+                exec_output = extract_result.unwrap()
+                logger.info(f"LLM detection result type: {type(exec_output)}")
 
                 # Check if we got the detected tables list
                 if isinstance(exec_output, list) and len(exec_output) > 0:
-                    # CLAUDE-GOTCHA: The .get() calls below with default values might look like
-                    # we're ignoring detection results, but we're actually using the detected
-                    # values when present. The defaults are only used for missing keys as a
-                    # defensive programming practice. The actual detection results from
-                    # workflow_detected_tables ARE being used here.
-                    # Convert detected tables to TableBoundary objects
-                    table_boundaries_list = []
+                    # Convert LLM detection results to TableBoundary objects
+                    table_boundaries_list: list[TableBoundary] = []
 
                     for table_info in exec_output:
                         if isinstance(table_info, dict):
-                            # Determine table type based on entity type and row count
-                            entity_type = table_info.get("entity_type", "data")
-                            row_count = table_info.get("row_count", 0)
-
-                            if entity_type == "summary" or row_count < 10:
+                            # Parse table type from string
+                            type_str = table_info.get("table_type", "DETAIL").upper()
+                            if type_str == "SUMMARY":
                                 table_type = TableType.SUMMARY
-                            elif "header" in entity_type or row_count < 5:
+                            elif type_str == "HEADER":
                                 table_type = TableType.HEADER
+                            elif type_str == "PIVOT":
+                                table_type = TableType.PIVOT
+                            elif type_str == "LOOKUP":
+                                table_type = TableType.LOOKUP
                             else:
                                 table_type = TableType.DETAIL
 
                             table_boundaries_list.append(
                                 TableBoundary(
-                                    table_id=table_info.get("table_id", "table_1"),
-                                    description=table_info.get("description", "Detected table"),
+                                    table_id=table_info.get("table_id", f"table_{len(table_boundaries_list) + 1}"),
+                                    description=table_info.get("description", "LLM-detected table"),
                                     start_row=table_info.get("start_row", 0),
-                                    end_row=table_info.get("end_row", df_rows - 1),
+                                    end_row=table_info.get("end_row", 0),
                                     start_col=table_info.get("start_col", 0),
-                                    end_col=table_info.get("end_col", df_cols - 1),
-                                    confidence=0.9,  # High confidence for mechanical detection
+                                    end_col=table_info.get("end_col", 0),
+                                    confidence=float(table_info.get("confidence", 0.8)),
                                     table_type=table_type,
-                                    entity_type=entity_type,
+                                    entity_type=table_info.get("entity_type", "data"),
                                 )
                             )
 
@@ -310,36 +349,50 @@ workflow_detected_tables
                         table_boundaries = TableDetectionResult(
                             sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
                             tables=tuple(table_boundaries_list),
-                            detection_method="mechanical",
-                            metadata={"method": "empty_row_detection", "total_rows": df_rows, "total_cols": df_cols},
+                            detection_method="llm",
+                            metadata={
+                                "method": "llm_detection",
+                                "model": detector_model,
+                                "rounds": min(round_num + 1, max_detector_rounds),
+                                "max_rounds": max_detector_rounds,
+                            },
                         )
                     else:
-                        logger.warning("No valid tables found in detection results, using fallback")
-                        # CLAUDE-IMPORTANT: This fallback is ONLY used when detection genuinely
-                        # fails or returns no results. Normal operation uses the actual detected
-                        # table boundaries from the executed detection logic above.
-                        # Fallback to single table
+                        logger.warning("No valid tables found in LLM detection results, using fallback")
+                        # Get dimensions for fallback
+                        dim_result = await session.execute("df.shape")
+                        if dim_result.is_ok():
+                            df_rows, df_cols = dim_result.unwrap()
+                        else:
+                            df_rows, df_cols = 100, 10
+
                         table_boundaries = TableDetectionResult(
                             sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
                             tables=(
                                 TableBoundary(
                                     table_id="table_1",
-                                    description="Full spreadsheet (fallback)",
+                                    description="Full spreadsheet (LLM detection found no boundaries)",
                                     start_row=0,
                                     end_row=df_rows - 1,
                                     start_col=0,
                                     end_col=df_cols - 1,
-                                    confidence=0.7,
+                                    confidence=0.5,
                                     table_type=TableType.DETAIL,
                                     entity_type="data",
                                 ),
                             ),
-                            detection_method="mechanical",
-                            metadata={"fallback": True},
+                            detection_method="llm",
+                            metadata={"fallback": True, "reason": "no_boundaries_detected"},
                         )
                 else:
-                    logger.warning(f"Unexpected execution result type: {type(exec_output)}, using fallback")
-                    # Fallback to single table
+                    logger.warning(f"Unexpected LLM result type: {type(exec_output)}")
+                    # Get dimensions for fallback
+                    dim_result = await session.execute("df.shape")
+                    if dim_result.is_ok():
+                        df_rows, df_cols = dim_result.unwrap()
+                    else:
+                        df_rows, df_cols = 100, 10
+
                     table_boundaries = TableDetectionResult(
                         sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
                         tables=(
@@ -350,16 +403,23 @@ workflow_detected_tables
                                 end_row=df_rows - 1,
                                 start_col=0,
                                 end_col=df_cols - 1,
-                                confidence=0.7,
+                                confidence=0.5,
                                 table_type=TableType.DETAIL,
                                 entity_type="data",
                             ),
                         ),
-                        detection_method="mechanical",
+                        detection_method="llm",
                         metadata={"fallback": True, "reason": "unexpected_result_type"},
                     )
             else:
-                logger.error(f"Failed to retrieve detection results: {tables_result.unwrap_err()}")
+                logger.error(f"Failed to extract detection results: {extract_result.unwrap_err()}")
+                # Get dimensions for fallback
+                dim_result = await session.execute("df.shape")
+                if dim_result.is_ok():
+                    df_rows, df_cols = dim_result.unwrap()
+                else:
+                    df_rows, df_cols = 100, 10
+
                 # Fallback to single table
                 table_boundaries = TableDetectionResult(
                     sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
@@ -376,7 +436,7 @@ workflow_detected_tables
                             entity_type="data",
                         ),
                     ),
-                    detection_method="mechanical",
+                    detection_method="llm",
                     metadata={"fallback": True, "reason": "execution_error"},
                 )
 

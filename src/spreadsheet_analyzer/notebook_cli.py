@@ -188,6 +188,19 @@ Examples:
         help="Use multi-table detection workflow (experimental)",
     )
 
+    # Detector-specific configuration
+    parser.add_argument(
+        "--detector-max-rounds",
+        type=int,
+        default=3,
+        help="Maximum number of rounds for table detection agent (default: 3)",
+    )
+    parser.add_argument(
+        "--detector-model",
+        type=str,
+        help="Specific model to use for table detection (defaults to main --model)",
+    )
+
     return parser
 
 
@@ -252,6 +265,8 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
         phoenix_config=phoenix_config,
         track_costs=args.track_costs and not args.no_cost_tracking,
         cost_limit=args.cost_limit,
+        detector_max_rounds=args.detector_max_rounds,
+        detector_model=args.detector_model,
     )
 
 

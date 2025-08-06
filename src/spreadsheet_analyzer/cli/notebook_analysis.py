@@ -65,6 +65,8 @@ class AnalysisConfig:
     compression_verbose: bool = False  # Log detailed compression info
     # Table detection configuration
     table_boundaries: str | None = None  # Pre-detected table boundaries for focused analysis
+    detector_max_rounds: int = 3  # Max rounds for table detection agent
+    detector_model: str | None = None  # Specific model for detector (defaults to main model)
 
 
 @dataclass(frozen=True)
@@ -244,10 +246,11 @@ async def cache_formula_analysis(excel_path: Path, formulas: Any) -> Path | None
             pickle.dump(formulas, f)
 
         logger.info(f"Saved formula analysis to cache: {cache_path}")
-        return cache_path
-    except Exception as e:
-        logger.error(f"Failed to cache formula analysis: {e}")
+    except Exception:
+        logger.exception("Failed to cache formula analysis")
         return None
+    else:
+        return cache_path
 
 
 async def add_pipeline_results_to_notebook(
@@ -595,8 +598,8 @@ def log_cost_summary(cost_tracker: Any, cost_limit: float | None) -> None:
         if cost_limit:
             status = "✅ Within" if cost_summary["within_budget"] else "❌ Exceeded"
             logger.info(f"  Budget Status: {status} limit (${cost_limit:.2f})")
-    except Exception as e:
-        logger.error(f"Failed to log cost summary: {e}")
+    except Exception:
+        logger.exception("Failed to log cost summary")
 
 
 # Main orchestration function
