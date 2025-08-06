@@ -203,11 +203,9 @@ async def example_5_integration_with_existing() -> None:
     for sheet_idx, sheet_name in enumerate(["Sales", "Inventory"]):
         print(f"\nAnalyzing sheet: {sheet_name}")
 
-        # Check if multi-table detection is needed
-        df = pd.read_excel(test_file, sheet_name=sheet_name)
-        empty_rows = df.isnull().all(axis=1).sum()
-
-        if empty_rows > 0:
+        # For this example, let's use multi-table workflow on the Inventory sheet
+        # which we know has multiple tables
+        if sheet_name == "Inventory":
             print("  → Using multi-table workflow")
             result = await run_multi_table_analysis(
                 test_file,

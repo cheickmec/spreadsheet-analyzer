@@ -51,9 +51,6 @@ Examples:
   # Multi-table detection workflow
   %(prog)s data.xlsx --multi-table
 
-  # Auto-detect if multi-table analysis is needed
-  %(prog)s data.xlsx --auto-detect-tables
-
   # Use GPT-4 instead of Claude
   %(prog)s data.xlsx --model gpt-4 --sheet-index 1
 
@@ -189,11 +186,6 @@ Examples:
         "--multi-table",
         action="store_true",
         help="Use multi-table detection workflow (experimental)",
-    )
-    parser.add_argument(
-        "--auto-detect-tables",
-        action="store_true",
-        help="Automatically detect if multi-table analysis is needed",
     )
 
     return parser
@@ -331,24 +323,8 @@ async def main() -> None:
 
     # Check if we should use multi-table workflow
     use_multi_table = getattr(args, "multi_table", False)
-    auto_detect = getattr(args, "auto_detect_tables", False)
 
-    if use_multi_table or auto_detect:
-        # Auto-detect if needed
-        if auto_detect and not use_multi_table:
-            import pandas as pd
-
-            try:
-                df = pd.read_excel(config.excel_path, sheet_index=config.sheet_index)
-                empty_rows = df.isnull().all(axis=1).sum()
-                use_multi_table = empty_rows > 0
-                if use_multi_table:
-                    logger.info(f"Auto-detected {empty_rows} empty rows, using multi-table workflow")
-            except Exception as e:
-                logger.warning(f"Failed to auto-detect tables: {e}")
-                use_multi_table = False
-
-        if use_multi_table:
+    if use_multi_table:
             logger.info("Using multi-table detection workflow")
             from spreadsheet_analyzer.workflows.multi_table_workflow import run_multi_table_analysis
 

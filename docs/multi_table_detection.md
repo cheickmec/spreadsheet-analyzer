@@ -162,21 +162,16 @@ result = detector.process(message, state)
 
 The multi-table workflow integrates seamlessly:
 
-1. **Backward Compatible**: Single-table sheets work as before
-1. **Automatic Detection**: Can detect when multi-table analysis is needed
-1. **Manual Override**: Force multi-table analysis when needed
+1. **Backward Compatible**: Single-table sheets work as before  
+2. **Explicit Control**: Use `--multi-table` flag when you need table detection
+3. **LLM-Powered Detection**: The table detector agent uses sophisticated analysis, not simple heuristics
 
 ```python
-# Check if multi-table analysis is needed
-df = pd.read_excel("data.xlsx")
-empty_rows = df.isnull().all(axis=1).sum()
+# Use multi-table workflow when needed
+result = await run_multi_table_analysis(Path("data.xlsx"))
 
-if empty_rows > 0:
-    # Use multi-table workflow
-    result = await run_multi_table_analysis(Path("data.xlsx"))
-else:
-    # Use standard analysis
-    result = await run_standard_analysis(Path("data.xlsx"))
+# Or use standard single-table analysis
+result = await run_standard_analysis(Path("data.xlsx"))
 ```
 
 ## Configuration Options
