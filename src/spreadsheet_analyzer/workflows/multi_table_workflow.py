@@ -41,7 +41,13 @@ from ..cli.utils.naming import (
 from ..core.types import Result, err, ok
 from ..notebook_llm_interface import get_session_manager
 from ..notebook_session import notebook_session
-from ..observability import add_session_metadata, get_cost_tracker, phoenix_session
+from ..observability import (
+    add_session_metadata,
+    get_cost_tracker,
+    initialize_phoenix,
+    instrument_all,
+    phoenix_session,
+)
 from ..prompts import get_prompt_definition, load_prompt
 
 logger = get_logger(__name__)
@@ -930,6 +936,20 @@ async def run_multi_table_analysis(
         # Create default config if needed
         if config is None:
             config = AnalysisConfig(excel_path=excel_path, sheet_index=sheet_index, output_dir=Path("./outputs"))
+
+        # CLAUDE-IMPORTANT: Initialize Phoenix observability for multi-table workflow
+        # This ensures detector and analyst agents are properly traced
+        if config.phoenix_config and config.phoenix_config.mode != "none":
+            try:
+                tracer_provider = initialize_phoenix(config.phoenix_config)
+                if tracer_provider:
+                    results = instrument_all(tracer_provider)
+                    logger.info("Phoenix instrumentation complete for multi-table workflow", results=results)
+                else:
+                    logger.warning("Phoenix initialization failed, continuing without observability")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Phoenix for multi-table workflow: {e}")
+                # Continue without observability - don't fail the workflow
 
         # Initialize state
         initial_state = SpreadsheetAnalysisState(
