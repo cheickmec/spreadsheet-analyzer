@@ -1,0 +1,230 @@
+[
+  {
+    "timestamp": "2025-08-07T10:21:00.764808",
+    "model": "gpt-4.1-nano",
+    "excel_file": "multi_table_sample.xlsx",
+    "sheet_index": 0,
+    "sheet_name": null,
+    "prompt_hash": "988988e6",
+    "tables_detected": [
+      {
+        "table_id": "table_1",
+        "description": "Product inventory with product details",
+        "start_row": 0,
+        "end_row": 9,
+        "start_col": 0,
+        "end_col": 15,
+        "confidence": 0.9,
+        "table_type": "detail",
+        "entity_type": "product_inventory"
+      },
+      {
+        "table_id": "table_2",
+        "description": "Customer sales data",
+        "start_row": 45,
+        "end_row": 49,
+        "start_col": 12,
+        "end_col": 15,
+        "confidence": 0.85,
+        "table_type": "detail",
+        "entity_type": "customer_sales"
+      }
+    ],
+    "table_count": 2,
+    "token_usage": {
+      "input": 5450,
+      "output": 511,
+      "total": 5961
+    },
+    "cost_usd": 0.0,
+    "success": true,
+    "detector_max_rounds": 2,
+    "notebook_path": "outputs/detector/multi_table_sample_sheet0_gpt_4_1_nano_r2_988988e6_20250807_102052.ipynb"
+  },
+  {
+    "timestamp": "2025-08-07T12:34:51.270892",
+    "model": "gpt-4.1-nano",
+    "excel_file": "Business Accounting.xlsx",
+    "sheet_index": 0,
+    "sheet_name": null,
+    "prompt_hash": "00354a48",
+    "tables_detected": [
+      {
+        "table_id": "table_1",
+        "description": "Full spreadsheet (fallback)",
+        "start_row": 0,
+        "end_row": 9,
+        "start_col": 0,
+        "end_col": 8,
+        "confidence": 0.5,
+        "table_type": "detail",
+        "entity_type": "data"
+      }
+    ],
+    "table_count": 1,
+    "token_usage": {
+      "input": 7573,
+      "output": 548,
+      "total": 8121
+    },
+    "cost_usd": 0.0,
+    "success": true,
+    "detector_max_rounds": 3,
+    "notebook_path": "outputs/test_layout/detector/Business Accounting_sheet0_gpt_4_1_nano_r3_00354a48_20250807_123438.ipynb"
+  },
+  {
+    "timestamp": "2025-08-07T12:35:16.321724",
+    "model": "gpt-4o-mini",
+    "excel_file": "Business Accounting.xlsx",
+    "sheet_index": 0,
+    "sheet_name": null,
+    "prompt_hash": "00354a48",
+    "tables_detected": [
+      {
+        "table_id": "table_1",
+        "description": "Transaction records with expenses",
+        "start_row": 0,
+        "end_row": 9,
+        "start_col": 0,
+        "end_col": 6,
+        "confidence": 0.95,
+        "table_type": "detail",
+        "entity_type": "transactions"
+      }
+    ],
+    "table_count": 1,
+    "token_usage": {
+      "input": 8777,
+      "output": 327,
+      "total": 9104
+    },
+    "cost_usd": 0.0,
+    "success": true,
+    "detector_max_rounds": 3,
+    "notebook_path": "outputs/test_layout/detector/Business Accounting_sheet0_gpt_4o_mini_r3_00354a48_20250807_123508.ipynb"
+  },
+  {
+    "timestamp": "2025-08-07T13:41:26.481350",
+    "model": "gpt-4.1-nano",
+    "excel_file": "Business Accounting.xlsx",
+    "sheet_index": 0,
+    "sheet_name": null,
+    "prompt_hash": "00354a48",
+    "tables_detected": [
+      {
+        "table_id": "table_1",
+        "description": "Full spreadsheet (fallback)",
+        "start_row": 0,
+        "end_row": 9,
+        "start_col": 0,
+        "end_col": 8,
+        "confidence": 0.5,
+        "table_type": "detail",
+        "entity_type": "data"
+      }
+    ],
+    "table_count": 1,
+    "token_usage": {
+      "input": 7219,
+      "output": 407,
+      "total": 7626
+    },
+    "cost_usd": 0.0,
+    "success": true,
+    "detector_max_rounds": 3,
+    "notebook_path": "outputs/detector/Business Accounting_sheet0_gpt_4_1_nano_r3_00354a48_20250807_134117.ipynb"
+  },
+  {
+    "timestamp": "2025-08-07T13:41:56.128856",
+    "model": "gpt-4o-mini",
+    "excel_file": "Business Accounting.xlsx",
+    "sheet_index": 0,
+    "sheet_name": null,
+    "prompt_hash": "00354a48",
+    "tables_detected": [
+      {
+        "table_id": "table_1",
+        "description": "Full spreadsheet (fallback)",
+        "start_row": 0,
+        "end_row": 9,
+        "start_col": 0,
+        "end_col": 8,
+        "confidence": 0.5,
+        "table_type": "detail",
+        "entity_type": "data"
+      }
+    ],
+    "table_count": 1,
+    "token_usage": {
+      "input": 8409,
+      "output": 267,
+      "total": 8676
+    },
+    "cost_usd": 0.0,
+    "success": true,
+    "detector_max_rounds": 3,
+    "notebook_path": "outputs/detector/Business Accounting_sheet0_gpt_4o_mini_r3_00354a48_20250807_134147.ipynb"
+  },
+  {
+    "timestamp": "2025-08-07T15:02:38.363084",
+    "model": "gpt-4.1-nano",
+    "excel_file": "Business Accounting.xlsx",
+    "sheet_index": 0,
+    "sheet_name": null,
+    "prompt_hash": "00354a48",
+    "tables_detected": [
+      {
+        "table_id": "table_1",
+        "description": "Main financial transactions table",
+        "start_row": 0,
+        "end_row": 9,
+        "start_col": 0,
+        "end_col": 8,
+        "confidence": 0.95,
+        "table_type": "detail",
+        "entity_type": "transactions"
+      }
+    ],
+    "table_count": 1,
+    "token_usage": {
+      "input": 7523,
+      "output": 507,
+      "total": 8030
+    },
+    "cost_usd": 0.0,
+    "success": true,
+    "detector_max_rounds": 3,
+    "notebook_path": "outputs/detector/Business Accounting_sheet0_gpt_4_1_nano_r3_00354a48_20250807_150224.ipynb"
+  },
+  {
+    "timestamp": "2025-08-07T16:10:42.561573",
+    "model": "gpt-4.1-nano",
+    "excel_file": "Business Accounting.xlsx",
+    "sheet_index": 0,
+    "sheet_name": null,
+    "prompt_hash": "68f3ba81",
+    "tables_detected": [
+      {
+        "table_id": "table_1",
+        "description": "Full spreadsheet (fallback)",
+        "start_row": 0,
+        "end_row": 9,
+        "start_col": 0,
+        "end_col": 8,
+        "confidence": 0.5,
+        "table_type": "detail",
+        "entity_type": "data"
+      }
+    ],
+    "table_count": 1,
+    "token_usage": {
+      "input": 0,
+      "output": 0,
+      "total": 0
+    },
+    "cost_usd": 0.0,
+    "success": true,
+    "detector_max_rounds": 3,
+    "notebook_path": "outputs/detector/detector/Business Accounting_sheet0_gpt_4_1_nano_r3_68f3ba81_20250807_161037.ipynb"
+  }
+]

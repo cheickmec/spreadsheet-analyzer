@@ -1,0 +1,43 @@
+# Ground Truth for Multi-Table Sample Test File
+metadata:
+  file_name: "multi_table_sample.xlsx"
+  total_sheets: 1
+  created: "2025-01-07"
+  version: "1.0.0"
+
+sheets:
+  - sheet_index: 0
+    sheet_name: "Sheet1"
+    total_rows: 50
+    total_cols: 16
+    expected_tables:
+      - table_id: "product_inventory"
+        description: "Product inventory table with 30 products"
+        start_row: 0
+        end_row: 29
+        start_col: 0
+        end_col: 3
+        table_type: "DETAIL"
+        entity_type: "products"
+      - table_id: "regional_sales"
+        description: "Regional sales summary"
+        start_row: 33
+        end_row: 37
+        start_col: 8
+        end_col: 11
+        table_type: "SUMMARY"
+        entity_type: "sales_by_region"
+      - table_id: "customer_orders"
+        description: "Customer order summary"
+        start_row: 40
+        end_row: 49
+        start_col: 12
+        end_col: 15
+        table_type: "DETAIL"
+        entity_type: "customers"
+    notes: "Test file with three separate tables - products, regional sales, and customers. Empty rows at 30-32 and 38-39 separate tables."
+
+evaluation:
+  iou_threshold: 0.5
+  coordinate_tolerance: 2
+  confidence_threshold: 0.7

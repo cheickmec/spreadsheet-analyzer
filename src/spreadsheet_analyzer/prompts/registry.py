@@ -57,6 +57,12 @@ PROMPT_REGISTRY: Final[dict[str, PromptDefinition]] = {
         content_hash="sha256:988988e6c8b4421bc6f7ae15bf1c17ca9296acb2e6ff4e3a8dd1a5b6376f2675",
         description="System prompt for multi-table detection agent",
     ),
+    "layout_comprehension_system": PromptDefinition(
+        name="layout_comprehension_system",
+        file_name="layout_comprehension_system.prompt.yml",
+        content_hash="sha256:68f3ba81c72c55c41eceec8cdca137fad04cac77009c39512e1cc5870264e0de",
+        description="System prompt for semantic layout comprehension in spreadsheets",
+    ),
 }
 
 

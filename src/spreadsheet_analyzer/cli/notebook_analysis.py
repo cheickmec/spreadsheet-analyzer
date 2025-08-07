@@ -679,9 +679,24 @@ async def run_notebook_analysis(config: AnalysisConfig, artifacts: AnalysisArtif
         if setup_result.is_err():
             logger.warning(f"Failed to setup notebook basics: {setup_result.unwrap_err()}")
 
-        # Step 7: Run LLM analysis if requested
-        if config.max_rounds > 0:
-            # Import and run LLM analysis
+        # Step 7: Run LLM analysis if requested and not in detector-only mode
+        if config.detector_only:
+            # Run the multi-table detector workflow
+            logger.info("Running detector-only workflow (skipping analyst)...")
+            from ..workflows.multi_table_workflow import run_multi_table_analysis
+
+            workflow_result = await run_multi_table_analysis(
+                excel_path=config.excel_path,
+                sheet_index=config.sheet_index,
+                config=config,  # Pass the entire config which includes detector_only=True
+            )
+
+            if workflow_result.is_err():
+                logger.error(f"Detector workflow failed: {workflow_result.unwrap_err()}")
+            else:
+                logger.info("Detector workflow completed successfully")
+        elif config.max_rounds > 0:
+            # Run standard LLM analysis
             from .llm_interaction import run_llm_analysis
 
             llm_result = await run_llm_analysis(

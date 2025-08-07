@@ -9,6 +9,7 @@ its own notebook session to avoid context pollution.
 """
 
 import asyncio
+import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Any, TypedDict
@@ -80,6 +81,9 @@ class SpreadsheetAnalysisState(TypedDict):
     current_agent: str
     workflow_complete: bool
 
+    # Logging
+    llm_logger: Any | None  # Logger for verbose LLM message logging
+
 
 async def supervisor_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
     """Supervisor decides which agent to run next based on current state.
@@ -143,8 +147,11 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 
         detector_model = state["config"].detector_model or state["config"].model
 
-        # Get prompt hash for tracking
-        detector_prompt_def = get_prompt_definition("table_detector_system")
+        # Get prompt hash for tracking - use layout comprehension if available
+        detector_prompt_def = get_prompt_definition("layout_comprehension_system")
+        if not detector_prompt_def:
+            # Fallback to old table detector if layout comprehension not available
+            detector_prompt_def = get_prompt_definition("table_detector_system")
         prompt_hash = get_short_hash(detector_prompt_def.content_hash) if detector_prompt_def else None
 
         # Create file config for detector
@@ -167,6 +174,22 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         # Replace "analysis" with "detection" in the filename
         detection_notebook_name = detection_notebook_name.replace("_analysis_", "_detection_")
         detection_notebook = detector_output_dir / detection_notebook_name
+
+        # Generate log file for detector
+        detector_log_path = detector_output_dir / generate_log_name(detector_file_config, include_timestamp=True)
+        # Replace "analysis" with "detection" in the log filename
+        detector_log_path = Path(str(detector_log_path).replace("_analysis_", "_detection_"))
+
+        # Setup logging for detector
+        from ..cli.notebook_analysis import setup_llm_logging
+
+        log_result = setup_llm_logging(detector_log_path)
+        llm_logger = None
+        if log_result.is_err():
+            logger.warning(f"Failed to setup detector logging: {log_result.unwrap_err()}")
+        else:
+            llm_logger = log_result.unwrap()
+            logger.info(f"Detector log file: {detector_log_path}")
 
         # Run detection in isolated session
         async with notebook_session(
@@ -204,8 +227,11 @@ sheet_dimensions = f"{{df.shape[0]}} rows x {{df.shape[1]}} columns"
             session_manager = get_session_manager()
             session_manager._sessions["detector_session"] = session
 
-            # Load detector prompt with hash validation
-            prompt_result = load_prompt("table_detector_system")
+            # Load detector prompt with hash validation - prefer layout comprehension
+            prompt_result = load_prompt("layout_comprehension_system")
+            if prompt_result.is_err():
+                # Fallback to old table detector if layout comprehension not available
+                prompt_result = load_prompt("table_detector_system")
             if prompt_result.is_err():
                 logger.error(f"Failed to load detector prompt: {prompt_result.err_value}")
                 # Use a fallback prompt if loading fails
@@ -437,6 +463,24 @@ NEVER attempt to call DataFrame methods directly as tools!
                 for round_num in range(max_detector_rounds):
                     logger.info(f"Detector round {round_num + 1}/{max_detector_rounds}")
 
+                    # Log round start to verbose logger
+                    if llm_logger:
+                        llm_logger.info(f"\n{'🔍' * 40}")
+                        llm_logger.info(f"{'🔍' * 15} DETECTOR ROUND {round_num + 1}/{max_detector_rounds} {'🔍' * 15}")
+                        llm_logger.info(f"{'🔍' * 40}\n")
+
+                        # Log messages being sent
+                        llm_logger.info(f"{'═' * 20} Messages to LLM {'═' * 20}")
+                        for i, msg in enumerate(messages):
+                            msg_type = type(msg).__name__
+                            msg_content = getattr(msg, "content", str(msg))
+                            llm_logger.info(f"\nMessage {i + 1} ({msg_type}):\n{msg_content}")
+                            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                                try:
+                                    llm_logger.info(f"Tool calls: {json.dumps(msg.tool_calls, indent=2)}")
+                                except (TypeError, AttributeError):
+                                    llm_logger.info(f"Tool calls: {msg.tool_calls}")
+
                     # Get LLM response
                     try:
                         response = await llm_with_tools.ainvoke(messages)
@@ -445,6 +489,17 @@ NEVER attempt to call DataFrame methods directly as tools!
                             f"LLM response content: {response.content[:200] if response.content else 'None'}..."
                         )
                         messages.append(response)
+
+                        # Log response to verbose logger
+                        if llm_logger:
+                            llm_logger.info(f"\n{'═' * 20} LLM Response {'═' * 20}")
+                            llm_logger.info(f"Response type: {type(response).__name__}")
+                            llm_logger.info(f"Content: {response.content}")
+                            if hasattr(response, "tool_calls") and response.tool_calls:
+                                try:
+                                    llm_logger.info(f"Tool calls: {json.dumps(response.tool_calls, indent=2)}")
+                                except (TypeError, AttributeError):
+                                    llm_logger.info(f"Tool calls: {response.tool_calls}")
 
                         # Track token usage for cost tracking
                         if state["config"].track_costs:
@@ -471,6 +526,9 @@ NEVER attempt to call DataFrame methods directly as tools!
                                 continue  # Skip to next round
 
                         if hasattr(response, "tool_calls") and response.tool_calls:
+                            if llm_logger:
+                                llm_logger.info(f"\n{'═' * 20} Tool Executions {'═' * 20}")
+
                             for tool_call in response.tool_calls:
                                 tool_name = tool_call["name"]
                                 tool_args = tool_call["args"]
@@ -481,7 +539,19 @@ NEVER attempt to call DataFrame methods directly as tools!
                                     try:
                                         # Extract code from tool args
                                         code = tool_args.get("code", "")
+
+                                        if llm_logger:
+                                            llm_logger.info(f"\nTOOL CALL: {tool_name}")
+                                            try:
+                                                llm_logger.info(f"Arguments: {json.dumps(tool_args, indent=2)}")
+                                            except (TypeError, AttributeError):
+                                                llm_logger.info(f"Arguments: {tool_args}")
+
                                         tool_result = await execute_detector_code(code)
+
+                                        if llm_logger:
+                                            llm_logger.info(f"Output: {tool_result}")
+
                                         messages.append(
                                             ToolMessage(content=str(tool_result), tool_call_id=tool_id, name=tool_name)
                                         )
@@ -504,10 +574,23 @@ NEVER attempt to call DataFrame methods directly as tools!
                             and isinstance(response.content, str)
                             and "detection complete" in response.content.lower()
                         ):
+                            if llm_logger:
+                                llm_logger.info(f"\n{'✅' * 40}")
+                                llm_logger.info(f"{'✅' * 15} Detection Complete {'✅' * 15}")
+                                llm_logger.info(f"{'✅' * 40}\n")
                             break
 
-                    except Exception:
+                        # Log round completion
+                        if llm_logger:
+                            llm_logger.info(f"\n{'✅' * 40}")
+                            llm_logger.info(f"{'✅' * 15} ROUND {round_num + 1} Complete {'✅' * 15}")
+                            llm_logger.info(f"{'✅' * 40}\n")
+
+                    except Exception as e:
                         logger.exception("Error in detector LLM call")
+                        if llm_logger:
+                            llm_logger.info(f"\n{'❌' * 20} ERROR IN DETECTOR {'❌' * 20}")
+                            llm_logger.info(f"Error: {e!s}")
                         break
 
                 # Log cost summary if tracking enabled
@@ -772,6 +855,72 @@ Detected {len(table_boundaries.tables)} tables:
             logger.info(f"Detection complete: found {len(table_boundaries.tables)} tables")
             logger.info(f"Detection notebook saved to: {detection_notebook}")
 
+            # Log detection results to JSON for benchmarking
+            try:
+                import json
+                from datetime import datetime
+
+                # Convert table boundaries to dict format
+                tables_as_dicts = []
+                for table in table_boundaries.tables:
+                    tables_as_dicts.append(
+                        {
+                            "table_id": table.table_id,
+                            "description": table.description,
+                            "start_row": table.start_row,
+                            "end_row": table.end_row,
+                            "start_col": table.start_col,
+                            "end_col": table.end_col,
+                            "confidence": table.confidence,
+                            "table_type": table.table_type.value,
+                            "entity_type": table.entity_type,
+                        }
+                    )
+
+                # Create benchmark result entry
+                benchmark_entry = {
+                    "timestamp": datetime.now().isoformat(),
+                    "model": detector_model,
+                    "excel_file": Path(state["excel_file_path"]).name,
+                    "sheet_index": state["sheet_index"],
+                    "sheet_name": state.get("sheet_name", f"Sheet{state['sheet_index']}"),
+                    "prompt_hash": prompt_hash or "unknown",
+                    "tables_detected": tables_as_dicts,
+                    "table_count": len(table_boundaries.tables),
+                    "token_usage": {
+                        "input": cost_summary["total_tokens"]["input"],
+                        "output": cost_summary["total_tokens"]["output"],
+                        "total": cost_summary["total_tokens"]["total"],
+                    },
+                    "cost_usd": cost_summary["total_cost_usd"],
+                    "success": True,
+                    "detector_max_rounds": max_detector_rounds,
+                    "notebook_path": str(detection_notebook),
+                }
+
+                # Append to detection results file
+                results_file = Path("outputs/benchmarks/detection_results.json")
+                results_file.parent.mkdir(parents=True, exist_ok=True)
+
+                # Load existing results or create new list
+                if results_file.exists():
+                    with open(results_file) as f:
+                        results = json.load(f)
+                else:
+                    results = []
+
+                # Append new result
+                results.append(benchmark_entry)
+
+                # Save updated results
+                with open(results_file, "w") as f:
+                    json.dump(results, f, indent=2)
+
+                logger.info(f"Detection results logged to {results_file}")
+
+            except Exception as e:
+                logger.warning(f"Failed to log detection results: {e}")
+
             return {
                 "table_boundaries": table_boundaries,
                 "detection_notebook_path": str(detection_notebook),
@@ -965,6 +1114,7 @@ async def run_multi_table_analysis(
             messages=[HumanMessage(content="Starting multi-table analysis...")],
             current_agent="",
             workflow_complete=False,
+            llm_logger=None,  # Will be set by detector if needed
         )
 
         # Create and run workflow
