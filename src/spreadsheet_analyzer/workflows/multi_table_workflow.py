@@ -277,9 +277,8 @@ Your task:
 
 Create the detected_tables variable now using the execute_code_detector tool."""
 
-            # Simple tool to just execute code in the session
-            @tool
-            async def execute_code_detector(code: str) -> str:
+            # Create a simple function to execute code in the session
+            async def execute_detector_code(code: str) -> str:
                 """Execute Python code in the detector session."""
                 try:
                     result = await session.execute(code)
@@ -290,6 +289,12 @@ Create the detected_tables variable now using the execute_code_detector tool."""
                         return f"Error: {result.unwrap_err()}"
                 except Exception as e:
                     return f"Execution failed: {e!s}"
+
+            # Create tool for LLM binding
+            @tool
+            async def execute_code_detector(code: str) -> str:
+                """Execute Python code in the detector session."""
+                return await execute_detector_code(code)
 
             llm_with_tools = llm.bind_tools([execute_code_detector])
 
@@ -324,15 +329,12 @@ Create the detected_tables variable now using the execute_code_detector tool."""
                             tool_args = tool_call["args"]
                             tool_id = tool_call["id"]
 
-                            # Find and execute the tool
-                            tool_func = next((t for t in tools if t.name == tool_name), None)
-                            if tool_func:
+                            # Execute the detector tool directly
+                            if tool_name == "execute_code_detector":
                                 try:
-                                    # Handle both sync and async tools
-                                    if asyncio.iscoroutinefunction(tool_func.func):
-                                        tool_result = await tool_func.func(**tool_args)
-                                    else:
-                                        tool_result = tool_func.func(**tool_args)
+                                    # Extract code from tool args
+                                    code = tool_args.get("code", "")
+                                    tool_result = await execute_detector_code(code)
                                     messages.append(
                                         ToolMessage(content=str(tool_result), tool_call_id=tool_id, name=tool_name)
                                     )
@@ -341,6 +343,13 @@ Create the detected_tables variable now using the execute_code_detector tool."""
                                     messages.append(
                                         ToolMessage(content=f"Error: {e!s}", tool_call_id=tool_id, name=tool_name)
                                     )
+                            else:
+                                logger.warning(f"Unknown tool: {tool_name}")
+                                messages.append(
+                                    ToolMessage(
+                                        content=f"Unknown tool: {tool_name}", tool_call_id=tool_id, name=tool_name
+                                    )
+                                )
 
                     # Check if detection is complete
                     if (
@@ -381,12 +390,28 @@ detection_results
                 exec_output = extract_result.unwrap()
                 logger.info(f"LLM detection result type: {type(exec_output)}")
 
+                # Extract the actual result from CellExecution if needed
+                actual_result = None
+                if hasattr(exec_output, "outputs") and exec_output.outputs:
+                    # Try to get the result from the last output
+                    try:
+                        import ast
+
+                        last_output = exec_output.outputs[-1].content
+                        # Try to parse it as a Python literal
+                        actual_result = ast.literal_eval(last_output)
+                    except (ValueError, SyntaxError, IndexError):
+                        # If that doesn't work, the actual result might be the variable directly
+                        actual_result = None
+                elif isinstance(exec_output, list):
+                    actual_result = exec_output
+
                 # Check if we got the detected tables list
-                if isinstance(exec_output, list) and len(exec_output) > 0:
+                if isinstance(actual_result, list) and len(actual_result) > 0:
                     # Convert LLM detection results to TableBoundary objects
                     table_boundaries_list: list[TableBoundary] = []
 
-                    for table_info in exec_output:
+                    for table_info in actual_result:
                         if isinstance(table_info, dict):
                             # Parse table type from string
                             type_str = table_info.get("table_type", "DETAIL").upper()

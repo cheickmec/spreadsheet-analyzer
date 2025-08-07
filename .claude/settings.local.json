@@ -22,7 +22,8 @@
       "Bash(mkdir:*)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
-      "mcp__tavily-mcp__tavily-search"
+      "mcp__tavily-mcp__tavily-search",
+      "Bash(rm:*)"
     ],
     "deny": []
   },
