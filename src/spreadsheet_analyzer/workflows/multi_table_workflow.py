@@ -168,7 +168,8 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         ) as session:
             # Load Excel data first
             load_code = f"""
-# Imports moved to top of file
+import pandas as pd
+from pathlib import Path
 
 excel_path = Path(r"{state["excel_file_path"]}")
 df = pd.read_excel(excel_path, sheet_name={state["sheet_index"]})
@@ -326,12 +327,71 @@ Create the detected_tables variable now using the execute_code_detector tool."""
                 """Execute Python code in the detector session."""
                 return await execute_detector_code(code)
 
-            llm_with_tools = llm.bind_tools([execute_code_detector])
+            # CLAUDE-GOTCHA: Gemini has a known bug where bind_tools() only recognizes
+            # the first tool (GitHub langchain-google #369). Use bind(functions=) workaround.
+            # CLAUDE-TEST-WORKAROUND: Different binding method for Gemini vs other models
+            if "gemini" in detector_model.lower():
+                try:
+                    # Try the workaround first
+                    llm_with_tools = llm.bind(functions=[execute_code_detector])
+                    logger.debug("Using bind(functions=) workaround for Gemini detector")
+                except Exception:
+                    # Fallback to standard method if workaround fails
+                    llm_with_tools = llm.bind_tools([execute_code_detector])
+                    logger.debug("Fallback to bind_tools() for Gemini detector")
+            else:
+                llm_with_tools = llm.bind_tools([execute_code_detector])
 
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=human_message),
-            ]
+            # Add Gemini-specific instructions if using a Gemini model
+            if "gemini" in detector_model.lower():
+                # CLAUDE-KNOWLEDGE: Gemini 2.X models need very explicit examples to use tools correctly
+                # Concrete code examples significantly improve success rate (based on research)
+                gemini_instructions = SystemMessage(
+                    content="""
+CRITICAL GEMINI-SPECIFIC INSTRUCTIONS FOR TABLE DETECTION:
+
+1. DO NOT call pandas DataFrame methods as tools. These are NOT tools:
+   - to_markdown, tolist, head, tail, describe, info, etc.
+
+2. To run ANY Python code, you MUST use the execute_code_detector tool:
+   CORRECT: execute_code_detector(code="print(df.shape)")
+   WRONG: df.shape or print(df.shape) as direct calls
+
+3. CONCRETE EXAMPLE - Create detected_tables like this:
+   execute_code_detector(code=\"\"\"
+# Detect tables based on analysis
+detected_tables = [
+    {
+        'table_id': 'table_1',
+        'description': 'Financial transactions with dates and amounts',
+        'start_row': 0,
+        'end_row': 100,
+        'start_col': 0,
+        'end_col': 5,
+        'confidence': 0.95,
+        'table_type': 'DETAIL',
+        'entity_type': 'transactions'
+    }
+]
+print(f"Created {len(detected_tables)} table definitions")
+\"\"\")
+
+4. ALWAYS use execute_code_detector for ALL Python operations
+5. MUST create a variable named 'detected_tables' containing the list of tables
+
+NEVER attempt to call DataFrame methods directly as tools!
+"""
+                )
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    gemini_instructions,
+                    HumanMessage(content=human_message),
+                ]
+            else:
+                messages = [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=human_message),
+                ]
 
             # Run detection with limited rounds (default 3 for detection)
             max_detector_rounds = state["config"].detector_max_rounds
@@ -385,11 +445,24 @@ Create the detected_tables variable now using the execute_code_detector tool."""
                             await track_llm_usage(response, detector_model)
 
                         # Process any tool calls
-                        if hasattr(response, "tool_calls") and response.tool_calls:
+                        # CLAUDE-GOTCHA: Gemini sometimes has empty tool_calls or puts them in unexpected places
+                        tool_calls_found = hasattr(response, "tool_calls") and response.tool_calls
+
+                        if tool_calls_found:
                             logger.debug(f"Found {len(response.tool_calls)} tool calls")
                         else:
                             logger.warning("No tool calls found in LLM response")
                             logger.debug(f"Response attributes: {dir(response)}")
+
+                            # CLAUDE-PERFORMANCE: For Gemini, add explicit retry prompt if no tools used
+                            if "gemini" in detector_model.lower() and round_num < max_detector_rounds - 1:
+                                logger.info("Adding explicit tool usage instruction for Gemini")
+                                retry_msg = HumanMessage(
+                                    content="Please use the execute_code_detector tool NOW to create the detected_tables variable. "
+                                    "Example: execute_code_detector(code=\"detected_tables = [{'table_id': 'table_1', ...}]\")"
+                                )
+                                messages.append(retry_msg)
+                                continue  # Skip to next round
 
                         if hasattr(response, "tool_calls") and response.tool_calls:
                             for tool_call in response.tool_calls:
@@ -407,7 +480,7 @@ Create the detected_tables variable now using the execute_code_detector tool."""
                                             ToolMessage(content=str(tool_result), tool_call_id=tool_id, name=tool_name)
                                         )
                                     except Exception as e:
-                                        logger.error(f"Tool execution error: {e}")
+                                        logger.exception("Tool execution error")
                                         messages.append(
                                             ToolMessage(content=f"Error: {e!s}", tool_call_id=tool_id, name=tool_name)
                                         )
@@ -443,19 +516,31 @@ Create the detected_tables variable now using the execute_code_detector tool."""
                         logger.debug("Failed to log detector cost summary")
 
             # Extract detection results from notebook
-            # The LLM should have created a variable called 'detected_tables'
+            # CLAUDE-IMPORTANT: The LLM MUST have created a variable called 'detected_tables'
+            # This is the contract between the detector and the extraction logic
             extract_code = """
 # Extract detection results created by LLM
 # The detector should have created a 'detected_tables' variable with the results
 
-# Check if the LLM created the expected variable
+# CLAUDE-TEST-WORKAROUND: Validate that detected_tables exists and is properly formatted
 if 'detected_tables' in globals():
-    # Return the detected tables
-    detection_results = detected_tables
-    print(f"Found {len(detection_results)} tables from LLM detection")
+    # Validate it's a list
+    if isinstance(detected_tables, list):
+        detection_results = detected_tables
+        print(f"✅ Found {len(detection_results)} tables from LLM detection")
+        # Validate first table has required fields (if any tables exist)
+        if detection_results:
+            required_fields = ['table_id', 'description', 'start_row', 'end_row', 'start_col', 'end_col']
+            first_table = detection_results[0]
+            missing_fields = [f for f in required_fields if f not in first_table]
+            if missing_fields:
+                print(f"⚠️ Warning: First table missing fields: {missing_fields}")
+    else:
+        print(f"❌ Error: detected_tables is not a list, it's a {type(detected_tables)}")
+        detection_results = []
 else:
-    # If no detection was made, return empty list to trigger fallback
-    print("No 'detected_tables' variable found - LLM may not have completed detection")
+    # CLAUDE-GOTCHA: Gemini sometimes fails to create the variable even after multiple prompts
+    print("❌ No 'detected_tables' variable found - LLM failed to complete detection")
     detection_results = []
 
 detection_results

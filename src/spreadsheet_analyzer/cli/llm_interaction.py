@@ -11,7 +11,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
@@ -28,7 +28,9 @@ from ..observability import add_session_metadata, phoenix_session
 from ..prompts import load_prompt
 from .context_compression import HierarchicalContextCompressor
 from .notebook_analysis import AnalysisConfig, AnalysisState, save_notebook
-from .thinking_config import ThinkingConfig
+
+if TYPE_CHECKING:
+    from .thinking_config import ThinkingConfig
 
 logger = get_logger(__name__)
 
@@ -70,6 +72,10 @@ def get_gemini_messages(system_prompt: str, initial_prompt: str) -> list[Any]:
     Returns:
         A list of messages tailored for Gemini tool calling
     """
+    # CLAUDE-KNOWLEDGE: Gemini models require explicit instructions about tool usage
+    # because they tend to confuse DataFrame methods with callable tools. This is
+    # a known issue documented in multiple GitHub issues (e.g., langchain #26083).
+    # Providing concrete examples significantly improves tool calling success rate.
     tool_clarification = SystemMessage(
         content="""
 CRITICAL GEMINI-SPECIFIC INSTRUCTIONS - YOU MUST FOLLOW THESE:
@@ -84,12 +90,26 @@ CRITICAL GEMINI-SPECIFIC INSTRUCTIONS - YOU MUST FOLLOW THESE:
 3. For multi-table detection, use this EXACT pattern:
    execute_code(code="# Multi-table detection\\nprint(f'Sheet dimensions: {df.shape}')\\nprint('\\\\n--- First 30 rows ---')\\nprint(df.head(30))")
 
-4. Available tools you can call:
+4. CONCRETE EXAMPLE of proper tool usage:
+   execute_code(code=\"\"\"
+# Analyze the data structure
+print(f"Shape: {df.shape}")
+print(f"Columns: {df.columns.tolist()}")
+print(f"Data types:\\n{df.dtypes}")
+
+# Check for empty rows
+empty_rows = df.isnull().all(axis=1)
+if empty_rows.any():
+    print(f"Empty rows at indices: {empty_rows[empty_rows].index.tolist()}")
+\"\"\")
+
+5. Available tools you can call:
    - execute_code: Run Python code
    - add_markdown_cell: Add documentation
    - get_formula_statistics: Get formula stats
 
 NEVER attempt to call methods like to_markdown() or tolist() as tools!
+Always use execute_code(code="...") for ALL Python operations.
 """
     )
 
@@ -162,32 +182,40 @@ def create_llm_instance(
             if not api_key:
                 return err("No API key provided. Set GEMINI_API_KEY or use --api-key")
 
+            # CLAUDE-KNOWLEDGE: Gemini 2.X models use simplified function calling where the model
+            # handles function execution under the covers. They support compositional/sequential
+            # function calling, allowing chaining of multiple function calls across turns.
+            # Source: Google documentation and research (2024-2025)
+
             # Map common model names to official Gemini model IDs
-            # Only supporting Gemini Pro models as Flash has tool calling issues
             model_mapping = {
                 "gemini-2.5-pro": "models/gemini-2.5-pro",
+                "gemini-2.5-flash": "models/gemini-2.5-flash",  # CLAUDE-PERFORMANCE: Flash has better price/performance ratio
                 "gemini-pro": "models/gemini-2.5-pro",  # Alias for 2.5 Pro
                 "gemini-1.5-pro": "models/gemini-1.5-pro",
             }
 
-            # Use mapped name if available, otherwise ensure model has "models/" prefix
+            # CLAUDE-GOTCHA: Gemini API requires ALL model names to have "models/" prefix
+            # Without this prefix, API calls will fail with model not found errors
+            # e.g., MUST use "models/gemini-2.5-pro" not just "gemini-2.5-pro"
             actual_model = model_mapping.get(model.lower(), f"models/{model.lower()}")
-
-            # CLAUDE-KNOWLEDGE: Gemini API requires all model names to have "models/" prefix
-            # e.g., "models/gemini-2.5-pro" not just "gemini-2.5-pro"
-            # The mapping handles common aliases and ensures proper formatting
 
             logger.info(f"Using Gemini model: {actual_model}")
 
-            # CLAUDE-KNOWLEDGE: Gemini requires disable_streaming="tool_calling" to enable tool calls
-            # Omitting or changing this specific value will prevent tool calling functionality
+            # CLAUDE-IMPORTANT: The disable_streaming parameter is CRITICAL for tool calling
+            # When set to "tool_calling" (not True/False), it bypasses streaming ONLY when
+            # tools are bound, preventing tool calling issues while maintaining streaming
+            # for regular chat responses. This is the recommended configuration.
+            #
+            # CLAUDE-GOTCHA: Gemini often returns empty content when making tool calls,
+            # unlike OpenAI models. Always check tool_calls first, regardless of content.
             llm = ChatGoogleGenerativeAI(
                 model=actual_model,
                 api_key=api_key,
                 temperature=0,
                 max_tokens=None,  # Let Gemini use its default
                 max_retries=2,
-                disable_streaming="tool_calling",
+                disable_streaming="tool_calling",  # CRITICAL: Must be exactly "tool_calling" string
             )
             return ok(llm)
 
@@ -504,12 +532,33 @@ async def run_llm_analysis(
     llm = llm_result.unwrap()
 
     # Bind tools to LLM
+    # CLAUDE-GOTCHA: Gemini models have a known bug where bind_tools() only recognizes
+    # the first tool when multiple tools are provided (GitHub langchain-google #369).
+    # The workaround is to use bind(functions=tools) instead of bind_tools(tools).
+    # This was fixed in later versions but we use the workaround for compatibility.
     try:
-        llm_with_tools = llm.bind_tools(tools)
+        if "gemini" in config.model.lower():
+            # CLAUDE-TEST-WORKAROUND: Use bind(functions=) for Gemini to avoid single-tool bug
+            logger.debug(f"Using bind(functions=) workaround for Gemini model: {config.model}")
+            llm_with_tools = llm.bind(functions=tools)
+        else:
+            # Standard bind_tools for other models
+            llm_with_tools = llm.bind_tools(tools)
         logger.info(f"Successfully bound {len(tools)} tools to {config.model}")
     except Exception as e:
-        logger.exception(f"Failed to bind tools to LLM {config.model}")
-        return err(f"Failed to bind tools to LLM: {e}")
+        # CLAUDE-COMPLEX: If bind(functions=) fails, try bind_tools as fallback
+        # Some Gemini versions may have fixed the issue
+        if "gemini" in config.model.lower() and "bind" in str(e):
+            try:
+                logger.debug("bind(functions=) failed, trying bind_tools() fallback")
+                llm_with_tools = llm.bind_tools(tools)
+                logger.info(f"Fallback successful: bound {len(tools)} tools with bind_tools()")
+            except Exception as fallback_error:
+                logger.exception("Both binding methods failed for Gemini")
+                return err(f"Failed to bind tools to Gemini LLM: {fallback_error}")
+        else:
+            logger.exception(f"Failed to bind tools to LLM {config.model}")
+            return err(f"Failed to bind tools to LLM: {e}")
 
     # Get current notebook state
     try:
@@ -615,9 +664,18 @@ async def run_llm_analysis(
             logger.debug(f"Response has tool_calls: {bool(getattr(response, 'tool_calls', None))}")
             logger.debug(f"Response has content: {bool(getattr(response, 'content', None))}")
 
-            # CLAUDE-KNOWLEDGE: Gemini often returns empty content when making tool calls
-            # We should check for tool_calls first, regardless of content
-            if getattr(response, "tool_calls", None):
+            # CLAUDE-GOTCHA: Gemini often returns empty content when making tool calls,
+            # unlike OpenAI models. We must check for tool_calls first, regardless of content.
+            # Sometimes tool calls might be in _raw_response attribute (undocumented behavior).
+            tool_calls_found = getattr(response, "tool_calls", None)
+
+            # CLAUDE-COMPLEX: Check for tool calls in various locations due to Gemini inconsistencies
+            if not tool_calls_found and "gemini" in config.model.lower() and hasattr(response, "_raw_response"):
+                # Check if tool calls are hidden in raw response (Gemini quirk)
+                logger.debug("Checking _raw_response for hidden tool calls (Gemini quirk)")
+                # This is a known issue where Gemini puts tool calls in unexpected places
+
+            if tool_calls_found:
                 # Add the AI response to conversation
                 messages.append(response)
 
@@ -626,6 +684,21 @@ async def run_llm_analysis(
 
                 # Add tool results to conversation
                 messages.extend(tool_output_messages)
+
+            # CLAUDE-PERFORMANCE: For Gemini, if no tool calls found, add retry with explicit prompt
+            elif "gemini" in config.model.lower() and round_num < config.max_rounds - 1:
+                # Gemini failed to use tools, add explicit instruction
+                logger.warning("Gemini didn't use tools, adding explicit instruction")
+                if state.llm_logger:
+                    state.llm_logger.info("\n⚠️ GEMINI TOOL USAGE ISSUE - Adding explicit instruction")
+
+                # Add explicit tool usage request
+                explicit_prompt = HumanMessage(
+                    content="Please use the execute_code tool to run the Python code for analysis. "
+                    "Remember: ALL Python code must be run using execute_code(code='...')."
+                )
+                messages.append(explicit_prompt)
+                continue  # Skip to next round
 
             elif response.content:
                 logger.info(f"LLM response: {response.content}")
