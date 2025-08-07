@@ -13,7 +13,6 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-import yaml
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import PromptTemplate
@@ -26,6 +25,7 @@ from ..core.types import Result, err, ok
 from ..notebook_llm_interface import get_notebook_tools
 from ..notebook_session import NotebookSession
 from ..observability import add_session_metadata, phoenix_session
+from ..prompts import load_prompt
 from .context_compression import HierarchicalContextCompressor
 from .notebook_analysis import AnalysisConfig, AnalysisState, save_notebook
 from .thinking_config import ThinkingConfig
@@ -280,39 +280,14 @@ def create_system_prompt(
     Returns:
         System prompt string
     """
-    # CLAUDE-KNOWLEDGE: Load prompt from external YAML file
-    prompts_dir = Path(__file__).parent.parent / "prompts"
-
     # Choose prompt based on whether table boundaries are provided
-    if table_boundaries:
-        system_template_path = prompts_dir / "table_aware_analyst_system.yaml"
-    else:
-        system_template_path = prompts_dir / "data_analyst_system.yaml"
+    prompt_name = "table_aware_analyst_system" if table_boundaries else "data_analyst_system"
 
-    try:
-        with system_template_path.open() as f:
-            prompt_data = yaml.safe_load(f)
-
-        system_template = PromptTemplate(
-            template=prompt_data["template"], input_variables=prompt_data["input_variables"]
-        )
-
-        # Build kwargs based on available variables
-        kwargs = {
-            "excel_file_name": excel_file_name,
-            "sheet_index": sheet_index,
-            "sheet_name": sheet_name or "Unknown",
-            "notebook_state": notebook_state,
-        }
-
-        # Add table boundaries if using table-aware prompt
-        if table_boundaries:
-            kwargs["table_boundaries"] = table_boundaries
-
-        return system_template.format(**kwargs)
-    except Exception:
-        logger.exception("Failed to load system prompt template")
-        # Fallback to a minimal prompt if file loading fails
+    # Load prompt with hash validation
+    result = load_prompt(prompt_name)
+    if result.is_err():
+        logger.error(f"Failed to load prompt '{prompt_name}': {result.err_value}")
+        # Fallback to a minimal prompt if loading fails
         return f"""You are an autonomous data analyst AI conducting comprehensive spreadsheet analysis.
 
 Analyzing Excel file: {excel_file_name}
@@ -325,6 +300,23 @@ Current notebook state:
 ```
 
 Conduct thorough analysis and provide actionable insights."""
+
+    prompt_data = result.unwrap()
+    system_template = PromptTemplate(template=prompt_data["template"], input_variables=prompt_data["input_variables"])
+
+    # Build kwargs based on available variables
+    kwargs = {
+        "excel_file_name": excel_file_name,
+        "sheet_index": sheet_index,
+        "sheet_name": sheet_name or "Unknown",
+        "notebook_state": notebook_state,
+    }
+
+    # Add table boundaries if using table-aware prompt
+    if table_boundaries:
+        kwargs["table_boundaries"] = table_boundaries
+
+    return system_template.format(**kwargs)
 
 
 def create_initial_prompt(
@@ -342,10 +334,6 @@ def create_initial_prompt(
     Returns:
         Initial prompt string
     """
-    # CLAUDE-KNOWLEDGE: Load prompt from external YAML file
-    prompts_dir = Path(__file__).parent.parent / "prompts"
-    initial_template_path = prompts_dir / "data_analyst_initial.yaml"
-
     query_interface_note = (
         "- Query interface for formula dependencies (graph-based analysis)" if has_query_interface else ""
     )
@@ -356,27 +344,25 @@ def create_initial_prompt(
         else "Look for data quality issues"
     )
 
-    try:
-        with initial_template_path.open() as f:
-            prompt_data = yaml.safe_load(f)
-
-        initial_template = PromptTemplate(
-            template=prompt_data["template"], input_variables=prompt_data["input_variables"]
-        )
-
-        return initial_template.format(
-            excel_file_name=excel_file_name,
-            sheet_info=sheet_info,
-            notebook_state=notebook_state,
-            query_interface_note=query_interface_note,
-            query_instruction=query_instruction,
-        )
-    except Exception:
-        logger.exception("Failed to load initial prompt template")
-        # Fallback to a minimal prompt if file loading fails
+    # Load prompt with hash validation
+    result = load_prompt("data_analyst_initial")
+    if result.is_err():
+        logger.error(f"Failed to load prompt 'data_analyst_initial': {result.err_value}")
+        # Fallback to a minimal prompt if loading fails
         return f"""I've loaded the Excel file '{excel_file_name}'{sheet_info} into a Jupyter notebook.
 
 Please continue the analysis from where it left off. Focus on deeper analysis."""
+
+    prompt_data = result.unwrap()
+    initial_template = PromptTemplate(template=prompt_data["template"], input_variables=prompt_data["input_variables"])
+
+    return initial_template.format(
+        excel_file_name=excel_file_name,
+        sheet_info=sheet_info,
+        notebook_state=notebook_state,
+        query_interface_note=query_interface_note,
+        query_instruction=query_instruction,
+    )
 
 
 async def process_tool_calls(tools: list[Any], response: Any, llm_logger: Any) -> list[ToolMessage]:

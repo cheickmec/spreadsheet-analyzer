@@ -20,6 +20,7 @@ from ..agents.table_detection_types import TableDetectionResult
 from ..cli.notebook_analysis import AnalysisConfig
 from ..core.types import Result, err, ok
 from ..notebook_session import notebook_session
+from ..prompts import load_prompt
 
 logger = get_logger(__name__)
 
@@ -165,7 +166,6 @@ sheet_dimensions = f"{{df.shape[0]}} rows x {{df.shape[1]}} columns"
                 }
 
             # Import required modules for LLM-based detection
-            import yaml
 
             from ..cli.llm_interaction import create_llm_instance
             from ..notebook_llm_interface import get_session_manager
@@ -174,12 +174,17 @@ sheet_dimensions = f"{{df.shape[0]}} rows x {{df.shape[1]}} columns"
             session_manager = get_session_manager()
             session_manager._sessions["detector_session"] = session
 
-            # Create detector-specific system prompt
-            prompts_dir = Path(__file__).parent.parent / "prompts"
-            detector_prompt_path = prompts_dir / "table_detector_system.yaml"
-
-            with detector_prompt_path.open() as f:
-                prompt_data = yaml.safe_load(f)
+            # Load detector prompt with hash validation
+            prompt_result = load_prompt("table_detector_system")
+            if prompt_result.is_err():
+                logger.error(f"Failed to load detector prompt: {prompt_result.err_value}")
+                # Use a fallback prompt if loading fails
+                prompt_data = {
+                    "template": "You are a table detection agent. Find tables in the Excel sheet.",
+                    "input_variables": ["excel_file_name", "sheet_name", "sheet_dimensions"],
+                }
+            else:
+                prompt_data = prompt_result.unwrap()
 
             # Format the system prompt with actual data
             from langchain_core.prompts import PromptTemplate
