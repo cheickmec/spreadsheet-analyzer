@@ -226,5 +226,36 @@
     "success": true,
     "detector_max_rounds": 3,
     "notebook_path": "outputs/detector/detector/Business Accounting_sheet0_gpt_4_1_nano_r3_68f3ba81_20250807_161037.ipynb"
+  },
+  {
+    "timestamp": "2025-08-07T17:09:46.699870",
+    "model": "gpt-4.1-nano",
+    "excel_file": "Business Accounting.xlsx",
+    "sheet_index": 0,
+    "sheet_name": null,
+    "prompt_hash": "19d6782c",
+    "tables_detected": [
+      {
+        "table_id": "table_1",
+        "description": "Full spreadsheet (fallback)",
+        "start_row": 0,
+        "end_row": 9,
+        "start_col": 0,
+        "end_col": 8,
+        "confidence": 0.5,
+        "table_type": "detail",
+        "entity_type": "data"
+      }
+    ],
+    "table_count": 1,
+    "token_usage": {
+      "input": 0,
+      "output": 0,
+      "total": 0
+    },
+    "cost_usd": 0.0,
+    "success": true,
+    "detector_max_rounds": 3,
+    "notebook_path": "outputs/detector/detector/Business Accounting_sheet0_gpt_4_1_nano_r3_19d6782c_20250807_170935.ipynb"
   }
 ]

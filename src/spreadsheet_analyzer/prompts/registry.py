@@ -60,7 +60,7 @@ PROMPT_REGISTRY: Final[dict[str, PromptDefinition]] = {
     "layout_comprehension_system": PromptDefinition(
         name="layout_comprehension_system",
         file_name="layout_comprehension_system.prompt.yml",
-        content_hash="sha256:68f3ba81c72c55c41eceec8cdca137fad04cac77009c39512e1cc5870264e0de",
+        content_hash="sha256:19d6782c0f408e713f39cb1a0ab4a296c2540a4a820289613a1710884560300f",
         description="System prompt for semantic layout comprehension in spreadsheets",
     ),
 }
