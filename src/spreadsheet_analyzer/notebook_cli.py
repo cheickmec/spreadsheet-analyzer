@@ -17,6 +17,11 @@ from pathlib import Path
 
 from structlog import get_logger
 
+from spreadsheet_analyzer.cli.model_registry import (
+    format_model_list,
+    get_available_models,
+    validate_model,
+)
 from spreadsheet_analyzer.cli.notebook_analysis import (
     AnalysisArtifacts,
     AnalysisConfig,
@@ -45,17 +50,20 @@ def create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic analysis with default Claude model
-  %(prog)s data.xlsx
+  # List available models with recommendations
+  %(prog)s --list-models
+
+  # Basic analysis with Claude Sonnet 3.5
+  %(prog)s data.xlsx --model claude-3-5-sonnet-20241022
 
   # Multi-table detection workflow
-  %(prog)s data.xlsx --multi-table
+  %(prog)s data.xlsx --model claude-3-5-sonnet-20241022 --multi-table
 
-  # Use GPT-4 instead of Claude
-  %(prog)s data.xlsx --model gpt-4 --sheet-index 1
+  # Use Gemini Pro 2.5 for complex analysis
+  %(prog)s data.xlsx --model gemini-2.5-pro --sheet-index 1
 
-  # Use a specific Claude model
-  %(prog)s data.xlsx --model claude-3-opus-20240229
+  # Use o3 model for formula analysis
+  %(prog)s data.xlsx --model o3
 
   # Custom output location and session
   %(prog)s data.xlsx --output-dir results --session-id analysis-001
@@ -68,15 +76,24 @@ Examples:
 """,
     )
 
-    # Positional arguments
-    parser.add_argument("excel_file", type=Path, help="Path to the Excel file to analyze")
+    # Positional arguments (but make optional when listing models)
+    parser.add_argument(
+        "excel_file",
+        type=Path,
+        nargs="?",
+        help="Path to the Excel file to analyze (not required when using --list-models)",
+    )
 
     # Model configuration
     parser.add_argument(
         "--model",
         type=str,
-        default="claude-3-5-sonnet-20241022",
-        help="LLM model to use for analysis (default: claude-3-5-sonnet-20241022)",
+        help="LLM model to use for analysis (required when not using --list-models)",
+    )
+    parser.add_argument(
+        "--list-models",
+        action="store_true",
+        help="List all available models with agent-specific recommendations and exit",
     )
     parser.add_argument(
         "--api-key",
@@ -217,6 +234,41 @@ def parse_arguments() -> argparse.Namespace:
     """
     parser = create_parser()
     args = parser.parse_args()
+
+    # Handle --list-models command
+    if getattr(args, "list_models", False):
+        print(format_model_list())
+        sys.exit(0)
+
+    # Validate required arguments when not listing models
+    if not args.excel_file:
+        print("❌ Error: Excel file is required when not using --list-models")
+        print("💡 Use --list-models to see available models, or provide an Excel file to analyze")
+        sys.exit(1)
+
+    # Validate model is provided when not listing models
+    if not args.model:
+        print("❌ Error: --model is required when not using --list-models")
+        print("💡 Use --list-models to see all available models with agent-specific recommendations")
+        print("\n🎯 Quick suggestions:")
+        print("   For table detection: --model claude-3-5-haiku-20241022")
+        print("   For general analysis: --model claude-3-5-sonnet-20241022")
+        print("   For complex formulas: --model o3")
+        print("   For cost efficiency: --model gpt-4.1-mini")
+        sys.exit(1)
+
+    # Validate model selection if provided
+    if args.model:
+        if not validate_model(args.model):
+            available_models = get_available_models()
+            print(f"❌ Error: Invalid model '{args.model}'")
+            print("\n💡 Use --list-models to see all available models with recommendations")
+            print("\n🎯 Quick suggestions:")
+            print("   For table detection: claude-3-5-haiku-20241022")
+            print("   For general analysis: claude-3-5-sonnet-20241022")
+            print("   For complex formulas: o3")
+            print("   For cost efficiency: gpt-4.1-mini")
+            sys.exit(1)
 
     # Setup basic logging
     log_level = logging.INFO if args.verbose else logging.WARNING
