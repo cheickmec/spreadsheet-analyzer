@@ -125,13 +125,14 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         )
 
         output_dir = Path(state["config"].output_dir if state["config"].output_dir else "./outputs")
-        output_dir.mkdir(parents=True, exist_ok=True)
+        detector_output_dir = output_dir / "detector"
+        detector_output_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate detector notebook name with model info
         detection_notebook_name = generate_notebook_name(detector_file_config, include_timestamp=True)
         # Replace "analysis" with "detection" in the filename
         detection_notebook_name = detection_notebook_name.replace("_analysis_", "_detection_")
-        detection_notebook = output_dir / detection_notebook_name
+        detection_notebook = detector_output_dir / detection_notebook_name
 
         # Run detection in isolated session
         async with notebook_session(
@@ -167,7 +168,7 @@ sheet_dimensions = f"{{df.shape[0]}} rows x {{df.shape[1]}} columns"
             import yaml
 
             from ..cli.llm_interaction import create_llm_instance
-            from ..notebook_llm_interface import get_notebook_tools, get_session_manager
+            from ..notebook_llm_interface import get_session_manager
 
             # Register session for tools access
             session_manager = get_session_manager()
@@ -213,64 +214,88 @@ sheet_name
 
             llm = llm_result.unwrap()
 
-            # Get tools for the detector
-            tools = get_notebook_tools()
-            llm_with_tools = llm.bind_tools(tools)
+            # Execute exploration code directly and provide results to LLM
+            exploration_code = """
+# Table Detection Analysis
+print("=== DATA STRUCTURE ANALYSIS ===")
+print(f"DataFrame shape: {df.shape}")
+print(f"Columns: {list(df.columns)}")
+print("\\n=== FIRST 10 ROWS ===")
+print(df.head(10).to_string())
+print("\\n=== LAST 5 ROWS ===")
+print(df.tail(5).to_string())
+
+print("\\n=== COLUMN ANALYSIS ===")
+# Check for empty columns that might separate tables
+for i, col in enumerate(df.columns):
+    non_null_count = df[col].notna().sum()
+    print(f"Column {i} ('{col}'): {non_null_count}/{len(df)} non-null values")
+
+print("\\n=== EMPTY ROW ANALYSIS ===")
+# Check for empty rows that might separate tables
+empty_rows = df.isnull().all(axis=1)
+if empty_rows.any():
+    empty_row_indices = empty_rows[empty_rows].index.tolist()
+    print(f"Empty rows found at indices: {empty_row_indices[:10]}")
+else:
+    print("No completely empty rows found")
+
+print("\\n=== SIDE-BY-SIDE ANALYSIS ===")
+# Check for potential side-by-side tables by examining column groups
+left_cols = df.iloc[:, 0:7]  # First 7 columns
+right_cols = df.iloc[:, 7:]  # Remaining columns
+print(f"Left section shape: {left_cols.shape}")
+print(f"Right section shape: {right_cols.shape}")
+print(f"Left section non-null density: {left_cols.notna().sum().sum() / (left_cols.shape[0] * left_cols.shape[1]):.2f}")
+print(f"Right section non-null density: {right_cols.notna().sum().sum() / (right_cols.shape[0] * right_cols.shape[1]):.2f}")
+"""
+
+            exploration_result = await session.execute(exploration_code)
+            if exploration_result.is_ok():
+                analysis_output = (
+                    exploration_result.unwrap().outputs[-1].content
+                    if exploration_result.unwrap().outputs
+                    else "No output"
+                )
+            else:
+                analysis_output = "Analysis failed"
 
             # Create messages for detection
             from langchain_core.messages import HumanMessage, SystemMessage
+            from langchain_core.tools import tool
+
+            human_message = f"""Based on the analysis results below, identify all table boundaries and create the detected_tables variable.
+
+ANALYSIS RESULTS:
+{analysis_output}
+
+Your task:
+1. Analyze the data structure shown above
+2. Identify distinct tables (look for side-by-side patterns, different entity types, etc.)
+3. Create a Python list called 'detected_tables' with your findings
+4. Each table should specify exact boundaries (start_row, end_row, start_col, end_col)
+
+Create the detected_tables variable now using the execute_code_detector tool."""
+
+            # Simple tool to just execute code in the session
+            @tool
+            async def execute_code_detector(code: str) -> str:
+                """Execute Python code in the detector session."""
+                try:
+                    result = await session.execute(code)
+                    if result.is_ok():
+                        outputs = result.unwrap().outputs
+                        return outputs[-1].content if outputs else "Code executed successfully"
+                    else:
+                        return f"Error: {result.unwrap_err()}"
+                except Exception as e:
+                    return f"Execution failed: {e!s}"
+
+            llm_with_tools = llm.bind_tools([execute_code_detector])
 
             messages = [
                 SystemMessage(content=system_prompt),
-                HumanMessage(
-                    content="""Please analyze the loaded spreadsheet and detect all table boundaries.
-
-Use the execute_code tool to:
-1. Check for empty rows that might separate tables
-2. Analyze ID patterns and column content for semantic boundaries
-3. Look for header patterns
-4. Identify each distinct table
-
-For each table found, document:
-- Exact boundaries (start_row, end_row, start_col, end_col)
-- Description of what the table contains
-- Entity type (orders, products, employees, summary, etc.)
-- Your confidence level
-- Table type (DETAIL, SUMMARY, HEADER, etc.)
-
-IMPORTANT: Create a variable called 'detected_tables' that contains a list of dictionaries with your findings.
-Example format:
-```python
-detected_tables = [
-    {
-        'table_id': 'table_1',
-        'start_row': 0,
-        'end_row': 48,
-        'start_col': 0,
-        'end_col': 3,
-        'description': 'Customer orders from January 2024',
-        'entity_type': 'orders',
-        'confidence': 0.9,
-        'table_type': 'DETAIL'
-    },
-    {
-        'table_id': 'table_2',
-        'start_row': 52,
-        'end_row': 58,
-        'start_col': 0,
-        'end_col': 2,
-        'description': 'Regional sales summary',
-        'entity_type': 'summary',
-        'confidence': 0.85,
-        'table_type': 'SUMMARY'
-    }
-]
-```
-
-Start by exploring the data structure to understand the sheet layout.
-
-When you have completed the detection, add a markdown cell with "Detection Complete" to signal completion."""
-                ),
+                HumanMessage(content=human_message),
             ]
 
             # Run detection with limited rounds (default 3 for detection)
@@ -282,9 +307,17 @@ When you have completed the detection, add a markdown cell with "Detection Compl
                 # Get LLM response
                 try:
                     response = await llm_with_tools.ainvoke(messages)
+                    logger.debug(f"LLM response type: {type(response)}")
+                    logger.debug(f"LLM response content: {response.content[:200] if response.content else 'None'}...")
                     messages.append(response)
 
                     # Process any tool calls
+                    if hasattr(response, "tool_calls") and response.tool_calls:
+                        logger.debug(f"Found {len(response.tool_calls)} tool calls")
+                    else:
+                        logger.warning("No tool calls found in LLM response")
+                        logger.debug(f"Response attributes: {dir(response)}")
+
                     if hasattr(response, "tool_calls") and response.tool_calls:
                         for tool_call in response.tool_calls:
                             tool_name = tool_call["name"]
@@ -295,17 +328,26 @@ When you have completed the detection, add a markdown cell with "Detection Compl
                             tool_func = next((t for t in tools if t.name == tool_name), None)
                             if tool_func:
                                 try:
-                                    tool_result = tool_func.func(**tool_args)
+                                    # Handle both sync and async tools
+                                    if asyncio.iscoroutinefunction(tool_func.func):
+                                        tool_result = await tool_func.func(**tool_args)
+                                    else:
+                                        tool_result = tool_func.func(**tool_args)
                                     messages.append(
                                         ToolMessage(content=str(tool_result), tool_call_id=tool_id, name=tool_name)
                                     )
                                 except Exception as e:
+                                    logger.error(f"Tool execution error: {e}")
                                     messages.append(
                                         ToolMessage(content=f"Error: {e!s}", tool_call_id=tool_id, name=tool_name)
                                     )
 
                     # Check if detection is complete
-                    if response.content and "detection complete" in response.content.lower():
+                    if (
+                        response.content
+                        and isinstance(response.content, str)
+                        and "detection complete" in response.content.lower()
+                    ):
                         break
 
                 except Exception:
@@ -377,7 +419,6 @@ detection_results
                         table_boundaries = TableDetectionResult(
                             sheet_name=state.get("sheet_name", f"Sheet{state['sheet_index']}"),
                             tables=tuple(table_boundaries_list),
-                            detection_method="llm",
                             metadata={
                                 "method": "llm_detection",
                                 "model": detector_model,
@@ -422,7 +463,6 @@ detection_results
                                     entity_type="data",
                                 ),
                             ),
-                            detection_method="llm",
                             metadata={"fallback": True, "reason": "no_boundaries_detected"},
                         )
                 else:
@@ -462,7 +502,6 @@ detection_results
                                 entity_type="data",
                             ),
                         ),
-                        detection_method="llm",
                         metadata={"fallback": True, "reason": "unexpected_result_type"},
                     )
             else:
@@ -503,7 +542,6 @@ detection_results
                             entity_type="data",
                         ),
                     ),
-                    detection_method="llm",
                     metadata={"fallback": True, "reason": "execution_error"},
                 )
 
@@ -523,10 +561,18 @@ Detected {len(table_boundaries.tables)} tables:
 - Confidence: {table.confidence:.2f}
 """
 
-            await session.toolkit.add_markdown_cell(summary_code)
+            # Add markdown cell with summary
+
+            # Get the notebook toolkit from session
+            toolkit = session.toolkit
+            if hasattr(toolkit, "_notebook_builder"):
+                toolkit._notebook_builder.add_markdown_cell(summary_code)
+            else:
+                # Fallback: execute as markdown magic
+                await session.execute(f"# Detection Summary\n\n{summary_code}")
 
             # Save detection notebook
-            await session.toolkit.save_notebook()
+            session.toolkit.save_notebook()
 
             logger.info(f"Detection complete: found {len(table_boundaries.tables)} tables")
             logger.info(f"Detection notebook saved to: {detection_notebook}")
@@ -600,13 +646,14 @@ async def analyst_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         # Create artifacts for table-aware analysis
         notebook_path = generate_notebook_name(file_config)
         output_dir = Path(config.output_dir if config.output_dir else "./outputs")
-        output_dir.mkdir(parents=True, exist_ok=True)
-        log_path = output_dir / generate_log_name(file_config)
-        cost_tracking_path = get_cost_tracking_path(file_config, output_dir)
+        analyst_output_dir = output_dir / "analyst"
+        analyst_output_dir.mkdir(parents=True, exist_ok=True)
+        log_path = analyst_output_dir / generate_log_name(file_config)
+        cost_tracking_path = get_cost_tracking_path(file_config, analyst_output_dir)
 
         artifacts = AnalysisArtifacts(
             session_id=session_id,
-            notebook_path=output_dir / notebook_path,
+            notebook_path=analyst_output_dir / notebook_path,
             log_path=log_path,
             cost_tracking_path=cost_tracking_path,
             file_config=file_config,

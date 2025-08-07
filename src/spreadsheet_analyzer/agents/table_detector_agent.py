@@ -85,7 +85,6 @@ def create_table_detector() -> FunctionalAgent:
             result = TableDetectionResult(
                 sheet_name=sheet_name,
                 tables=tuple(final_tables),
-                detection_method=detection_method,
                 metadata={
                     "total_rows": len(df),
                     "total_cols": len(df.columns),

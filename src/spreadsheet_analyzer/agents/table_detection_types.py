@@ -121,26 +121,21 @@ class TableDetectionResult:
     Attributes:
         sheet_name: Name of the analyzed sheet
         tables: Tuple of detected table boundaries
-        detection_method: Method used ("mechanical", "semantic", "hybrid")
         metadata: Additional information about detection process
         metrics: Detailed metrics from detection
 
-    CLAUDE-KNOWLEDGE: The detection_method indicates which approach was
-    primary in identifying tables. "hybrid" means both mechanical and
-    semantic detection contributed significantly.
+    CLAUDE-KNOWLEDGE: All table detection is performed by LLM-based
+    semantic analysis, which can identify both mechanical boundaries
+    (empty rows) and semantic boundaries (entity type changes).
     """
 
     sheet_name: str
     tables: tuple[TableBoundary, ...]
-    detection_method: str
     metadata: dict[str, Any]
     metrics: DetectionMetrics | None = None
 
     def __post_init__(self) -> None:
         """Validate detection result."""
-        if self.detection_method not in ["mechanical", "semantic", "hybrid"]:
-            raise ValueError(f"Invalid detection method: {self.detection_method}")
-
         # Check for overlapping tables
         for i, table1 in enumerate(self.tables):
             for table2 in self.tables[i + 1 :]:
