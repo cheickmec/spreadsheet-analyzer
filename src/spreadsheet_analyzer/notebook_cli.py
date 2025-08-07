@@ -332,18 +332,19 @@ async def main() -> None:
     # Create configuration
     config = create_analysis_config(args)
 
-    # Create artifacts
-    artifacts = create_analysis_artifacts(config)
+    # Check if we should use multi-table workflow
+    use_multi_table = getattr(args, "multi_table", False)
 
     # Log startup information
     logger.info("Starting notebook-based Excel analysis", model=config.model)
     logger.info(f"Excel file: {config.excel_path}")
     logger.info(f"Model: {config.model}")
-    logger.info(f"Session ID: {artifacts.session_id}")
-    logger.info(f"Output notebook: {artifacts.notebook_path}")
 
-    # Check if we should use multi-table workflow
-    use_multi_table = getattr(args, "multi_table", False)
+    if not use_multi_table:
+        # Only create artifacts for single-table workflow
+        artifacts = create_analysis_artifacts(config)
+        logger.info(f"Session ID: {artifacts.session_id}")
+        logger.info(f"Output notebook: {artifacts.notebook_path}")
 
     if use_multi_table:
         logger.info("Using multi-table detection workflow")
@@ -365,15 +366,20 @@ async def main() -> None:
             # Fall back to standard analysis
             logger.warning(f"Multi-table workflow failed: {result.unwrap_err()}")
             logger.info("Falling back to standard analysis")
+            # Create artifacts for fallback
+            artifacts = create_analysis_artifacts(config)
+            logger.info(f"Session ID: {artifacts.session_id}")
+            logger.info(f"Output notebook: {artifacts.notebook_path}")
 
-    # Run the standard analysis using the functional orchestration
-    result = await run_notebook_analysis(config, artifacts)
+    # Run the standard analysis using the functional orchestration (only if not multi-table or fallback)
+    if not use_multi_table or "artifacts" in locals():
+        result = await run_notebook_analysis(config, artifacts)
 
-    if result.is_err():
-        logger.error(f"Analysis failed: {result.unwrap_err()}")
-        sys.exit(1)
-    else:
-        logger.info("Analysis completed successfully")
+        if result.is_err():
+            logger.error(f"Analysis failed: {result.unwrap_err()}")
+            sys.exit(1)
+        else:
+            logger.info("Analysis completed successfully")
 
 
 def run() -> None:

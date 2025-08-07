@@ -29,59 +29,32 @@ class FileNameConfig:
 def sanitize_model_name(model: str) -> str:
     """Sanitize model name for use in file names.
 
-    Extracts a simplified model identifier from various model name formats.
+    Preserves the full model identifier while making it filesystem-safe.
 
     Args:
         model: Raw model name (e.g., "claude-3-5-sonnet-20241022")
 
     Returns:
-        Sanitized model name (e.g., "claude_sonnet")
+        Sanitized model name (e.g., "claude_3_5_sonnet_20241022")
 
     Examples:
         >>> sanitize_model_name("claude-3-5-sonnet-20241022")
-        'claude_sonnet'
+        'claude_3_5_sonnet_20241022'
+        >>> sanitize_model_name("claude-sonnet-4-20250514")
+        'claude_sonnet_4_20250514'
         >>> sanitize_model_name("gpt-4-turbo")
-        'gpt4'
+        'gpt_4_turbo'
         >>> sanitize_model_name("ollama/mistral:latest")
-        'ollama_mistral'
+        'ollama_mistral_latest'
     """
-    # Remove version suffixes and special characters
+    # Replace filesystem-unsafe characters with underscores
     model_clean = model.replace("-", "_").replace(".", "_").replace("/", "_").replace(":", "_")
 
-    # Extract the main model name
-    if "claude" in model_clean.lower():
-        # Extract Claude model variant
-        if "opus" in model_clean.lower():
-            return "claude_opus"
-        elif "sonnet" in model_clean.lower():
-            return "claude_sonnet"
-        elif "haiku" in model_clean.lower():
-            return "claude_haiku"
-        else:
-            return "claude"
-    elif "gpt" in model_clean.lower():
-        # Extract GPT model variant
-        if "4" in model_clean:
-            return "gpt4"
-        elif "3" in model_clean:
-            return "gpt3"
-        else:
-            return "gpt"
-    elif any(name in model_clean.lower() for name in ["ollama", "mistral", "llama", "mixtral", "codellama"]):
-        # Extract Ollama/local model variant
-        if "mistral" in model_clean.lower():
-            return "ollama_mistral"
-        elif "llama" in model_clean.lower():
-            return "ollama_llama"
-        elif "mixtral" in model_clean.lower():
-            return "ollama_mixtral"
-        elif "codellama" in model_clean.lower():
-            return "ollama_codellama"
-        else:
-            return "ollama"
-    else:
-        # For other models, use a simplified version
-        return model_clean.split("_")[0] if "_" in model_clean else model_clean
+    # Remove multiple consecutive underscores and trim
+    model_clean = re.sub(r"_+", "_", model_clean).strip("_")
+
+    # Return the full sanitized model name to preserve version information
+    return model_clean.lower()
 
 
 def sanitize_sheet_name(sheet_name: str) -> str:
