@@ -50,6 +50,8 @@ class ModelCapabilities:
     supports_vision: bool  # Supports image inputs
     supports_audio: bool  # Supports audio inputs/outputs
     multimodal: bool  # General multimodal capabilities
+    supports_thinking: bool = False  # Supports extended thinking
+    supports_interleaved_thinking: bool = False  # Supports interleaved thinking (Claude 4+)
 
 
 @dataclass(frozen=True)

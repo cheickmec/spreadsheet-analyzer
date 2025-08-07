@@ -18,6 +18,7 @@ from pathlib import Path
 from structlog import get_logger
 
 from spreadsheet_analyzer.cli.model_registry import (
+    AgentType,
     format_model_list,
     get_available_models,
     validate_model,
@@ -26,6 +27,10 @@ from spreadsheet_analyzer.cli.notebook_analysis import (
     AnalysisArtifacts,
     AnalysisConfig,
     run_notebook_analysis,
+)
+from spreadsheet_analyzer.cli.thinking_config import (
+    ThinkingConfig,
+    ThinkingMode,
 )
 from spreadsheet_analyzer.cli.utils.naming import (
     FileNameConfig,
@@ -223,6 +228,23 @@ Examples:
         help="Run only the table detection agent without the analyst (useful for testing)",
     )
 
+    # Extended thinking configuration
+    parser.add_argument(
+        "--thinking-budget",
+        type=int,
+        help="Override default thinking budget in tokens (auto-determined by agent type if not specified)",
+    )
+    parser.add_argument(
+        "--no-thinking",
+        action="store_true",
+        help="Force disable extended thinking even for compatible models",
+    )
+    parser.add_argument(
+        "--thinking-enabled",
+        action="store_true",
+        help="Force enable extended thinking (will warn if model doesn't support it)",
+    )
+
     return parser
 
 
@@ -307,6 +329,37 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
             project_name=args.phoenix_project,
         )
 
+    # Create thinking configuration
+    thinking_config = None
+    if hasattr(args, "no_thinking") and hasattr(args, "thinking_enabled"):
+        # Determine thinking mode based on CLI arguments
+        if args.no_thinking:
+            thinking_mode = ThinkingMode.DISABLED
+        elif args.thinking_enabled:
+            thinking_mode = ThinkingMode.ENABLED
+        else:
+            thinking_mode = ThinkingMode.AUTO
+
+        # Determine agent type based on workflow
+        if args.detector_only:
+            agent_type = AgentType.TABLE_DETECTOR
+        else:
+            # Default to data analyst for general analysis
+            agent_type = AgentType.DATA_ANALYST
+
+        # Create thinking config
+        thinking_config = ThinkingConfig.create_for_agent(
+            model_id=args.model, agent_type=agent_type, mode=thinking_mode, budget_override=args.thinking_budget
+        )
+
+        # Log thinking configuration
+        if thinking_config.enabled:
+            logger.info(f"🧠 Extended thinking enabled: {thinking_config.budget_tokens:,} tokens")
+            if thinking_config.interleaved:
+                logger.info("⚡ Interleaved thinking enabled for tool use")
+        else:
+            logger.info("❌ Extended thinking disabled")
+
     # Create the configuration
     return AnalysisConfig(
         excel_path=excel_path,
@@ -325,6 +378,7 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
         detector_max_rounds=args.detector_max_rounds,
         detector_model=args.detector_model,
         detector_only=args.detector_only,
+        thinking_config=thinking_config,
     )
 
 

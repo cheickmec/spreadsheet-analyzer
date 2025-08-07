@@ -27,6 +27,7 @@ from ..observability import (
 )
 from ..pipeline import DeterministicPipeline
 from ..pipeline.types import PipelineResult
+from .thinking_config import ThinkingConfig
 from .utils.markdown import (
     create_header,
     formulas_to_markdown,
@@ -68,6 +69,8 @@ class AnalysisConfig:
     detector_max_rounds: int = 3  # Max rounds for table detection agent
     detector_model: str | None = None  # Specific model for detector (defaults to main model)
     detector_only: bool = False  # Run only detector without analyst
+    # Extended thinking configuration
+    thinking_config: ThinkingConfig | None = None  # Extended thinking parameters
 
 
 @dataclass(frozen=True)

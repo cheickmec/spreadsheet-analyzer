@@ -28,6 +28,7 @@ from ..notebook_session import NotebookSession
 from ..observability import add_session_metadata, phoenix_session
 from .context_compression import HierarchicalContextCompressor
 from .notebook_analysis import AnalysisConfig, AnalysisState, save_notebook
+from .thinking_config import ThinkingConfig
 
 logger = get_logger(__name__)
 
@@ -99,7 +100,9 @@ NEVER attempt to call methods like to_markdown() or tolist() as tools!
     ]
 
 
-def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, str]:
+def create_llm_instance(
+    model: str, api_key: str | None = None, thinking_config: "ThinkingConfig | None" = None
+) -> Result[Any, str]:
     """Create LLM instance based on model selection.
 
     Args:
@@ -115,11 +118,31 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
             if not api_key:
                 return err("No API key provided. Set ANTHROPIC_API_KEY or use --api-key")
 
-            llm = ChatAnthropic(
-                model_name=model,
-                api_key=api_key,
-                max_tokens=4096,
-            )
+            # Prepare base parameters
+            llm_kwargs = {
+                "model_name": model,
+                "api_key": api_key,
+                "max_tokens": 4096,
+            }
+
+            # Add thinking parameters if available
+            if thinking_config and thinking_config.enabled:
+                # For now, we'll pass thinking parameters through model_kwargs
+                # This will be used by our custom wrapper later
+                llm_kwargs["model_kwargs"] = thinking_config.to_api_params()
+
+                # Add beta headers if needed
+                beta_headers = thinking_config.to_beta_headers()
+                if beta_headers:
+                    if "model_kwargs" not in llm_kwargs:
+                        llm_kwargs["model_kwargs"] = {}
+                    llm_kwargs["model_kwargs"]["extra_headers"] = beta_headers
+
+                logger.info(f"🧠 Extended thinking enabled: {thinking_config.budget_tokens:,} tokens")
+                if thinking_config.interleaved:
+                    logger.info("⚡ Interleaved thinking enabled for tool use")
+
+            llm = ChatAnthropic(**llm_kwargs)
             return ok(llm)
 
         elif "gpt" in model.lower():
@@ -487,8 +510,8 @@ async def run_llm_analysis(
     # Get notebook tools
     tools = get_notebook_tools()
 
-    # Create LLM instance
-    llm_result = create_llm_instance(config.model, config.api_key)
+    # Create LLM instance with thinking support
+    llm_result = create_llm_instance(config.model, config.api_key, config.thinking_config)
     if llm_result.is_err():
         return err(llm_result.unwrap_err())
 

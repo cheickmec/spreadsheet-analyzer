@@ -26,6 +26,8 @@ CLAUDE_MODELS = {
             supports_vision=True,
             supports_audio=False,
             multimodal=True,
+            supports_thinking=True,
+            supports_interleaved_thinking=False,  # Claude 3.7 doesn't support interleaved
         ),
         recommended_for=[
             AgentType.DATA_ANALYST,
@@ -50,6 +52,8 @@ CLAUDE_MODELS = {
             supports_vision=True,
             supports_audio=False,
             multimodal=True,
+            supports_thinking=True,
+            supports_interleaved_thinking=True,  # Claude 4 supports interleaved
         ),
         recommended_for=[
             AgentType.FORMULA_ANALYZER,
@@ -74,6 +78,8 @@ CLAUDE_MODELS = {
             supports_vision=True,
             supports_audio=False,
             multimodal=True,
+            supports_thinking=True,
+            supports_interleaved_thinking=True,  # Claude 4 supports interleaved
         ),
         recommended_for=[AgentType.FORMULA_ANALYZER, AgentType.DATA_ANALYST, AgentType.PATTERN_FINDER],
         best_complexity=[TaskComplexity.COMPLEX, TaskComplexity.RESEARCH],
@@ -94,6 +100,8 @@ CLAUDE_MODELS = {
             supports_vision=True,
             supports_audio=False,
             multimodal=True,
+            supports_thinking=True,
+            supports_interleaved_thinking=True,  # Claude 4 supports interleaved
         ),
         recommended_for=[AgentType.FORMULA_ANALYZER, AgentType.DATA_ANALYST, AgentType.PATTERN_FINDER],
         best_complexity=[TaskComplexity.COMPLEX, TaskComplexity.RESEARCH],
