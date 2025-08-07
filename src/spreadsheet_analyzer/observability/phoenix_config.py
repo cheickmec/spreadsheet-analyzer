@@ -20,6 +20,31 @@ except ImportError:
     # Fallback for older versions
     using_session = None
 
+try:
+    from openinference.instrumentation.langchain import LangChainInstrumentor
+except ImportError:
+    LangChainInstrumentor = None
+
+try:
+    from openinference.instrumentation.openai import OpenAIInstrumentor
+except ImportError:
+    OpenAIInstrumentor = None
+
+try:
+    from openinference.instrumentation.anthropic import AnthropicInstrumentor
+except ImportError:
+    AnthropicInstrumentor = None
+
+try:
+    from opentelemetry.trace import get_tracer_provider as otel_get_tracer_provider
+except ImportError:
+    otel_get_tracer_provider = None
+
+try:
+    from opentelemetry import trace
+except ImportError:
+    trace = None
+
 logger = get_logger(__name__)
 
 
@@ -129,9 +154,11 @@ def instrument_langchain(tracer_provider: TracerProvider | None = None) -> bool:
     Returns:
         True if instrumentation successful, False otherwise.
     """
-    try:
-        from openinference.instrumentation.langchain import LangChainInstrumentor
+    if LangChainInstrumentor is None:
+        logger.warning("LangChain instrumentation not available")
+        return False
 
+    try:
         instrumentor = LangChainInstrumentor()
         if tracer_provider:
             instrumentor.instrument(tracer_provider=tracer_provider)
@@ -141,9 +168,6 @@ def instrument_langchain(tracer_provider: TracerProvider | None = None) -> bool:
         logger.info("LangChain instrumented successfully")
         return True
 
-    except ImportError:
-        logger.warning("LangChain instrumentation not available")
-        return False
     except Exception as e:
         logger.error("Failed to instrument LangChain", error=str(e))
         return False
@@ -159,9 +183,11 @@ def instrument_openai(tracer_provider: TracerProvider | None = None) -> bool:
     Returns:
         True if instrumentation successful, False otherwise.
     """
-    try:
-        from openinference.instrumentation.openai import OpenAIInstrumentor
+    if OpenAIInstrumentor is None:
+        logger.warning("OpenAI instrumentation not available")
+        return False
 
+    try:
         instrumentor = OpenAIInstrumentor()
         if tracer_provider:
             instrumentor.instrument(tracer_provider=tracer_provider)
@@ -171,9 +197,6 @@ def instrument_openai(tracer_provider: TracerProvider | None = None) -> bool:
         logger.info("OpenAI instrumented successfully")
         return True
 
-    except ImportError:
-        logger.warning("OpenAI instrumentation not available")
-        return False
     except Exception as e:
         logger.error("Failed to instrument OpenAI", error=str(e))
         return False
@@ -189,9 +212,11 @@ def instrument_anthropic(tracer_provider: TracerProvider | None = None) -> bool:
     Returns:
         True if instrumentation successful, False otherwise.
     """
-    try:
-        from openinference.instrumentation.anthropic import AnthropicInstrumentor
+    if AnthropicInstrumentor is None:
+        logger.warning("Anthropic instrumentation not available")
+        return False
 
+    try:
         instrumentor = AnthropicInstrumentor()
         if tracer_provider:
             instrumentor.instrument(tracer_provider=tracer_provider)
@@ -201,9 +226,6 @@ def instrument_anthropic(tracer_provider: TracerProvider | None = None) -> bool:
         logger.info("Anthropic instrumented successfully")
         return True
 
-    except ImportError:
-        logger.warning("Anthropic instrumentation not available")
-        return False
     except Exception as e:
         logger.error("Failed to instrument Anthropic", error=str(e))
         return False
@@ -216,10 +238,11 @@ def get_tracer_provider() -> TracerProvider | None:
     Returns:
         Current tracer provider or None if not initialized.
     """
-    try:
-        from opentelemetry.trace import get_tracer_provider
+    if otel_get_tracer_provider is None:
+        return None
 
-        provider = get_tracer_provider()
+    try:
+        provider = otel_get_tracer_provider()
         # Check if it's the default no-op provider
         if provider.__class__.__name__ == "ProxyTracerProvider":
             return None
@@ -271,7 +294,10 @@ def phoenix_session(session_id: str, user_id: str | None = None):
             yield
     else:
         # Fallback: manually set session attributes
-        from opentelemetry import trace
+        if trace is None:
+            logger.debug("OpenTelemetry trace not available, skipping session tracking")
+            yield
+            return
 
         tracer = trace.get_tracer(__name__)
 
@@ -293,7 +319,9 @@ def add_session_metadata(session_id: str, metadata: dict[str, any]) -> None:
         session_id: Session identifier
         metadata: Dictionary of metadata to add
     """
-    from opentelemetry import trace
+    if trace is None:
+        logger.debug("OpenTelemetry trace not available, skipping metadata")
+        return
 
     span = trace.get_current_span()
     if span:

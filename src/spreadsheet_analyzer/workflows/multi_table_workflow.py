@@ -9,17 +9,38 @@ its own notebook session to avoid context pollution.
 """
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Any, TypedDict
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.prompts import PromptTemplate
+from langchain_core.tools import tool
 from langgraph.graph import END, START, StateGraph
 from structlog import get_logger
 
-from ..agents.table_detection_types import TableDetectionResult
-from ..cli.notebook_analysis import AnalysisConfig
+from ..agents.table_detection_types import (
+    TableBoundary,
+    TableDetectionResult,
+    TableType,
+)
+from ..cli.llm_interaction import create_llm_instance, track_llm_usage
+from ..cli.notebook_analysis import (
+    AnalysisArtifacts,
+    AnalysisConfig,
+    run_notebook_analysis,
+)
+from ..cli.utils.naming import (
+    FileNameConfig,
+    generate_log_name,
+    generate_notebook_name,
+    generate_session_id,
+    get_cost_tracking_path,
+)
 from ..core.types import Result, err, ok
+from ..notebook_llm_interface import get_session_manager
 from ..notebook_session import notebook_session
+from ..observability import add_session_metadata, get_cost_tracker, phoenix_session
 from ..prompts import load_prompt
 
 logger = get_logger(__name__)
@@ -111,7 +132,7 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 
     try:
         # Create detection-specific notebook path using same naming convention as analysis
-        from ..cli.utils.naming import FileNameConfig, generate_notebook_name
+        # Imports moved to top of file
 
         detector_model = state["config"].detector_model or state["config"].model
 
@@ -141,8 +162,7 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         ) as session:
             # Load Excel data first
             load_code = f"""
-import pandas as pd
-from pathlib import Path
+# Imports moved to top of file
 
 excel_path = Path(r"{state["excel_file_path"]}")
 df = pd.read_excel(excel_path, sheet_name={state["sheet_index"]})
@@ -165,10 +185,7 @@ sheet_dimensions = f"{{df.shape[0]}} rows x {{df.shape[1]}} columns"
                     "messages": [AIMessage(content=f"Detection failed: {result.unwrap_err()}")],
                 }
 
-            # Import required modules for LLM-based detection
-
-            from ..cli.llm_interaction import create_llm_instance
-            from ..notebook_llm_interface import get_session_manager
+            # Use imported modules for LLM-based detection
 
             # Register session for tools access
             session_manager = get_session_manager()
@@ -187,7 +204,7 @@ sheet_dimensions = f"{{df.shape[0]}} rows x {{df.shape[1]}} columns"
                 prompt_data = prompt_result.unwrap()
 
             # Format the system prompt with actual data
-            from langchain_core.prompts import PromptTemplate
+            # Use imported PromptTemplate
 
             system_template = PromptTemplate(
                 template=prompt_data["template"], input_variables=prompt_data["input_variables"]
@@ -207,10 +224,13 @@ sheet_name
                 sheet_dimensions="Shape from notebook execution",
             )
 
-            # Create LLM instance for detection
+            # Create LLM instance for detection with thinking support
             # Use detector-specific model if provided, otherwise fall back to main model
             detector_model = state["config"].detector_model or state["config"].model
-            llm_result = create_llm_instance(detector_model, state["config"].api_key)
+
+            # Pass thinking config if available
+            thinking_config = getattr(state["config"], "thinking_config", None)
+            llm_result = create_llm_instance(detector_model, state["config"].api_key, thinking_config)
             if llm_result.is_err():
                 return {
                     "detection_error": f"Failed to create LLM: {llm_result.unwrap_err()}",
@@ -266,8 +286,7 @@ print(f"Right section non-null density: {right_cols.notna().sum().sum() / (right
                 analysis_output = "Analysis failed"
 
             # Create messages for detection
-            from langchain_core.messages import HumanMessage, SystemMessage
-            from langchain_core.tools import tool
+            # Use imported message types and tool decorator
 
             human_message = f"""Based on the analysis results below, identify all table boundaries and create the detected_tables variable.
 
@@ -311,62 +330,110 @@ Create the detected_tables variable now using the execute_code_detector tool."""
             # Run detection with limited rounds (default 3 for detection)
             max_detector_rounds = state["config"].detector_max_rounds
 
-            for round_num in range(max_detector_rounds):
-                logger.info(f"Detector round {round_num + 1}/{max_detector_rounds}")
+            # Generate session ID for detector
+            # Use imported naming utilities
+            file_config = FileNameConfig(
+                excel_file=Path(state["excel_file_path"]),
+                model=detector_model,
+                sheet_index=state["sheet_index"],
+                sheet_name=state.get("sheet_name"),
+                max_rounds=max_detector_rounds,
+                session_id=None,
+            )
+            detector_session_id = f"detector_{generate_session_id(file_config)}"
 
-                # Get LLM response
-                try:
-                    response = await llm_with_tools.ainvoke(messages)
-                    logger.debug(f"LLM response type: {type(response)}")
-                    logger.debug(f"LLM response content: {response.content[:200] if response.content else 'None'}...")
-                    messages.append(response)
+            # Wrap detector execution in Phoenix session tracking
+            with phoenix_session(
+                session_id=detector_session_id,
+                user_id=None,
+            ):
+                # Add session metadata
+                add_session_metadata(
+                    detector_session_id,
+                    {
+                        "excel_file": Path(state["excel_file_path"]).name,
+                        "sheet_index": state["sheet_index"],
+                        "sheet_name": state.get("sheet_name", f"Sheet{state['sheet_index']}"),
+                        "model": detector_model,
+                        "max_rounds": max_detector_rounds,
+                        "agent_type": "TABLE_DETECTOR",
+                        "cost_limit": state["config"].cost_limit if state["config"].track_costs else None,
+                    },
+                )
 
-                    # Process any tool calls
-                    if hasattr(response, "tool_calls") and response.tool_calls:
-                        logger.debug(f"Found {len(response.tool_calls)} tool calls")
-                    else:
-                        logger.warning("No tool calls found in LLM response")
-                        logger.debug(f"Response attributes: {dir(response)}")
+                for round_num in range(max_detector_rounds):
+                    logger.info(f"Detector round {round_num + 1}/{max_detector_rounds}")
 
-                    if hasattr(response, "tool_calls") and response.tool_calls:
-                        for tool_call in response.tool_calls:
-                            tool_name = tool_call["name"]
-                            tool_args = tool_call["args"]
-                            tool_id = tool_call["id"]
+                    # Get LLM response
+                    try:
+                        response = await llm_with_tools.ainvoke(messages)
+                        logger.debug(f"LLM response type: {type(response)}")
+                        logger.debug(
+                            f"LLM response content: {response.content[:200] if response.content else 'None'}..."
+                        )
+                        messages.append(response)
 
-                            # Execute the detector tool directly
-                            if tool_name == "execute_code_detector":
-                                try:
-                                    # Extract code from tool args
-                                    code = tool_args.get("code", "")
-                                    tool_result = await execute_detector_code(code)
+                        # Track token usage for cost tracking
+                        if state["config"].track_costs:
+                            await track_llm_usage(response, detector_model)
+
+                        # Process any tool calls
+                        if hasattr(response, "tool_calls") and response.tool_calls:
+                            logger.debug(f"Found {len(response.tool_calls)} tool calls")
+                        else:
+                            logger.warning("No tool calls found in LLM response")
+                            logger.debug(f"Response attributes: {dir(response)}")
+
+                        if hasattr(response, "tool_calls") and response.tool_calls:
+                            for tool_call in response.tool_calls:
+                                tool_name = tool_call["name"]
+                                tool_args = tool_call["args"]
+                                tool_id = tool_call["id"]
+
+                                # Execute the detector tool directly
+                                if tool_name == "execute_code_detector":
+                                    try:
+                                        # Extract code from tool args
+                                        code = tool_args.get("code", "")
+                                        tool_result = await execute_detector_code(code)
+                                        messages.append(
+                                            ToolMessage(content=str(tool_result), tool_call_id=tool_id, name=tool_name)
+                                        )
+                                    except Exception as e:
+                                        logger.error(f"Tool execution error: {e}")
+                                        messages.append(
+                                            ToolMessage(content=f"Error: {e!s}", tool_call_id=tool_id, name=tool_name)
+                                        )
+                                else:
+                                    logger.warning(f"Unknown tool: {tool_name}")
                                     messages.append(
-                                        ToolMessage(content=str(tool_result), tool_call_id=tool_id, name=tool_name)
+                                        ToolMessage(
+                                            content=f"Unknown tool: {tool_name}", tool_call_id=tool_id, name=tool_name
+                                        )
                                     )
-                                except Exception as e:
-                                    logger.error(f"Tool execution error: {e}")
-                                    messages.append(
-                                        ToolMessage(content=f"Error: {e!s}", tool_call_id=tool_id, name=tool_name)
-                                    )
-                            else:
-                                logger.warning(f"Unknown tool: {tool_name}")
-                                messages.append(
-                                    ToolMessage(
-                                        content=f"Unknown tool: {tool_name}", tool_call_id=tool_id, name=tool_name
-                                    )
-                                )
 
-                    # Check if detection is complete
-                    if (
-                        response.content
-                        and isinstance(response.content, str)
-                        and "detection complete" in response.content.lower()
-                    ):
+                        # Check if detection is complete
+                        if (
+                            response.content
+                            and isinstance(response.content, str)
+                            and "detection complete" in response.content.lower()
+                        ):
+                            break
+
+                    except Exception:
+                        logger.exception("Error in detector LLM call")
                         break
 
-                except Exception:
-                    logger.exception("Error in detector LLM call")
-                    break
+                # Log cost summary if tracking enabled
+                if state["config"].track_costs:
+                    try:
+                        cost_tracker = get_cost_tracker()
+                        cost_summary = cost_tracker.get_summary()
+                        logger.info("💰 Detector Cost Summary:")
+                        logger.info(f"  Total Cost: ${cost_summary['total_cost_usd']:.4f}")
+                        logger.info(f"  Total Tokens: {cost_summary['total_tokens']['total']:,}")
+                    except Exception:
+                        logger.debug("Failed to log detector cost summary")
 
             # Extract detection results from notebook
             # The LLM should have created a variable called 'detected_tables'
@@ -389,7 +456,7 @@ detection_results
             extract_result = await session.execute(extract_code)
 
             # Import types for result processing
-            from ..agents.table_detection_types import TableBoundary, TableDetectionResult, TableType
+            # Use imported table detection types
 
             if extract_result.is_ok():
                 exec_output = extract_result.unwrap()
@@ -638,14 +705,7 @@ async def analyst_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 
     try:
         # Import required modules for notebook analysis
-        from ..cli.notebook_analysis import AnalysisArtifacts, run_notebook_analysis
-        from ..cli.utils.naming import (
-            FileNameConfig,
-            generate_log_name,
-            generate_notebook_name,
-            generate_session_id,
-            get_cost_tracking_path,
-        )
+        # Use imported analysis and naming utilities
 
         # Create boundary summary for the analyst
         boundary_info = "DETECTED TABLE BOUNDARIES:\n\n"
@@ -691,7 +751,7 @@ async def analyst_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 
         # Create a modified config that includes table boundaries
         # We need to create a new config instance with table boundaries
-        from dataclasses import replace
+        # Use imported replace from dataclasses
 
         modified_config = replace(config, table_boundaries=boundary_info)
 

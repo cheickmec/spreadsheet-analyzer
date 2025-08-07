@@ -10,6 +10,7 @@ from typing import Any
 
 from result import Err, Ok, Result
 
+from spreadsheet_analyzer.core_exec import KernelProfile, KernelService
 from spreadsheet_analyzer.notebook_tools import NotebookToolkit, create_toolkit
 
 
@@ -60,8 +61,6 @@ class NotebookSession:
 async def notebook_session(session_id: str, notebook_path: Path | None = None):
     """Async context manager for notebook sessions."""
     # Create kernel service with proper initialization
-    from spreadsheet_analyzer.core_exec import KernelProfile, KernelService
-
     kernel_service = KernelService(KernelProfile())
 
     async with kernel_service:

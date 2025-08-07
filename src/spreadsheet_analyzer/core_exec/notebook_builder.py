@@ -10,6 +10,7 @@ This module provides domain-agnostic notebook construction functionality:
 No domain-specific logic - pure notebook construction primitives.
 """
 
+import copy
 import json
 from typing import Any
 
@@ -221,10 +222,6 @@ class NotebookBuilder:
         # Just return the content as-is to preserve formatting
         return content if content else ""
 
-    import json
-
-    # ... (rest of the file)
-
     def to_dict(self) -> dict[str, Any]:
         """
         Convert notebook to dictionary format.
@@ -302,8 +299,6 @@ class NotebookBuilder:
         Returns:
             New NotebookBuilder with copied content
         """
-        import copy
-
         new_builder = NotebookBuilder()
         new_builder.notebook = copy.deepcopy(self.notebook)
         new_builder._execution_count = self._execution_count
