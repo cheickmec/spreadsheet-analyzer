@@ -1,0 +1,110 @@
+{
+  "summary": {
+    "total_cost_usd": 0.0,
+    "total_tokens": {
+      "input": 42389,
+      "output": 865,
+      "total": 43254
+    },
+    "cost_by_model": {
+      "gpt-4.1-nano": 0.0
+    },
+    "tokens_by_model": {
+      "gpt-4.1-nano": {
+        "input": 42389,
+        "output": 865,
+        "total": 43254
+      }
+    },
+    "call_count": 5,
+    "cost_limit": null,
+    "within_budget": true
+  },
+  "history": [
+    {
+      "timestamp": "2025-08-07T09:14:40.629270",
+      "model": "gpt-4.1-nano",
+      "tokens": {
+        "input": 7621,
+        "output": 288,
+        "total": 7909
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    },
+    {
+      "timestamp": "2025-08-07T09:14:44.976720",
+      "model": "gpt-4.1-nano",
+      "tokens": {
+        "input": 8340,
+        "output": 231,
+        "total": 8571
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    },
+    {
+      "timestamp": "2025-08-07T09:14:46.015462",
+      "model": "gpt-4.1-nano",
+      "tokens": {
+        "input": 8590,
+        "output": 17,
+        "total": 8607
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    },
+    {
+      "timestamp": "2025-08-07T09:14:50.339460",
+      "model": "gpt-4.1-nano",
+      "tokens": {
+        "input": 8623,
+        "output": 210,
+        "total": 8833
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    },
+    {
+      "timestamp": "2025-08-07T09:14:52.974018",
+      "model": "gpt-4.1-nano",
+      "tokens": {
+        "input": 9215,
+        "output": 119,
+        "total": 9334
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    }
+  ]
+}
