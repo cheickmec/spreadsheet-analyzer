@@ -154,12 +154,14 @@ Examples:
     )
 
     # Phoenix observability configuration
+    # CLAUDE-KNOWLEDGE: Docker mode is the default for local development
+    # as it's the most common setup for developers using Phoenix
     parser.add_argument(
         "--phoenix-mode",
         type=str,
-        default="none",
+        default="docker",
         choices=["none", "docker", "cloud"],
-        help="Phoenix observability mode (default: none)",
+        help="Phoenix observability mode (default: docker)",
     )
     parser.add_argument(
         "--phoenix-host",
@@ -183,6 +185,11 @@ Examples:
         type=str,
         default="spreadsheet-analyzer",
         help="Phoenix project name (default: spreadsheet-analyzer)",
+    )
+    parser.add_argument(
+        "--no-phoenix",
+        action="store_true",
+        help="Disable Phoenix observability (overrides --phoenix-mode)",
     )
 
     # Cost tracking
@@ -281,17 +288,15 @@ def parse_arguments() -> argparse.Namespace:
         sys.exit(1)
 
     # Validate model selection if provided
-    if args.model:
-        if not validate_model(args.model):
-            available_models = get_available_models()
-            print(f"❌ Error: Invalid model '{args.model}'")
-            print("\n💡 Use --list-models to see all available models with recommendations")
-            print("\n🎯 Quick suggestions:")
-            print("   For table detection: claude-3-5-haiku-20241022")
-            print("   For general analysis: claude-3-5-sonnet-20241022")
-            print("   For complex formulas: o3")
-            print("   For cost efficiency: gpt-4.1-mini")
-            sys.exit(1)
+    if args.model and not validate_model(args.model):
+        print(f"❌ Error: Invalid model '{args.model}'")
+        print("\n💡 Use --list-models to see all available models with recommendations")
+        print("\n🎯 Quick suggestions:")
+        print("   For table detection: claude-3-5-haiku-20241022")
+        print("   For general analysis: claude-3-5-sonnet-20241022")
+        print("   For complex formulas: o3")
+        print("   For cost efficiency: gpt-4.1-mini")
+        sys.exit(1)
 
     # Setup basic logging
     log_level = logging.INFO if args.verbose else logging.WARNING
@@ -320,8 +325,12 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
     # For now, keep the default index
 
     # Create Phoenix config if needed
+    # CLAUDE-KNOWLEDGE: --no-phoenix flag overrides the default docker mode
     phoenix_config = None
-    if args.phoenix_mode != "none":
+    if hasattr(args, "no_phoenix") and args.no_phoenix:
+        # User explicitly disabled Phoenix
+        phoenix_config = None
+    elif args.phoenix_mode != "none":
         phoenix_config = PhoenixConfig(
             mode=args.phoenix_mode,
             host=args.phoenix_host,
@@ -342,11 +351,7 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
             thinking_mode = ThinkingMode.AUTO
 
         # Determine agent type based on workflow
-        if args.detector_only:
-            agent_type = AgentType.TABLE_DETECTOR
-        else:
-            # Default to data analyst for general analysis
-            agent_type = AgentType.DATA_ANALYST
+        agent_type = AgentType.TABLE_DETECTOR if args.detector_only else AgentType.DATA_ANALYST
 
         # Create thinking config
         thinking_config = ThinkingConfig.create_for_agent(
