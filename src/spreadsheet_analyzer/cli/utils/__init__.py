@@ -22,6 +22,7 @@ from .naming import (
     generate_notebook_name,
     generate_session_id,
     get_cost_tracking_path,
+    get_short_hash,
     sanitize_model_name,
     sanitize_sheet_name,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "generate_notebook_name",
     "generate_session_id",
     "get_cost_tracking_path",
+    "get_short_hash",
     "sanitize_model_name",
     "sanitize_sheet_name",
     # Markdown utilities

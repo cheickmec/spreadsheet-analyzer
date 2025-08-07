@@ -38,6 +38,7 @@ from spreadsheet_analyzer.cli.utils.naming import (
     generate_notebook_name,
     generate_session_id,
     get_cost_tracking_path,
+    get_short_hash,
 )
 from spreadsheet_analyzer.observability import PhoenixConfig
 
@@ -391,6 +392,18 @@ def create_analysis_artifacts(config: AnalysisConfig) -> AnalysisArtifacts:
     Returns:
         Analysis artifacts
     """
+    from spreadsheet_analyzer.prompts import get_prompt_definition
+
+    # Determine which prompt will be used based on config
+    # Note: table_boundaries is set later, so for main analysis we default to data_analyst_system
+    prompt_name = (
+        "table_aware_analyst_system"
+        if hasattr(config, "table_boundaries") and config.table_boundaries
+        else "data_analyst_system"
+    )
+    prompt_def = get_prompt_definition(prompt_name)
+    prompt_hash = get_short_hash(prompt_def.content_hash) if prompt_def else None
+
     # Create file name config
     file_config = FileNameConfig(
         excel_file=config.excel_path,
@@ -399,6 +412,7 @@ def create_analysis_artifacts(config: AnalysisConfig) -> AnalysisArtifacts:
         sheet_name=config.sheet_name,
         max_rounds=config.max_rounds,
         session_id=config.session_id,
+        prompt_hash=prompt_hash,
     )
 
     # Generate session ID if not provided

@@ -36,12 +36,13 @@ from ..cli.utils.naming import (
     generate_notebook_name,
     generate_session_id,
     get_cost_tracking_path,
+    get_short_hash,
 )
 from ..core.types import Result, err, ok
 from ..notebook_llm_interface import get_session_manager
 from ..notebook_session import notebook_session
 from ..observability import add_session_metadata, get_cost_tracker, phoenix_session
-from ..prompts import load_prompt
+from ..prompts import get_prompt_definition, load_prompt
 
 logger = get_logger(__name__)
 
@@ -136,6 +137,10 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
 
         detector_model = state["config"].detector_model or state["config"].model
 
+        # Get prompt hash for tracking
+        detector_prompt_def = get_prompt_definition("table_detector_system")
+        prompt_hash = get_short_hash(detector_prompt_def.content_hash) if detector_prompt_def else None
+
         # Create file config for detector
         detector_file_config = FileNameConfig(
             excel_file=Path(state["excel_file_path"]),
@@ -144,6 +149,7 @@ async def detector_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
             sheet_name=state.get("sheet_name"),
             max_rounds=state["config"].detector_max_rounds,
             session_id=f"detection_{state['sheet_index']}",
+            prompt_hash=prompt_hash,
         )
 
         output_dir = Path(state["config"].output_dir if state["config"].output_dir else "./outputs")
@@ -339,6 +345,7 @@ Create the detected_tables variable now using the execute_code_detector tool."""
                 sheet_name=state.get("sheet_name"),
                 max_rounds=max_detector_rounds,
                 session_id=None,
+                prompt_hash=prompt_hash,  # Use the same hash from earlier
             )
             detector_session_id = f"detector_{generate_session_id(file_config)}"
 
@@ -722,12 +729,18 @@ async def analyst_node(state: SpreadsheetAnalysisState) -> dict[str, Any]:
         # Prepare the modified config with table boundaries
         config = state["config"]
 
+        # Determine which prompt will be used and get its hash
+        analyst_prompt_name = "table_aware_analyst_system" if boundaries else "data_analyst_system"
+        analyst_prompt_def = get_prompt_definition(analyst_prompt_name)
+        analyst_hash = get_short_hash(analyst_prompt_def.content_hash) if analyst_prompt_def else None
+
         # Generate file names config first
         file_config = FileNameConfig(
             excel_file=Path(state["excel_file_path"]),
             model=config.model,
             sheet_index=state["sheet_index"],
             sheet_name=state.get("sheet_name"),
+            prompt_hash=analyst_hash,
         )
 
         # Generate new session ID for analysis

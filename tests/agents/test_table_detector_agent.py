@@ -401,7 +401,16 @@ class TestTableDetectorAgent:
         response = result.unwrap()
         detection_result: TableDetectionResult = response.content
 
-        assert detection_result.detection_method in ["mechanical", "semantic", "hybrid"]
-        assert detection_result.metrics is not None
-        assert "confidence_scores" in detection_result.metrics.__dict__
+        # Check for valid metadata structure
+        assert detection_result.metadata is not None
+        assert isinstance(detection_result.metadata, dict)
         assert detection_result.sheet_name == "Sheet"
+
+        # Check that tables were detected
+        assert len(detection_result.tables) > 0
+
+        # Check first table has valid structure
+        first_table = detection_result.tables[0]
+        assert hasattr(first_table, "table_id")
+        assert hasattr(first_table, "confidence")
+        assert 0.0 <= first_table.confidence <= 1.0
