@@ -64,7 +64,7 @@ MAX_RUNTIME_SECONDS: Final[int] = 30
 DENSITY_THRESHOLD: Final[float] = 0.05  # 5% threshold to catch even sparse summary regions
 HIGH_DENSITY_THRESHOLD: Final[float] = 0.8  # 80% density reduces window size
 BLANK_TAIL_THRESHOLD: Final[float] = 0.3  # 30% blank tail triggers split, not penalty
-HOMOGENEITY_THRESHOLD: Final[float] = 0.9  # 90% homogeneity required to classify
+HOMOGENEITY_THRESHOLD: Final[float] = 0.8  # 80% homogeneity required to classify (reduced for better accuracy)
 ENTROPY_THRESHOLD: Final[float] = 0.1  # Max entropy for homogeneous region
 
 # Block type confidence thresholds
@@ -259,10 +259,12 @@ class ExcelToolHandler:
 
         # Check if merged (simplified check)
         is_merged = False
-        for merged_range in self.worksheet.merged_cells.ranges:
-            if cell.coordinate in merged_range:
-                is_merged = True
-                break
+        # merged_cells not available in read-only mode
+        if hasattr(self.worksheet, "merged_cells"):
+            for merged_range in self.worksheet.merged_cells.ranges:
+                if cell.coordinate in merged_range:
+                    is_merged = True
+                    break
 
         # Style flags (simplified)
         style_flags = []
@@ -276,10 +278,12 @@ class ExcelToolHandler:
     def _merged_list(self) -> list[dict[str, str]]:
         """Get list of merged cell ranges."""
         merged = []
-        for merged_range in self.worksheet.merged_cells.ranges:
-            merged.append({"range": str(merged_range)})
-            if len(merged) >= 2000:  # Budget limit
-                break
+        # merged_cells not available in read-only mode
+        if hasattr(self.worksheet, "merged_cells"):
+            for merged_range in self.worksheet.merged_cells.ranges:
+                merged.append({"range": str(merged_range)})
+                if len(merged) >= 2000:  # Budget limit
+                    break
         return merged
 
     def _names_list(self) -> list[dict[str, str]]:
@@ -301,49 +305,147 @@ class ExcelToolHandler:
 
     def _object_scan(self, type: str) -> list[dict[str, Any]]:
         """Scan for charts or pivot tables."""
-        # Simplified - openpyxl doesn't easily expose charts/pivots
-        # Return empty for now
-        return []
+        objects = []
+
+        if type == "chart":
+            # Check for charts in the worksheet
+            try:
+                if hasattr(self.worksheet, "_charts"):
+                    for chart in self.worksheet._charts:
+                        # Get chart anchor (top-left cell)
+                        anchor = "A1"  # Default
+                        if hasattr(chart, "anchor"):
+                            if hasattr(chart.anchor, "_from"):
+                                # Extract cell from anchor
+                                from_marker = chart.anchor._from
+                                if hasattr(from_marker, "col") and hasattr(from_marker, "row"):
+                                    col_letter = get_column_letter(from_marker.col + 1)
+                                    anchor = f"{col_letter}{from_marker.row + 1}"
+                            elif hasattr(chart.anchor, "ref"):
+                                # Alternative anchor format
+                                anchor = (
+                                    str(chart.anchor.ref).split(":")[0]
+                                    if ":" in str(chart.anchor.ref)
+                                    else str(chart.anchor.ref)
+                                )
+
+                        objects.append(
+                            {
+                                "type": "chart",
+                                "anchor": anchor,
+                                "title": chart.title if hasattr(chart, "title") else "Untitled Chart",
+                            }
+                        )
+
+                        if len(objects) >= 50:  # Limit to prevent excessive scanning
+                            break
+            except Exception as e:
+                self.logger.main.debug(f"Error scanning for charts: {e}")
+
+        elif type == "pivot":
+            # Pivot tables require parsing the workbook XML which is complex
+            # For now, we can check for pivot cache definitions
+            try:
+                if hasattr(self.worksheet.parent, "pivots"):
+                    for pivot in self.worksheet.parent.pivots:
+                        objects.append(
+                            {
+                                "type": "pivot",
+                                "anchor": "A1",  # Would need to parse XML for actual location
+                                "name": pivot.name if hasattr(pivot, "name") else "Pivot Table",
+                            }
+                        )
+
+                        if len(objects) >= 20:  # Limit pivots
+                            break
+            except Exception as e:
+                self.logger.main.debug(f"Error scanning for pivots: {e}")
+
+        return objects
 
     def calculate_layout_homogeneity(self, range_text: str) -> float:
-        """Calculate layout homogeneity based on row patterns.
+        """Calculate layout homogeneity based on row AND column patterns.
 
         Returns a value between 0 (heterogeneous) and 1 (homogeneous).
-        Based on the entropy of non-blank cell distribution per row.
+        Combines entropy of row densities and column patterns.
         """
         lines = range_text.split("\n")[3:]  # Skip headers
         if not lines:
             return 1.0
 
-        row_densities = []
+        # Parse the data into a 2D array
+        data_matrix = []
         for line in lines:
             cells = line.split("|")[1:]  # Skip row number
-            if not cells:
-                continue
-            non_empty = sum(1 for cell in cells if cell.strip() and cell.strip() != "␀")
-            density = non_empty / len(cells) if cells else 0
-            row_densities.append(density)
+            if cells:
+                data_matrix.append([cell.strip() for cell in cells])
 
-        if not row_densities:
+        if not data_matrix:
             return 1.0
 
-        # Calculate entropy of row densities
-        # Lower entropy = more homogeneous
-        if len(set(row_densities)) == 1:
-            return 1.0  # All rows have same density
+        # Check for merged cells spanning multiple columns (header/banner indicator)
+        first_row = data_matrix[0] if data_matrix else []
+        if first_row:
+            # Count consecutive identical non-empty values (likely merged)
+            consecutive_count = 1
+            max_consecutive = 1
+            for i in range(1, len(first_row)):
+                if first_row[i] == first_row[i - 1] and first_row[i] not in ["", "␀"]:
+                    consecutive_count += 1
+                    max_consecutive = max(max_consecutive, consecutive_count)
+                else:
+                    consecutive_count = 1
 
-        # Normalize densities to discrete bins
-        bins = np.linspace(0, 1, 11)  # 10 bins
-        digitized = np.digitize(row_densities, bins)
+            # If more than 50% of columns seem merged, it's likely a banner
+            if max_consecutive > len(first_row) * 0.5:
+                return 0.3  # Low homogeneity for banner-like structures
 
-        # Calculate entropy
-        _, counts = np.unique(digitized, return_counts=True)
-        probabilities = counts / len(digitized)
-        entropy = stats.entropy(probabilities, base=2)
-        max_entropy = np.log2(len(bins))
+        # Calculate ROW entropy
+        row_densities = []
+        for row in data_matrix:
+            non_empty = sum(1 for cell in row if cell and cell != "␀")
+            density = non_empty / len(row) if row else 0
+            row_densities.append(density)
 
-        # Convert entropy to homogeneity (inverse relationship)
-        homogeneity = 1.0 - (entropy / max_entropy if max_entropy > 0 else 0)
+        # Calculate COLUMN entropy
+        num_cols = max(len(row) for row in data_matrix) if data_matrix else 0
+        col_densities = []
+        for col_idx in range(num_cols):
+            non_empty = 0
+            total = 0
+            for row in data_matrix:
+                if col_idx < len(row):
+                    total += 1
+                    if row[col_idx] and row[col_idx] != "␀":
+                        non_empty += 1
+            density = non_empty / total if total > 0 else 0
+            col_densities.append(density)
+
+        # Calculate entropy for rows
+        row_homogeneity = 1.0
+        if len(set(row_densities)) > 1:
+            bins = np.linspace(0, 1, 11)  # 10 bins
+            digitized = np.digitize(row_densities, bins)
+            _, counts = np.unique(digitized, return_counts=True)
+            probabilities = counts / len(digitized)
+            entropy = stats.entropy(probabilities, base=2)
+            max_entropy = np.log2(len(bins))
+            row_homogeneity = 1.0 - (entropy / max_entropy if max_entropy > 0 else 0)
+
+        # Calculate entropy for columns
+        col_homogeneity = 1.0
+        if len(set(col_densities)) > 1:
+            bins = np.linspace(0, 1, 11)  # 10 bins
+            digitized = np.digitize(col_densities, bins)
+            _, counts = np.unique(digitized, return_counts=True)
+            probabilities = counts / len(digitized)
+            entropy = stats.entropy(probabilities, base=2)
+            max_entropy = np.log2(len(bins))
+            col_homogeneity = 1.0 - (entropy / max_entropy if max_entropy > 0 else 0)
+
+        # Combine both measures (weighted average)
+        # Give more weight to row homogeneity as it's usually more important
+        homogeneity = 0.7 * row_homogeneity + 0.3 * col_homogeneity
 
         return homogeneity
 
@@ -360,7 +462,8 @@ class SheetCartographer:
 
         # Load worksheet
         self.logger.main.info(f"📂 Loading Excel file: {excel_path}")
-        self.workbook = openpyxl.load_workbook(excel_path, read_only=False, data_only=True)
+        # Use read_only=True for better performance with large files
+        self.workbook = openpyxl.load_workbook(excel_path, read_only=True, data_only=True)
         self.worksheet = self.workbook.worksheets[sheet_index]
         self.logger.main.info(f"📊 Loaded sheet {sheet_index}: {self.worksheet.title}")
 
@@ -484,12 +587,16 @@ class SheetCartographer:
         window_height = 40
         window_width = 20
 
+        # Store step sizes for later use in _cluster
+        self.sweep_step_h = window_height // 2
+        self.sweep_step_w = window_width // 2
+
         density_grid = []
 
         # Sweep row-major with sliding windows
-        for row_start in range(1, rows + 1, window_height // 2):
+        for row_start in range(1, rows + 1, self.sweep_step_h):
             density_row = []
-            for col_start in range(1, cols + 1, window_width // 2):
+            for col_start in range(1, cols + 1, self.sweep_step_w):
                 # Grab window
                 window_text = self.tool_handler.execute_tool(
                     "window_grab",
@@ -559,15 +666,12 @@ class SheetCartographer:
                     min_j = min(c[1] for c in cluster)
                     max_j = max(c[1] for c in cluster)
 
-                    # Convert grid coordinates to sheet coordinates
-                    window_height = 20  # Simplified
-                    window_width = 10
-
-                    start_row = min_i * (window_height // 2) + 1
+                    # Convert grid coordinates to sheet coordinates using actual sweep steps
+                    start_row = min_i * self.sweep_step_h + 1
                     # Extend to actual data boundaries, not just detected density
-                    end_row = min((max_i + 2) * window_height, sheet_info["rows"])  # More generous boundaries
-                    start_col = min_j * (window_width // 2) + 1
-                    end_col = min((max_j + 2) * window_width, sheet_info["cols"])  # More generous boundaries
+                    end_row = min((max_i + 2) * self.sweep_step_h, sheet_info["rows"])  # More generous boundaries
+                    start_col = min_j * self.sweep_step_w + 1
+                    end_col = min((max_j + 2) * self.sweep_step_w, sheet_info["cols"])  # More generous boundaries
 
                     block_range = f"{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}"
 
@@ -767,32 +871,76 @@ class SheetCartographer:
                 )
 
                 # Initial classification
-                block_type, confidence, open_questions = self._classify_block_with_llm(
-                    sub_region["text"], sub_region["range"]
-                )
+                result = self._classify_block_with_llm(sub_region["text"], sub_region["range"])
+
+                # Handle the extended return value that may include peek requests
+                if len(result) == 4:  # New format with peek_requests
+                    block_type, confidence, open_questions, peek_requests = result
+                else:  # Old format without peek_requests
+                    block_type, confidence, open_questions = result
+                    peek_requests = []
 
                 # Force low confidence if embedded totals detected
                 if has_embedded_totals and confidence > 0.5:
                     self.logger.main.info(f"   Detected embedded totals in {sub_region['range']} - forcing split")
                     confidence = 0.4  # Force splitting
 
-                # Iterative refinement based on open questions
+                # Iterative refinement based on open questions and peek requests
                 refinement_count = 0
                 max_refinements = 3
+                peek_requests = []  # Track initial peek requests
+                peeked_ranges = set()  # Avoid duplicate peeks
 
-                while open_questions and refinement_count < max_refinements:
+                while (open_questions or peek_requests) and refinement_count < max_refinements:
                     self.logger.main.debug(f"   Refinement {refinement_count + 1} for {sub_region['range']}")
                     self.logger.main.debug(f"   Open questions: {open_questions}")
 
+                    additional_context_parts = []
+
+                    # Process any peek requests from LLM
+                    if peek_requests:
+                        self.logger.main.debug(f"   Processing {len(peek_requests)} peek requests")
+                        for peek_req in peek_requests:
+                            peek_range = peek_req.get("range", "")
+                            peek_reason = peek_req.get("reason", "")
+
+                            # Skip if already peeked
+                            if peek_range in peeked_ranges:
+                                continue
+                            peeked_ranges.add(peek_range)
+
+                            try:
+                                # Execute the peek
+                                peek_text = self.tool_handler.execute_tool(
+                                    "range_peek", {"range": peek_range, "format": "markdown"}
+                                )
+                                additional_context_parts.append(
+                                    f"Peek at {peek_range} (requested: {peek_reason}):\n{peek_text}"
+                                )
+                            except Exception as e:
+                                self.logger.main.debug(f"   Failed to peek at {peek_range}: {e}")
+
                     # Address open questions with targeted probing
-                    additional_context = self._address_open_questions(
-                        open_questions, sub_region["range"], sub_region["text"]
-                    )
+                    if open_questions:
+                        heuristic_context = self._address_open_questions(
+                            open_questions, sub_region["range"], sub_region["text"]
+                        )
+                        if heuristic_context and heuristic_context != "No additional context gathered":
+                            additional_context_parts.append(heuristic_context)
+
+                    additional_context = "\n\n".join(additional_context_parts) if additional_context_parts else None
 
                     # Re-classify with additional context
-                    block_type, confidence, open_questions = self._classify_block_with_llm(
+                    result = self._classify_block_with_llm(
                         sub_region["text"], sub_region["range"], additional_context=additional_context
                     )
+
+                    # Handle the extended return value that may include peek requests
+                    if len(result) == 4:  # New format with peek_requests
+                        block_type, confidence, open_questions, peek_requests = result
+                    else:  # Old format without peek_requests
+                        block_type, confidence, open_questions = result
+                        peek_requests = []
 
                     refinement_count += 1
 
@@ -811,9 +959,10 @@ class SheetCartographer:
                                 "range_peek", {"range": deep_region["range"], "format": "markdown"}
                             )
 
-                        deep_type, deep_conf, _ = self._classify_block_with_llm(
-                            deep_region["text"], deep_region["range"]
-                        )
+                        deep_result = self._classify_block_with_llm(deep_region["text"], deep_region["range"])
+                        # Extract just type and confidence, ignore open questions
+                        deep_type = deep_result[0]
+                        deep_conf = deep_result[1]
 
                         self.blocks.append(
                             Block(
@@ -1092,7 +1241,7 @@ class SheetCartographer:
             Tuple of (block_type, confidence, open_questions)
         """
 
-        # Define tools for classification with open questions
+        # Define tools for classification with open questions AND peek requests
         tools = [
             {
                 "type": "function",
@@ -1121,6 +1270,25 @@ class SheetCartographer:
                                 "type": "array",
                                 "items": {"type": "string"},
                                 "description": "Questions that need answers to improve classification (e.g., 'Are rows 1-3 headers?', 'Is row 10 a totals row?')",
+                            },
+                            "peek_requests": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "range": {
+                                            "type": "string",
+                                            "description": "A1-style range to peek at (e.g., 'A11:I15')",
+                                        },
+                                        "reason": {
+                                            "type": "string",
+                                            "description": "Why this range would help classification",
+                                        },
+                                    },
+                                    "required": ["range", "reason"],
+                                },
+                                "maxItems": 3,
+                                "description": "Additional ranges to peek at for better classification (max 3)",
                             },
                         },
                         "required": ["block_type", "confidence", "reasoning", "open_questions"],
@@ -1163,6 +1331,11 @@ For example:
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}]
 
         try:
+            # Check token budget before making LLM call
+            if self.total_tokens > MAX_LLM_TOKENS:
+                self.logger.error.error(f"Token budget exceeded: {self.total_tokens} > {MAX_LLM_TOKENS}")
+                raise RuntimeError(f"Token budget exceeded: {self.total_tokens} > {MAX_LLM_TOKENS}")
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -1191,7 +1364,13 @@ For example:
             if response.choices[0].message.tool_calls:
                 tool_call = response.choices[0].message.tool_calls[0]
                 args = json.loads(tool_call.function.arguments)
-                return (args["block_type"], args["confidence"], args.get("open_questions", []))
+
+                # Return with peek_requests if available
+                peek_requests = args.get("peek_requests", [])
+                if peek_requests:
+                    return (args["block_type"], args["confidence"], args.get("open_questions", []), peek_requests)
+                else:
+                    return (args["block_type"], args["confidence"], args.get("open_questions", []))
 
         except Exception as e:
             self.logger.error.error(f"LLM classification failed: {e}")
@@ -1226,9 +1405,49 @@ For example:
             )
 
     def _ranges_overlap(self, range1: str, range2: str) -> bool:
-        """Check if two ranges overlap (simplified)."""
-        # Very simplified overlap check
-        return False  # TODO: Implement proper range overlap
+        """Check if two A1-style ranges overlap.
+
+        Two ranges overlap if their row intervals AND column intervals both intersect.
+        """
+        try:
+            # Parse first range
+            if ":" in range1:
+                parts1 = range1.split(":")
+                start1_col, start1_row = coordinate_from_string(parts1[0])
+                end1_col, end1_row = coordinate_from_string(parts1[1])
+            else:
+                # Single cell
+                start1_col, start1_row = coordinate_from_string(range1)
+                end1_col, end1_row = start1_col, start1_row
+
+            # Parse second range
+            if ":" in range2:
+                parts2 = range2.split(":")
+                start2_col, start2_row = coordinate_from_string(parts2[0])
+                end2_col, end2_row = coordinate_from_string(parts2[1])
+            else:
+                # Single cell
+                start2_col, start2_row = coordinate_from_string(range2)
+                end2_col, end2_row = start2_col, start2_row
+
+            # Convert column letters to indices
+            start1_col_idx = column_index_from_string(start1_col)
+            end1_col_idx = column_index_from_string(end1_col)
+            start2_col_idx = column_index_from_string(start2_col)
+            end2_col_idx = column_index_from_string(end2_col)
+
+            # Check row interval overlap
+            rows_overlap = not (end1_row < start2_row or end2_row < start1_row)
+
+            # Check column interval overlap
+            cols_overlap = not (end1_col_idx < start2_col_idx or end2_col_idx < start1_col_idx)
+
+            # Both intervals must overlap
+            return rows_overlap and cols_overlap
+
+        except Exception as e:
+            self.logger.main.debug(f"Error checking range overlap: {e}")
+            return False
 
     def _emit(self) -> dict[str, Any]:
         """S5: Emit the final cartographer map."""
