@@ -20,7 +20,6 @@ from structlog import get_logger
 from spreadsheet_analyzer.cli.model_registry import (
     AgentType,
     format_model_list,
-    get_available_models,
     validate_model,
 )
 from spreadsheet_analyzer.cli.notebook_analysis import (
