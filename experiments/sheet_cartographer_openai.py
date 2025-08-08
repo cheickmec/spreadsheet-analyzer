@@ -1586,6 +1586,23 @@ class SheetCartographer:
         }
         return defaults.get(structural_type, [])
 
+    def _strip_sheet_prefix(self, range_str: str) -> str:
+        """Strip sheet prefix and quotes from range string.
+
+        Converts 'Sheet Name'!$A$1:$E$20 to A1:E20
+        """
+        if not range_str:
+            return range_str
+
+        # Remove sheet prefix if present (everything before and including !)
+        if "!" in range_str:
+            range_str = range_str.split("!", 1)[1]
+
+        # Remove $ signs from absolute references
+        range_str = range_str.replace("$", "")
+
+        return range_str
+
     def _classify_block_with_llm(
         self, range_text: str, range_str: str, additional_context: str | None = None
     ) -> tuple[str, str, float, str, list[str], list[dict], list[str], str]:
@@ -1822,26 +1839,31 @@ For example:
         """Check if two A1-style ranges overlap.
 
         Two ranges overlap if their row intervals AND column intervals both intersect.
+        Handles sheet prefixes like 'Sheet Name'!$A$1:$E$20.
         """
         try:
+            # Strip sheet prefixes and quotes from both ranges
+            clean_range1 = self._strip_sheet_prefix(range1)
+            clean_range2 = self._strip_sheet_prefix(range2)
+
             # Parse first range
-            if ":" in range1:
-                parts1 = range1.split(":")
+            if ":" in clean_range1:
+                parts1 = clean_range1.split(":")
                 start1_col, start1_row = coordinate_from_string(parts1[0])
                 end1_col, end1_row = coordinate_from_string(parts1[1])
             else:
                 # Single cell
-                start1_col, start1_row = coordinate_from_string(range1)
+                start1_col, start1_row = coordinate_from_string(clean_range1)
                 end1_col, end1_row = start1_col, start1_row
 
             # Parse second range
-            if ":" in range2:
-                parts2 = range2.split(":")
+            if ":" in clean_range2:
+                parts2 = clean_range2.split(":")
                 start2_col, start2_row = coordinate_from_string(parts2[0])
                 end2_col, end2_row = coordinate_from_string(parts2[1])
             else:
                 # Single cell
-                start2_col, start2_row = coordinate_from_string(range2)
+                start2_col, start2_row = coordinate_from_string(clean_range2)
                 end2_col, end2_row = start2_col, start2_row
 
             # Convert column letters to indices
