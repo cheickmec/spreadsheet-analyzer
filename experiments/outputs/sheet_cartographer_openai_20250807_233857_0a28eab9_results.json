@@ -1,0 +1,20 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "0a28eab9",
+  "timestamp": "20250807_233857",
+  "results": {
+    "sheet": "Yiriden Transactions 2025",
+    "analyzedAt": "2025-08-07T23:39:11.810195Z",
+    "blocks": [
+      {
+        "id": "blk_01",
+        "range": "A1:I10",
+        "type": "FactTable",
+        "confidence": 0.7,
+        "named_range": null
+      }
+    ],
+    "objects": [],
+    "unresolved": []
+  }
+}

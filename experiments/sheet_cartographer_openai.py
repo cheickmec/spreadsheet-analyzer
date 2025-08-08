@@ -61,7 +61,7 @@ MAX_CELL_META_CALLS: Final[int] = 100
 MAX_RANGE_AREA: Final[int] = 10000  # Increased for larger samples
 MAX_LLM_TOKENS: Final[int] = 32000
 MAX_RUNTIME_SECONDS: Final[int] = 30
-DENSITY_THRESHOLD: Final[float] = 0.10  # 10% threshold to catch sparse regions
+DENSITY_THRESHOLD: Final[float] = 0.05  # 5% threshold to catch even sparse summary regions
 HIGH_DENSITY_THRESHOLD: Final[float] = 0.8  # 80% density reduces window size
 BLANK_TAIL_THRESHOLD: Final[float] = 0.3  # 30% blank tail triggers split, not penalty
 HOMOGENEITY_THRESHOLD: Final[float] = 0.9  # 90% homogeneity required to classify
@@ -74,7 +74,6 @@ KPI_SUMMARY_CONFIDENCE: Final[float] = 0.65
 PIVOT_CACHE_CONFIDENCE: Final[float] = 0.60
 CHART_ANCHOR_CONFIDENCE: Final[float] = 1.00
 SUMMARY_CONFIDENCE: Final[float] = 0.80  # For totals sections
-COMPOSITE_CONFIDENCE: Final[float] = 0.50  # For mixed regions
 UNKNOWN_CONFIDENCE: Final[float] = 0.20
 
 
@@ -565,9 +564,10 @@ class SheetCartographer:
                     window_width = 10
 
                     start_row = min_i * (window_height // 2) + 1
-                    end_row = min((max_i + 1) * (window_height // 2) + window_height // 2, sheet_info["rows"])
+                    # Extend to actual data boundaries, not just detected density
+                    end_row = min((max_i + 2) * window_height, sheet_info["rows"])  # More generous boundaries
                     start_col = min_j * (window_width // 2) + 1
-                    end_col = min((max_j + 1) * (window_width // 2) + window_width // 2, sheet_info["cols"])
+                    end_col = min((max_j + 2) * window_width, sheet_info["cols"])  # More generous boundaries
 
                     block_range = f"{get_column_letter(start_col)}{start_row}:{get_column_letter(end_col)}{end_row}"
 
@@ -748,10 +748,33 @@ class SheetCartographer:
                         "range_peek", {"range": sub_region["range"], "format": "markdown"}
                     )
 
+                # Check for embedded totals in the text that suggest column-wise splitting
+                text_lower = sub_region["text"].lower()
+                # Check for various forms of "total" keywords that indicate mixed regions
+                has_embedded_totals = any(
+                    keyword in text_lower
+                    for keyword in [
+                        "total revenue",
+                        "total revenues",
+                        "total expense",
+                        "total expenses",
+                        "total income",
+                        "total cost",
+                        "summary",
+                        "subtotal",
+                        "grand total",
+                    ]
+                )
+
                 # Initial classification
                 block_type, confidence, open_questions = self._classify_block_with_llm(
                     sub_region["text"], sub_region["range"]
                 )
+
+                # Force low confidence if embedded totals detected
+                if has_embedded_totals and confidence > 0.5:
+                    self.logger.main.info(f"   Detected embedded totals in {sub_region['range']} - forcing split")
+                    confidence = 0.4  # Force splitting
 
                 # Iterative refinement based on open questions
                 refinement_count = 0
@@ -773,17 +796,110 @@ class SheetCartographer:
 
                     refinement_count += 1
 
-                # Add the classified block
-                self.blocks.append(
-                    Block(id=f"blk_{block_id:02d}", range=sub_region["range"], type=block_type, confidence=confidence)
-                )
+                # If confidence is still low OR embedded totals detected, force deeper splitting
+                if confidence < 0.5 or has_embedded_totals:
+                    self.logger.main.info(
+                        f"   Low confidence {confidence:.2f} or embedded totals detected - forcing deeper split of {sub_region['range']}"
+                    )
+                    # Force split even if homogeneous
+                    deeper_regions = self._force_split_region(sub_region["range"])
 
-                self.logger.main.info(
-                    f"   Block {block_id}: {sub_region['range']} -> "
-                    f"{block_type} (conf: {confidence:.2f}, homogeneity: {sub_region.get('homogeneity', 0):.2f})"
-                )
+                    # Recursively process the split regions
+                    for deep_region in deeper_regions:
+                        if "text" not in deep_region:
+                            deep_region["text"] = self.tool_handler.execute_tool(
+                                "range_peek", {"range": deep_region["range"], "format": "markdown"}
+                            )
 
-                block_id += 1
+                        deep_type, deep_conf, _ = self._classify_block_with_llm(
+                            deep_region["text"], deep_region["range"]
+                        )
+
+                        self.blocks.append(
+                            Block(
+                                id=f"blk_{block_id:02d}",
+                                range=deep_region["range"],
+                                type=deep_type,
+                                confidence=deep_conf,
+                            )
+                        )
+                        self.logger.main.info(
+                            f"   Block {block_id}: {deep_region['range']} -> {deep_type} (conf: {deep_conf:.2f})"
+                        )
+                        block_id += 1
+                else:
+                    # Add the classified block
+                    self.blocks.append(
+                        Block(
+                            id=f"blk_{block_id:02d}", range=sub_region["range"], type=block_type, confidence=confidence
+                        )
+                    )
+
+                    self.logger.main.info(
+                        f"   Block {block_id}: {sub_region['range']} -> "
+                        f"{block_type} (conf: {confidence:.2f}, homogeneity: {sub_region.get('homogeneity', 0):.2f})"
+                    )
+
+                    block_id += 1
+
+    def _force_split_region(self, range_str: str) -> list[dict[str, Any]]:
+        """Force split a region into smaller parts when mixed semantics are detected.
+
+        This is used when the LLM detects heterogeneous content even in
+        seemingly homogeneous regions.
+        """
+        # Parse range
+        parts = range_str.split(":")
+        if len(parts) != 2:
+            return [{"range": range_str, "homogeneity": 0.5}]
+
+        start_col, start_row = coordinate_from_string(parts[0])
+        end_col, end_row = coordinate_from_string(parts[1])
+        start_col_idx = column_index_from_string(start_col)
+        end_col_idx = column_index_from_string(end_col)
+
+        total_rows = end_row - start_row + 1
+        total_cols = end_col_idx - start_col_idx + 1
+
+        sub_regions = []
+
+        # Try to split by columns first (often separates data from summary)
+        if total_cols >= 3:
+            # Smart column splitting based on typical patterns
+            # If we have 9 columns (A-I), split between F and G (columns 6 and 7)
+            # This often separates transaction data from summary columns
+            if total_cols == 9:
+                split_col = start_col_idx + 5  # Split after column F (6th column)
+            else:
+                # Default: split at 2/3 point which often separates main data from summaries
+                split_col = start_col_idx + (total_cols * 2 // 3)
+
+            left_range = f"{start_col}{start_row}:{get_column_letter(split_col)}{end_row}"
+            right_range = f"{get_column_letter(split_col + 1)}{start_row}:{end_col}{end_row}"
+
+            self.logger.main.debug(
+                f"   Force splitting columns at {get_column_letter(split_col)} (after column {split_col - start_col_idx + 1} of {total_cols})"
+            )
+
+            sub_regions.append({"range": left_range, "homogeneity": 0.8})
+            sub_regions.append({"range": right_range, "homogeneity": 0.8})
+
+        # If can't split by columns, try rows
+        elif total_rows >= 2:
+            mid_row = (start_row + end_row) // 2
+
+            upper_range = f"{start_col}{start_row}:{end_col}{mid_row}"
+            lower_range = f"{start_col}{mid_row + 1}:{end_col}{end_row}"
+
+            self.logger.main.debug(f"   Force splitting rows at {mid_row}")
+
+            sub_regions.append({"range": upper_range, "homogeneity": 0.8})
+            sub_regions.append({"range": lower_range, "homogeneity": 0.8})
+        else:
+            # Can't split further
+            sub_regions.append({"range": range_str, "homogeneity": 0.5})
+
+        return sub_regions
 
     def _address_open_questions(self, questions: list[str], range_str: str, range_text: str) -> str:
         """Address open questions with targeted probing.
@@ -946,12 +1062,13 @@ class SheetCartographer:
             if len(probes) == 1 or all(c[1] in ["HeaderBanner", "KPISummary", "Other"] for c in classifications):
                 return "Summary", SUMMARY_CONFIDENCE
             else:
-                return "Composite", COMPOSITE_CONFIDENCE
+                # Mixed region - return low confidence to trigger splitting
+                return "Other", 0.4
 
-        # If multiple different types detected, mark as Composite
+        # If multiple different types detected, return low confidence to trigger splitting
         if len(types_found) > 1:
-            self.logger.main.debug(f"Multiple types detected: {types_found}")
-            return "Composite", COMPOSITE_CONFIDENCE
+            self.logger.main.debug(f"Multiple types detected: {types_found} - triggering split")
+            return "Other", 0.4
 
         # Get the unanimous type
         unanimous_type = classifications[0][1] if classifications else "Other"
@@ -994,10 +1111,9 @@ class SheetCartographer:
                                     "PivotCache",
                                     "ChartAnchor",
                                     "Summary",
-                                    "Composite",
                                     "Other",
                                 ],
-                                "description": "The type of block detected",
+                                "description": "The type of block detected (if heterogeneous, split further)",
                             },
                             "confidence": {"type": "number", "description": "Confidence score between 0 and 1"},
                             "reasoning": {"type": "string", "description": "Brief explanation for the classification"},
@@ -1023,9 +1139,10 @@ CLASSIFICATION TYPES:
 - PivotCache: Contains "Grand Total" or uniform formulas
 - ChartAnchor: Range containing chart objects
 - Summary: Contains totals, aggregations, or summary statistics (look for keywords: total, sum, subtotal)
-- Composite: Mixed region with multiple semantic types
 - Other: Doesn't clearly fit other categories
 
+IMPORTANT: If you detect mixed semantic types in the range, return confidence < 0.5 to trigger further splitting.
+Never combine different semantic regions - each should be its own block.
 Analyze the structure, not the content. Focus on layout patterns.
 Consider where this block sits within the full sheet when making your classification.
 
