@@ -142,9 +142,10 @@ class ChartObject:
 class ExcelToolHandler:
     """Handles tool execution for Excel operations."""
 
-    def __init__(self, worksheet: Worksheet, logger: ExperimentLogger):
+    def __init__(self, worksheet: Worksheet, logger: ExperimentLogger, excel_path: Path):
         self.worksheet = worksheet
         self.logger = logger
+        self.excel_path = excel_path
         self.tool_call_count = defaultdict(int)
         self.total_tokens_used = 0
 
@@ -272,10 +273,32 @@ class ExcelToolHandler:
             elif cell.value == "#ERROR":
                 value_type = "error"
 
-        # Check if formula
+        # Check if formula - use non-read-only workbook for accurate detection
         is_formula = False
-        if isinstance(cell.value, str) and cell.value.startswith("="):
-            is_formula = True
+        try:
+            # Load a small non-read-only handle for formula detection on first use
+            # This works around data_only=True hiding formulas
+            if not hasattr(self, "_formula_workbook"):
+                # Re-open the same file without data_only for formula detection
+                self._formula_workbook = openpyxl.load_workbook(self.excel_path, read_only=False, data_only=False)
+
+            # Get the corresponding worksheet by index
+            sheet_index = self.worksheet.parent.worksheets.index(self.worksheet)
+            formula_worksheet = self._formula_workbook.worksheets[sheet_index]
+            formula_cell = formula_worksheet.cell(row=row, column=col)
+
+            # Check if the cell has a formula (starts with =)
+            if (
+                hasattr(formula_cell, "value")
+                and isinstance(formula_cell.value, str)
+                and formula_cell.value.startswith("=")
+            ):
+                is_formula = True
+        except Exception as e:
+            # Fallback to the data_only check (will miss formulas but won't crash)
+            self.logger.main.debug(f"Formula detection fallback for {row},{col}: {e}")
+            if isinstance(cell.value, str) and cell.value.startswith("="):
+                is_formula = True
 
         # Check if merged (simplified check)
         is_merged = False
@@ -498,7 +521,7 @@ class SheetCartographer:
         self.logger.main.info(f"📊 Loaded sheet {sheet_index}: {self.worksheet.title}")
 
         # Initialize components
-        self.tool_handler = ExcelToolHandler(self.worksheet, logger)
+        self.tool_handler = ExcelToolHandler(self.worksheet, logger, self.excel_path)
         self.client = OpenAI()  # Requires OPENAI_API_KEY env var
         self.total_tokens = 0
 
@@ -1550,7 +1573,10 @@ class SheetCartographer:
         if not value or value == "␀":
             return False
         # Remove common formatting
-        cleaned = value.replace(",", "").replace("$", "").replace("%", "").strip()
+        cleaned = value.strip().replace(",", "").replace("$", "").replace("%", "")
+        # Handle accounting-style negatives: (1,234.56) → -1234.56
+        if cleaned.startswith("(") and cleaned.endswith(")"):
+            cleaned = "-" + cleaned[1:-1]
         try:
             float(cleaned)
             return True
