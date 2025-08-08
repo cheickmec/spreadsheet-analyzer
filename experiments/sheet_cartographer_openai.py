@@ -1636,6 +1636,11 @@ For example:
             # Capture actual model from response
             actual_model = getattr(response, "model", None)
 
+            # Update logger with actual model name on first call
+            if actual_model and not hasattr(self, "_model_updated"):
+                self.logger.update_model_actual(actual_model)
+                self._model_updated = True
+
             # Track tokens
             if hasattr(response, "usage"):
                 tokens_used = response.usage.total_tokens
