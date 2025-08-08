@@ -650,7 +650,13 @@ class SheetCartographer:
         for row_start in range(1, rows + 1, self.sweep_step_h):
             # Check runtime cap
             if time.time() - self.start_time > MAX_RUNTIME_SECONDS:
-                self.logger.main.warning("Runtime cap hit during sweep; returning partial results")
+                windows_processed = len(density_map)
+                total_windows = ((rows + self.sweep_step_h - 1) // self.sweep_step_h) * (
+                    (cols + self.sweep_step_w - 1) // self.sweep_step_w
+                )
+                self.logger.main.warning(
+                    f"Runtime cap hit during sweep; processed {windows_processed}/{total_windows} windows"
+                )
                 break
 
             density_row = []
@@ -886,7 +892,11 @@ class SheetCartographer:
         for idx, candidate in enumerate(candidate_blocks):
             # Check runtime cap
             if time.time() - self.start_time > MAX_RUNTIME_SECONDS:
-                self.logger.main.warning("Runtime cap hit during probe; emitting partial results")
+                regions_processed = idx
+                total_regions = len(candidate_blocks)
+                self.logger.main.warning(
+                    f"Runtime cap hit during probe; processed {regions_processed}/{total_regions} regions"
+                )
                 break
 
             self.logger.main.info(f"   Processing candidate {idx + 1}/{len(candidate_blocks)}: {candidate['range']}")

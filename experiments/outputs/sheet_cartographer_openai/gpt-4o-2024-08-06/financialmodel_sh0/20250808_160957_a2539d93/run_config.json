@@ -1,0 +1,10 @@
+{
+  "module": "sheet_cartographer_openai",
+  "module_hash": "a2539d93",
+  "timestamp": "20250808_160957",
+  "model_requested": "gpt-4o",
+  "model_actual": "gpt-4o-2024-08-06",
+  "excel_file": "test_assets/generated/financial_model.xlsx",
+  "sheet_index": 0,
+  "output_directory": "/Users/cheickberthe/PycharmProjects/spreadsheet-analyzer/experiments/outputs/sheet_cartographer_openai/gpt-4o-2024-08-06/financialmodel_sh0/20250808_160957_a2539d93"
+}
