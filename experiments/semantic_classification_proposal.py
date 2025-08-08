@@ -155,9 +155,7 @@ class ImprovedSheetCartographer:
 
         return sum(indicators) >= 2  # Need multiple indicators
 
-    def _detect_child_regions(
-        self, parent_text: str, parent_range: str
-    ) -> list[SemanticRegion]:
+    def _detect_child_regions(self, parent_text: str, parent_range: str) -> list[SemanticRegion]:
         """
         Detect nested regions within a parent region.
         """
