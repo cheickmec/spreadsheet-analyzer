@@ -51,6 +51,9 @@ from openai import OpenAI
 from openpyxl.utils import column_index_from_string, get_column_letter
 from openpyxl.utils.cell import coordinate_from_string
 from openpyxl.worksheet.worksheet import Worksheet
+
+# Import new semantic classification system
+from semantic_classification import DataCharacteristics, StructuralType
 from utils import ExperimentLogger
 
 # Constants
@@ -100,12 +103,16 @@ class CellMeta:
 
 @dataclass
 class Block:
-    """Detected block in the spreadsheet."""
+    """Detected block in the spreadsheet with semantic classification."""
 
     id: str
     range: str
-    type: str
+    structural_type: StructuralType  # New enum-based type
+    semantic_description: str  # Natural language description
     confidence: float
+    classification_reasoning: str = ""  # Why this classification
+    data_characteristics: DataCharacteristics = field(default_factory=DataCharacteristics)
+    suggested_operations: list[str] = field(default_factory=list)
     named_range: str | None = None
 
 
@@ -870,15 +877,20 @@ class SheetCartographer:
                     ]
                 )
 
-                # Initial classification
+                # Initial classification with new extended format
                 result = self._classify_block_with_llm(sub_region["text"], sub_region["range"])
 
-                # Handle the extended return value that may include peek requests
-                if len(result) == 4:  # New format with peek_requests
-                    block_type, confidence, open_questions, peek_requests = result
-                else:  # Old format without peek_requests
-                    block_type, confidence, open_questions = result
-                    peek_requests = []
+                # Unpack all fields from extended classification
+                (
+                    block_type,
+                    semantic_desc,
+                    confidence,
+                    reasoning,
+                    open_questions,
+                    peek_requests,
+                    suggested_ops,
+                    agg_subtype,
+                ) = result
 
                 # Force low confidence if embedded totals detected
                 if has_embedded_totals and confidence > 0.5:
@@ -940,12 +952,17 @@ class SheetCartographer:
                         sub_region["text"], sub_region["range"], additional_context=additional_context
                     )
 
-                    # Handle the extended return value that may include peek requests
-                    if len(result) == 4:  # New format with peek_requests
-                        new_block_type, new_confidence, open_questions, peek_requests = result
-                    else:  # Old format without peek_requests
-                        new_block_type, new_confidence, open_questions = result
-                        peek_requests = []
+                    # Unpack all fields from extended classification
+                    (
+                        new_block_type,
+                        new_semantic_desc,
+                        new_confidence,
+                        new_reasoning,
+                        open_questions,
+                        peek_requests,
+                        suggested_ops,
+                        agg_subtype,
+                    ) = result
 
                     # Check for confidence plateau (no meaningful improvement)
                     confidence_change = abs(new_confidence - prev_confidence)
@@ -973,7 +990,10 @@ class SheetCartographer:
 
                     # Update for next iteration
                     block_type = new_block_type
+                    semantic_desc = new_semantic_desc
                     confidence = new_confidence
+                    reasoning = new_reasoning
+                    suggested_ops = suggested_ops  # Keep accumulating
                     prev_confidence = new_confidence
                     prev_block_type = new_block_type
 
@@ -995,16 +1015,31 @@ class SheetCartographer:
                             )
 
                         deep_result = self._classify_block_with_llm(deep_region["text"], deep_region["range"])
-                        # Extract just type and confidence, ignore open questions
+                        # Extract key fields from result
                         deep_type = deep_result[0]
-                        deep_conf = deep_result[1]
+                        deep_semantic = deep_result[1]
+                        deep_conf = deep_result[2]
+                        deep_reasoning = deep_result[3]
+
+                        # Convert string type to enum for deep regions
+                        try:
+                            if deep_type == "DataTable":
+                                struct_type = StructuralType.DATA_TABLE
+                            elif deep_type == "AggregationZone":
+                                struct_type = StructuralType.AGGREGATION_ZONE
+                            else:
+                                struct_type = StructuralType.UNSTRUCTURED_TEXT
+                        except:
+                            struct_type = StructuralType.UNSTRUCTURED_TEXT
 
                         self.blocks.append(
                             Block(
                                 id=f"blk_{block_id:02d}",
                                 range=deep_region["range"],
-                                type=deep_type,
+                                structural_type=struct_type,
+                                semantic_description=deep_semantic or "Split region from mixed semantics",
                                 confidence=deep_conf,
+                                classification_reasoning=deep_reasoning or "Forced split due to mixed semantics",
                             )
                         )
                         self.logger.main.info(
@@ -1013,9 +1048,44 @@ class SheetCartographer:
                         block_id += 1
                 else:
                     # Add the classified block
+                    # Convert string type to enum
+                    try:
+                        if block_type == "DataTable":
+                            struct_type = StructuralType.DATA_TABLE
+                        elif block_type == "HeaderZone":
+                            struct_type = StructuralType.HEADER_ZONE
+                        elif block_type == "AggregationZone":
+                            struct_type = StructuralType.AGGREGATION_ZONE
+                        elif block_type == "MetadataZone":
+                            struct_type = StructuralType.METADATA_ZONE
+                        elif block_type == "VisualizationAnchor":
+                            struct_type = StructuralType.VISUALIZATION_ANCHOR
+                        elif block_type == "FormInputZone":
+                            struct_type = StructuralType.FORM_INPUT_ZONE
+                        elif block_type == "NavigationZone":
+                            struct_type = StructuralType.NAVIGATION_ZONE
+                        elif block_type == "EmptyPadding":
+                            struct_type = StructuralType.EMPTY_PADDING
+                        else:
+                            struct_type = StructuralType.UNSTRUCTURED_TEXT
+                    except:
+                        struct_type = StructuralType.UNSTRUCTURED_TEXT
+
+                    # Build data characteristics
+                    data_chars = DataCharacteristics()
+                    if agg_subtype and agg_subtype != "none":
+                        data_chars.aggregation_zone_subtype = agg_subtype
+
                     self.blocks.append(
                         Block(
-                            id=f"blk_{block_id:02d}", range=sub_region["range"], type=block_type, confidence=confidence
+                            id=f"blk_{block_id:02d}",
+                            range=sub_region["range"],
+                            structural_type=struct_type,
+                            semantic_description=semantic_desc or f"Region classified as {block_type}",
+                            confidence=confidence,
+                            classification_reasoning=reasoning,
+                            data_characteristics=data_chars,
+                            suggested_operations=suggested_ops,
                         )
                     )
 
@@ -1377,22 +1447,38 @@ class SheetCartographer:
                             "block_type": {
                                 "type": "string",
                                 "enum": [
-                                    "FactTable",
-                                    "HeaderBanner",
-                                    "KPISummary",
-                                    "PivotCache",
-                                    "ChartAnchor",
-                                    "Summary",
-                                    "Other",
+                                    "DataTable",
+                                    "HeaderZone",
+                                    "AggregationZone",
+                                    "MetadataZone",
+                                    "VisualizationAnchor",
+                                    "FormInputZone",
+                                    "NavigationZone",
+                                    "UnstructuredText",
+                                    "EmptyPadding",
                                 ],
-                                "description": "The type of block detected (if heterogeneous, split further)",
+                                "description": "Structural type based on layout pattern (DECO-based classification)",
                             },
                             "confidence": {"type": "number", "description": "Confidence score between 0 and 1"},
+                            "semantic_description": {
+                                "type": "string",
+                                "description": "One sentence describing what this region semantically represents",
+                            },
                             "reasoning": {"type": "string", "description": "Brief explanation for the classification"},
+                            "aggregation_subtype": {
+                                "type": "string",
+                                "enum": ["kpi", "subtotal", "grand_total", "none"],
+                                "description": "If AggregationZone, specify the subtype",
+                            },
+                            "suggested_operations": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Recommended downstream processing steps",
+                            },
                             "open_questions": {
                                 "type": "array",
                                 "items": {"type": "string"},
-                                "description": "Questions that need answers to improve classification (e.g., 'Are rows 1-3 headers?', 'Is row 10 a totals row?')",
+                                "description": "Questions that need answers to improve classification",
                             },
                             "peek_requests": {
                                 "type": "array",
@@ -1414,7 +1500,7 @@ class SheetCartographer:
                                 "description": "Additional ranges to peek at for better classification (max 3)",
                             },
                         },
-                        "required": ["block_type", "confidence", "reasoning", "open_questions"],
+                        "required": ["block_type", "semantic_description", "confidence", "reasoning"],
                     },
                 },
             }
@@ -1423,14 +1509,24 @@ class SheetCartographer:
         # Combine global metadata with classification instructions
         system_prompt = f"""{self.system_metadata}
 
-CLASSIFICATION TYPES:
-- FactTable: Has header rows (often bold), multiple data rows, numeric columns, >60% density
-- HeaderBanner: Single row, often merged across columns, bold/centered text
-- KPISummary: Small (≤5 rows), text+number pairs, surrounded by whitespace
-- PivotCache: Contains "Grand Total" or uniform formulas
-- ChartAnchor: Range containing chart objects
-- Summary: Contains totals, aggregations, or summary statistics (look for keywords: total, sum, subtotal)
-- Other: Doesn't clearly fit other categories
+CLASSIFICATION INSTRUCTIONS:
+
+STEP 1 - Choose ONE structural type:
+- DataTable: Regular rows/columns with consistent schema (>70% Data cells per DECO)
+- HeaderZone: Column/row headers that are referenced by formulas
+- AggregationZone: Summaries, totals, KPIs (specify subtype: kpi/subtotal/grand_total)
+- MetadataZone: Titles, descriptions NOT referenced by formulas
+- VisualizationAnchor: Charts, sparklines, conditional formatting
+- FormInputZone: Data entry areas with validation/dropdowns
+- NavigationZone: Links, buttons, menus (requires HYPERLINK evidence)
+- UnstructuredText: Free-form notes without tabular structure
+- EmptyPadding: Intentional whitespace for layout
+
+STEP 2 - Write semantic description:
+One sentence describing the business/domain meaning, not just structure.
+
+STEP 3 - Provide additional analysis:
+Include confidence, reasoning, suggested operations
 
 IMPORTANT: If you detect mixed semantic types in the range, return confidence < 0.5 to trigger further splitting.
 Never combine different semantic regions - each should be its own block.
@@ -1483,23 +1579,47 @@ For example:
                     },
                 )
 
-            # Extract classification
+            # Extract classification with new fields
             if response.choices[0].message.tool_calls:
                 tool_call = response.choices[0].message.tool_calls[0]
                 args = json.loads(tool_call.function.arguments)
 
-                # Return with peek_requests if available
+                # Build enriched result tuple
+                block_type = args["block_type"]
+                semantic_desc = args.get("semantic_description", "")
+                confidence = args["confidence"]
+                reasoning = args.get("reasoning", "")
+                open_questions = args.get("open_questions", [])
                 peek_requests = args.get("peek_requests", [])
-                if peek_requests:
-                    return (args["block_type"], args["confidence"], args.get("open_questions", []), peek_requests)
-                else:
-                    return (args["block_type"], args["confidence"], args.get("open_questions", []))
+                suggested_ops = args.get("suggested_operations", [])
+                agg_subtype = args.get("aggregation_subtype", "none")
+
+                # Return extended tuple with all classification data
+                return (
+                    block_type,
+                    semantic_desc,
+                    confidence,
+                    reasoning,
+                    open_questions,
+                    peek_requests,
+                    suggested_ops,
+                    agg_subtype,
+                )
 
         except Exception as e:
             self.logger.error.error(f"LLM classification failed: {e}")
 
-        # Fallback classification
-        return "Other", UNKNOWN_CONFIDENCE, []
+        # Fallback classification with all required fields
+        return (
+            "UnstructuredText",
+            "Unable to classify region",
+            UNKNOWN_CONFIDENCE,
+            "Classification failed",
+            [],
+            [],
+            [],
+            "none",
+        )
 
     def _overlay(self) -> None:
         """S4: Add merged ranges, named ranges, charts/pivots."""
@@ -1642,7 +1762,15 @@ def main():
         if args.verbose:
             print("\n📋 BLOCKS DETECTED:")
             for block in result["blocks"]:
-                print(f"  - {block['id']}: {block['type']} at {block['range']} (confidence: {block['confidence']:.2f})")
+                # Handle both old and new field names for transition
+                block_type = block.get("structural_type", block.get("type", "Unknown"))
+                # Extract enum value if it's a dict
+                if isinstance(block_type, dict):
+                    block_type = block_type.get("value", str(block_type))
+                semantic = block.get("semantic_description", "")
+                print(f"  - {block['id']}: {block_type} at {block['range']} (conf: {block['confidence']:.2f})")
+                if semantic:
+                    print(f"    → {semantic}")
 
         print(f"\n📁 Results saved to: {logger.outputs_dir}")
 
