@@ -890,6 +890,9 @@ class SheetCartographer:
                 max_refinements = 3
                 peek_requests = []  # Track initial peek requests
                 peeked_ranges = set()  # Avoid duplicate peeks
+                prev_confidence = confidence  # Track confidence changes
+                prev_block_type = block_type  # Track type stability
+                all_peeked_text = []  # Collect all peeked content for re-evaluation
 
                 while (open_questions or peek_requests) and refinement_count < max_refinements:
                     self.logger.main.debug(f"   Refinement {refinement_count + 1} for {sub_region['range']}")
@@ -917,6 +920,8 @@ class SheetCartographer:
                                 additional_context_parts.append(
                                     f"Peek at {peek_range} (requested: {peek_reason}):\n{peek_text}"
                                 )
+                                # Store for homogeneity re-evaluation
+                                all_peeked_text.append(peek_text)
                             except Exception as e:
                                 self.logger.main.debug(f"   Failed to peek at {peek_range}: {e}")
 
@@ -937,10 +942,40 @@ class SheetCartographer:
 
                     # Handle the extended return value that may include peek requests
                     if len(result) == 4:  # New format with peek_requests
-                        block_type, confidence, open_questions, peek_requests = result
+                        new_block_type, new_confidence, open_questions, peek_requests = result
                     else:  # Old format without peek_requests
-                        block_type, confidence, open_questions = result
+                        new_block_type, new_confidence, open_questions = result
                         peek_requests = []
+
+                    # Check for confidence plateau (no meaningful improvement)
+                    confidence_change = abs(new_confidence - prev_confidence)
+                    if new_block_type == prev_block_type and confidence_change < 0.05 and refinement_count > 0:
+                        self.logger.main.info(
+                            f"   Confidence plateau detected ({prev_confidence:.2f} → {new_confidence:.2f}), forcing split"
+                        )
+                        # Force low confidence to trigger splitting
+                        new_confidence = 0.4
+                        break  # Exit refinement loop
+
+                    # Recompute homogeneity if we have peeked additional content
+                    if all_peeked_text:
+                        # Concatenate original and peeked content
+                        combined_text = sub_region["text"] + "\n" + "\n".join(all_peeked_text)
+                        new_homogeneity = self.tool_handler.calculate_layout_homogeneity(combined_text)
+
+                        if new_homogeneity < HOMOGENEITY_THRESHOLD:
+                            self.logger.main.info(
+                                f"   Homogeneity dropped to {new_homogeneity:.2f} after peeking - forcing re-split"
+                            )
+                            # Force low confidence to trigger splitting
+                            new_confidence = 0.4
+                            break
+
+                    # Update for next iteration
+                    block_type = new_block_type
+                    confidence = new_confidence
+                    prev_confidence = new_confidence
+                    prev_block_type = new_block_type
 
                     refinement_count += 1
 
@@ -1012,7 +1047,95 @@ class SheetCartographer:
 
         sub_regions = []
 
-        # Try to split by columns first (often separates data from summary)
+        # PRIORITY 1: Check if first row is a header/summary row that should be separated
+        if total_rows >= 2:
+            # Peek at the first two rows to check for header/summary patterns
+            try:
+                first_row_range = f"{start_col}{start_row}:{end_col}{start_row}"
+                second_row_range = f"{start_col}{start_row + 1}:{end_col}{start_row + 1}"
+
+                first_row_text = self.tool_handler.execute_tool(
+                    "range_peek", {"range": first_row_range, "format": "markdown"}
+                )
+                second_row_text = self.tool_handler.execute_tool(
+                    "range_peek", {"range": second_row_range, "format": "markdown"}
+                )
+
+                # Extract cell values from markdown
+                first_row_cells = []
+                second_row_cells = []
+
+                for line in first_row_text.split("\n")[3:]:  # Skip headers
+                    cells = line.split("|")[1:]  # Skip row number
+                    first_row_cells.extend([c.strip() for c in cells])
+
+                for line in second_row_text.split("\n")[3:]:  # Skip headers
+                    cells = line.split("|")[1:]  # Skip row number
+                    second_row_cells.extend([c.strip() for c in cells])
+
+                # Count totals keywords and numeric cells in first row
+                first_row_lower = " ".join(first_row_cells).lower()
+                totals_count = sum(
+                    1 for keyword in ["total", "sum", "revenue", "expense"] if keyword in first_row_lower
+                )
+
+                # Count numeric vs text cells
+                first_row_numeric = sum(
+                    1
+                    for cell in first_row_cells
+                    if cell
+                    and cell != "␀"
+                    and (
+                        cell.replace(".", "").replace("-", "").replace(",", "").isdigit()
+                        or cell.startswith("$")
+                        or cell.startswith("-$")
+                    )
+                )
+                second_row_numeric = sum(
+                    1
+                    for cell in second_row_cells
+                    if cell
+                    and cell != "␀"
+                    and (
+                        cell.replace(".", "").replace("-", "").replace(",", "").isdigit()
+                        or cell.startswith("$")
+                        or cell.startswith("-$")
+                    )
+                )
+
+                # Decision logic: Split off first row if it looks like header/summary
+                should_split_first_row = False
+
+                # Check 1: Contains multiple "total" keywords
+                if totals_count >= 2:
+                    should_split_first_row = True
+                    self.logger.main.debug(f"   First row contains {totals_count} total keywords - splitting off")
+
+                # Check 2: First row is >50% numeric while second row is mostly text (headers pattern)
+                elif (
+                    first_row_numeric > len(first_row_cells) * 0.5 and second_row_numeric < len(second_row_cells) * 0.3
+                ):
+                    should_split_first_row = True
+                    self.logger.main.debug(
+                        "   First row is numeric summary, second row appears to be headers - splitting"
+                    )
+
+                if should_split_first_row:
+                    # Split off the first row as a separate region
+                    header_range = f"{start_col}{start_row}:{end_col}{start_row}"
+                    rest_range = f"{start_col}{start_row + 1}:{end_col}{end_row}"
+
+                    self.logger.main.debug(f"   Splitting off row {start_row} as header/summary")
+
+                    sub_regions.append({"range": header_range, "homogeneity": 0.9})  # High confidence for single row
+                    sub_regions.append({"range": rest_range, "homogeneity": 0.8})
+
+                    return sub_regions
+
+            except Exception as e:
+                self.logger.main.debug(f"   Error analyzing first row pattern: {e}")
+
+        # PRIORITY 2: Try to split by columns (often separates data from summary)
         if total_cols >= 3:
             # Smart column splitting based on typical patterns
             # If we have 9 columns (A-I), split between F and G (columns 6 and 7)
