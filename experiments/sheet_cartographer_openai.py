@@ -1847,12 +1847,20 @@ For example:
         named = self.tool_handler.execute_tool("names_list", {})
         self.logger.main.info(f"   Found {len(named)} named ranges")
 
-        # Match named ranges to blocks
+        # Match named ranges to blocks (sheet-aware)
         for name_info in named:
-            for block in self.blocks:
-                if self._ranges_overlap(name_info.get("range", ""), block.range):
-                    block.named_range = name_info["name"]
-                    break
+            range_str = name_info.get("range", "")
+            if not range_str:
+                continue
+
+            # Resolve named range to concrete ranges on this worksheet only
+            concrete_ranges = self._resolve_named_range_to_current_sheet(range_str)
+
+            for concrete_range in concrete_ranges:
+                for block in self.blocks:
+                    if self._ranges_overlap(concrete_range, block.range):
+                        block.named_range = name_info["name"]
+                        break
 
         # Get charts/pivots
         charts = self.tool_handler.execute_tool("object_scan", {"type": "chart"})
@@ -1860,6 +1868,132 @@ For example:
             self.objects.append(
                 ChartObject(id=f"cht_{idx + 1:02d}", anchor=chart.get("anchor", ""), type="chart", linked_block=None)
             )
+
+    def _split_named_range_areas(self, range_str: str) -> list[str]:
+        """Split named range string into areas, handling quoted sheet names properly.
+
+        Example: "'Financial Model'!A1:B2 'Other Sheet'!C1:D2" → ["'Financial Model'!A1:B2", "'Other Sheet'!C1:D2"]
+        """
+        areas = []
+        i = 0
+        current_area = ""
+
+        while i < len(range_str):
+            char = range_str[i]
+
+            if char == "'":
+                # Start of quoted sheet name - find the closing quote after !
+                quote_end = range_str.find("'!", i + 1)
+                if quote_end != -1:
+                    # Find the end of this range (next space or end of string)
+                    space_after = range_str.find(" ", quote_end)
+                    if space_after == -1:
+                        # Last area
+                        current_area = range_str[i:].strip()
+                        i = len(range_str)
+                    else:
+                        # Area ends at space
+                        current_area = range_str[i:space_after].strip()
+                        i = space_after + 1
+
+                    if current_area:
+                        areas.append(current_area)
+                        current_area = ""
+                else:
+                    # Malformed quote - skip this character
+                    i += 1
+            elif char == " ":
+                # Regular space - end current area if we have one
+                if current_area.strip():
+                    areas.append(current_area.strip())
+                    current_area = ""
+                i += 1
+            else:
+                # Regular character
+                current_area += char
+                i += 1
+
+        # Add final area if exists
+        if current_area.strip():
+            areas.append(current_area.strip())
+
+        return areas
+
+    def _resolve_named_range_to_current_sheet(self, range_str: str) -> list[str]:
+        """Resolve named range to concrete ranges on current worksheet only.
+
+        Args:
+            range_str: Named range definition which may include:
+                - Sheet references: 'Sheet1'!A1:B2
+                - External references (skip these)
+                - Multi-area ranges: A1:A3 C1:C3
+
+        Returns:
+            List of concrete range strings for current sheet only
+        """
+        if not range_str:
+            return []
+
+        # Skip external workbook references (contain [])
+        if "[" in range_str and "]" in range_str:
+            return []
+
+        current_sheet_name = self.worksheet.title
+        concrete_ranges = []
+
+        # Handle multi-area ranges - need to split carefully around quoted sheet names
+        areas = self._split_named_range_areas(range_str)
+
+        for area in areas:
+            # Check if this area targets current sheet or has no sheet prefix
+            if "!" in area:
+                # Extract sheet name (handle quoted names properly)
+                if area.startswith("'"):
+                    # Find the closing quote before !
+                    quote_end = area.find("'!")
+                    if quote_end != -1:
+                        sheet_part = area[1:quote_end]  # Remove outer quotes
+                    else:
+                        continue  # Malformed quoted range
+                else:
+                    # No quotes - split normally
+                    sheet_part = area.split("!", 1)[0]
+
+                # Skip if not current sheet
+                if sheet_part != current_sheet_name:
+                    continue
+
+                # Extract range part after !
+                range_part = area.split("!", 1)[1]
+            else:
+                # No sheet prefix - assume current sheet
+                range_part = area
+
+            # Clean the range (remove $ signs)
+            clean_range = range_part.replace("$", "")
+
+            # Validate it's a proper range format
+            if self._is_valid_range_format(clean_range):
+                concrete_ranges.append(clean_range)
+
+        return concrete_ranges
+
+    def _is_valid_range_format(self, range_str: str) -> bool:
+        """Check if string is a valid Excel range format (A1 or A1:B2)."""
+        try:
+            if ":" in range_str:
+                # Range format A1:B2
+                parts = range_str.split(":")
+                if len(parts) != 2:
+                    return False
+                coordinate_from_string(parts[0])
+                coordinate_from_string(parts[1])
+            else:
+                # Single cell A1
+                coordinate_from_string(range_str)
+            return True
+        except:
+            return False
 
     def _ranges_overlap(self, range1: str, range2: str) -> bool:
         """Check if two A1-style ranges overlap.
