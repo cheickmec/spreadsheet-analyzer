@@ -312,8 +312,18 @@ class ExcelToolHandler:
         named = []
         try:
             if hasattr(self.worksheet.parent, "defined_names"):
-                # In newer openpyxl versions, defined_names is a dict-like object
-                for name, defn in self.worksheet.parent.defined_names.items():
+                dn = self.worksheet.parent.defined_names
+                # Handle different openpyxl versions
+                if hasattr(dn, "items"):
+                    iterable = dn.items()
+                elif hasattr(dn, "definedName"):
+                    # Older versions have a list-like structure
+                    iterable = [(n.name, n) for n in dn.definedName]
+                else:
+                    # Fallback: try to iterate directly
+                    iterable = [(getattr(n, "name", str(n)), n) for n in dn]
+
+                for name, defn in iterable:
                     if len(named) >= 1000:  # Budget limit
                         break
                     named.append(
@@ -615,22 +625,31 @@ class SheetCartographer:
 
         # Sweep row-major with sliding windows
         for row_start in range(1, rows + 1, self.sweep_step_h):
+            # Check runtime cap
+            if time.time() - self.start_time > MAX_RUNTIME_SECONDS:
+                self.logger.main.warning("Runtime cap hit during sweep; returning partial results")
+                break
+
             density_row = []
             for col_start in range(1, cols + 1, self.sweep_step_w):
+                # Use local window dimensions to avoid mutation
+                current_height = min(window_height, rows - row_start + 1)
+                current_width = min(window_width, cols - col_start + 1)
+
                 # Grab window
                 window_text = self.tool_handler.execute_tool(
                     "window_grab",
                     {
                         "top": row_start,
                         "left": col_start,
-                        "height": min(window_height, rows - row_start + 1),
-                        "width": min(window_width, cols - col_start + 1),
+                        "height": current_height,
+                        "width": current_width,
                         "format": "markdown",
                     },
                 )
 
                 # Calculate density (count cells with actual values)
-                lines = window_text.split("\n")[3:]  # Skip headers
+                lines = window_text.split("\n")[2:]  # Skip viewport header and column headers
                 non_empty = 0
                 total = 0
                 for line in lines:
@@ -648,15 +667,15 @@ class SheetCartographer:
 
                 # Debug logging for all windows
                 self.logger.main.debug(
-                    f"   Window [{row_start}:{min(row_start + window_height - 1, rows)}, "
-                    f"{col_start}:{min(col_start + window_width - 1, cols)}] "
+                    f"   Window [{row_start}:{min(row_start + current_height - 1, rows)}, "
+                    f"{col_start}:{min(col_start + current_width - 1, cols)}] "
                     f"non_empty: {non_empty}/{total}, density: {density:.3f}"
                 )
 
-                # Adaptive window sizing
+                # Note: Could implement adaptive re-grab here if density is high
+                # For now, just log that this window is dense
                 if density > HIGH_DENSITY_THRESHOLD:
-                    window_height = 20
-                    window_width = 10
+                    self.logger.main.debug(f"   Dense window detected at [{row_start}, {col_start}]")
 
             density_grid.append(density_row)
 
@@ -842,6 +861,11 @@ class SheetCartographer:
 
         block_id = 1
         for idx, candidate in enumerate(candidate_blocks):
+            # Check runtime cap
+            if time.time() - self.start_time > MAX_RUNTIME_SECONDS:
+                self.logger.main.warning("Runtime cap hit during probe; emitting partial results")
+                break
+
             self.logger.main.info(f"   Processing candidate {idx + 1}/{len(candidate_blocks)}: {candidate['range']}")
 
             # First, recursively split until homogeneous
@@ -918,6 +942,8 @@ class SheetCartographer:
                 prev_confidence = confidence  # Track confidence changes
                 prev_block_type = block_type  # Track type stability
                 all_peeked_text = []  # Collect all peeked content for re-evaluation
+                # Initialize running operations list for accumulation
+                running_ops = list(suggested_ops)
 
                 while (open_questions or peek_requests) and refinement_count < max_refinements:
                     self.logger.main.debug(f"   Refinement {refinement_count + 1} for {sub_region['range']}")
@@ -1006,8 +1032,11 @@ class SheetCartographer:
                     semantic_desc = new_semantic_desc
                     confidence = new_confidence
                     reasoning = new_reasoning
-                    suggested_ops = suggested_ops  # Keep accumulating
-                    agg_subtype = agg_subtype  # Preserve aggregation subtype
+                    # Accumulate suggested operations (de-dupe while preserving order)
+                    running_ops = list(dict.fromkeys(running_ops + suggested_ops))
+                    # Update aggregation subtype only if new one is specified
+                    if agg_subtype != "none":
+                        agg_subtype = agg_subtype
                     prev_confidence = new_confidence
                     prev_block_type = new_block_type
 
@@ -1080,9 +1109,9 @@ class SheetCartographer:
                     if agg_subtype and agg_subtype != "none":
                         data_chars.aggregation_zone_subtype = agg_subtype
 
-                    # Combine accumulated operations with default operations for this type
+                    # Combine running operations with default operations for this type
                     default_ops = self._get_default_operations(struct_type)
-                    final_ops = list(dict.fromkeys(accumulated_ops + default_ops))  # De-dupe preserving order
+                    final_ops = list(dict.fromkeys(running_ops + default_ops))  # De-dupe preserving order
 
                     self.blocks.append(
                         Block(
@@ -1434,9 +1463,15 @@ class SheetCartographer:
         # Extract cells from each row
         rows = []
         for line in data_lines:
-            cells = [cell.strip() for cell in line.split("|")[1:-1]]  # Skip first/last empty
-            if cells:
-                rows.append(cells)
+            # Don't slice off the end - lines may not have trailing |
+            parts = line.split("|")
+            if len(parts) > 1:
+                cells = [cell.strip() for cell in parts[1:]]
+                # Filter out any trailing empty strings from the split
+                while cells and cells[-1] == "":
+                    cells.pop()
+                if cells:
+                    rows.append(cells)
 
         if not rows:
             return chars
@@ -1478,7 +1513,11 @@ class SheetCartographer:
         # Calculate ratios
         if total_cells > 0:
             chars.numeric_ratio = numeric_cells / total_cells
-            chars.formula_density = formula_cells / total_cells
+            # Keep the higher signal between sampled and computed formula density
+            sampled_formula_density = chars.formula_density  # from cell_meta sampling above
+            computed_formula_density = formula_cells / total_cells
+            chars.formula_density = max(sampled_formula_density, computed_formula_density)
+            chars.has_formulas = chars.formula_density > 0
             chars.data_density = total_cells / (total_cells + empty_cells) if (total_cells + empty_cells) > 0 else 0
 
             # Determine primary data type

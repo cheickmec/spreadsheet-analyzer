@@ -1,0 +1,90 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "20386c46",
+  "timestamp": "20250808_132509",
+  "model_requested": "gpt-4o-mini",
+  "model_actual": "gpt-4o-mini-2024-07-18",
+  "excel_file": "test_assets/collection/business-accounting/Business Accounting.xlsx",
+  "sheet_index": 0,
+  "results": {
+    "sheet": "Yiriden Transactions 2025",
+    "analyzedAt": "2025-08-08T13:25:28.782748Z",
+    "blocks": [
+      {
+        "id": "blk_01",
+        "range": "A1:F10",
+        "structural_type": "DataTable",
+        "semantic_description": "This region contains transaction records detailing dates, descriptions, amounts, types, and categories of expenses.",
+        "confidence": 0.9,
+        "classification_reasoning": "The structure consists of consistent rows and columns with headers and data entries, indicating a regular data table format.",
+        "data_characteristics": {
+          "primary_data_type": "temporal",
+          "has_headers": true,
+          "header_rows": 1,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": true,
+          "time_granularity": null,
+          "data_density": 0.6666666666666666,
+          "numeric_ratio": 0.25,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "Review data for accuracy",
+          "Analyze transaction types and categories",
+          "add_filters",
+          "check_duplicates",
+          "profile_columns"
+        ],
+        "named_range": null
+      },
+      {
+        "id": "blk_02",
+        "range": "G1:I10",
+        "structural_type": "AggregationZone",
+        "semantic_description": "This region summarizes total expenses for the year.",
+        "confidence": 0.9,
+        "classification_reasoning": "The presence of a label 'TOTAL EXPENSES' and a numerical value indicates this is a summary of expenses, fitting the aggregation zone classification.",
+        "data_characteristics": {
+          "primary_data_type": "numeric",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": false,
+          "time_granularity": null,
+          "data_density": 0.1,
+          "numeric_ratio": 0.6666666666666666,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": "grand_total",
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "Verify if there are additional totals or KPIs in adjacent cells.",
+          "Check for any formulas that reference this total.",
+          "verify_calculations",
+          "extract_summary_values"
+        ],
+        "named_range": null
+      }
+    ],
+    "objects": [],
+    "unresolved": []
+  }
+}
