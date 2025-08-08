@@ -1564,6 +1564,9 @@ For example:
                 max_tokens=500,
             )
 
+            # Capture actual model from response
+            actual_model = getattr(response, "model", None)
+
             # Track tokens
             if hasattr(response, "usage"):
                 tokens_used = response.usage.total_tokens
@@ -1577,6 +1580,7 @@ For example:
                         "output": response.usage.completion_tokens,
                         "total": tokens_used,
                     },
+                    actual_model=actual_model,
                 )
 
             # Extract classification with new fields
@@ -1736,8 +1740,10 @@ def main():
         print(f"❌ Error: File not found: {args.excel_path}")
         sys.exit(1)
 
-    # Initialize logger
-    logger = ExperimentLogger(module_path=__file__)
+    # Initialize logger with hierarchical output support
+    logger = ExperimentLogger(
+        module_path=__file__, model_name=args.model, excel_path=args.excel_path, sheet_index=args.sheet_index
+    )
 
     # Log configuration
     logger.main.info("🎯 CONFIGURATION:")

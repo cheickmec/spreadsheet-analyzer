@@ -26,19 +26,36 @@ class ExperimentLogger:
     File naming pattern: {module_name}_{hash[:8]}_{timestamp}_{type}.{ext}
     """
 
-    def __init__(self, module_path: str):
+    def __init__(
+        self,
+        module_path: str,
+        model_name: str | None = None,
+        excel_path: str | Path | None = None,
+        sheet_index: int | None = None,
+    ):
         """
-        Initialize experiment logger.
+        Initialize experiment logger with hierarchical output support.
 
         Args:
             module_path: __file__ of the calling module
+            model_name: Model name (will be updated to full version later)
+            excel_path: Path to Excel file being analyzed
+            sheet_index: Sheet index being analyzed
         """
         self.module_path = Path(module_path)
         self.module_name = self.module_path.stem
         self.module_hash = self._calculate_module_hash()
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.outputs_dir = self.module_path.parent / "outputs"
-        self.outputs_dir.mkdir(exist_ok=True)
+
+        # Store run configuration
+        self.model_requested = model_name
+        self.model_actual = None  # Will be set when we get first response
+        self.excel_path = Path(excel_path) if excel_path else None
+        self.sheet_index = sheet_index
+
+        # Create hierarchical output directory
+        self.outputs_dir = self._create_hierarchical_output_dir()
+        self.outputs_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize all loggers
         self.main = self._setup_main_logger()
@@ -56,6 +73,56 @@ class ExperimentLogger:
         self.main.info(f"📂 Outputs: {self.outputs_dir}")
         self.main.info("=" * 80)
 
+    def _create_hierarchical_output_dir(self) -> Path:
+        """Create hierarchical output directory structure."""
+        base_dir = self.module_path.parent / "outputs" / self.module_name
+
+        # Use actual model name if available, otherwise requested, otherwise 'unknown_model'
+        model_dir = self.model_actual or self.model_requested or "unknown_model"
+
+        # Sanitize Excel filename and create input identifier
+        if self.excel_path:
+            excel_name = self.excel_path.stem
+            # Sanitize: remove spaces, special chars, lowercase
+            excel_sanitized = excel_name.lower().replace(" ", "-").replace(".", "")
+            # Remove any other special characters
+            excel_sanitized = "".join(c if c.isalnum() or c == "-" else "" for c in excel_sanitized)
+            input_dir = f"{excel_sanitized}_sh{self.sheet_index if self.sheet_index is not None else 0}"
+        else:
+            input_dir = "unknown_input"
+
+        # Create full path: outputs/module/model/input/timestamp_hash/
+        run_dir = base_dir / model_dir / input_dir / f"{self.timestamp}_{self.module_hash}"
+        return run_dir
+
+    def update_model_actual(self, model_actual: str):
+        """Update the actual model name from API response."""
+        if model_actual and model_actual != self.model_requested:
+            self.model_actual = model_actual
+            # Update directory to use actual model name
+            old_dir = self.outputs_dir
+            new_dir = self._create_hierarchical_output_dir()
+            if new_dir != old_dir:
+                # Move existing files to new directory
+                new_dir.mkdir(parents=True, exist_ok=True)
+                if old_dir.exists():
+                    for file in old_dir.glob("*"):
+                        file.rename(new_dir / file.name)
+                    # Remove old directory if empty
+                    try:
+                        old_dir.rmdir()
+                        # Try to remove parent directories if empty
+                        parent = old_dir.parent
+                        while parent != self.module_path.parent / "outputs":
+                            if parent.exists() and not any(parent.iterdir()):
+                                parent.rmdir()
+                                parent = parent.parent
+                            else:
+                                break
+                    except:
+                        pass
+                self.outputs_dir = new_dir
+
     def _calculate_module_hash(self) -> str:
         """Calculate SHA-256 hash of the calling module."""
         try:
@@ -68,8 +135,8 @@ class ExperimentLogger:
 
     def _get_filename(self, log_type: str, extension: str = "log") -> Path:
         """Generate consistent filename for outputs."""
-        # Pattern: module_timestamp_hash_type.ext for better chronological sorting
-        filename = f"{self.module_name}_{self.timestamp}_{self.module_hash}_{log_type}.{extension}"
+        # In hierarchical structure, just use type.ext since directory contains all context
+        filename = f"{log_type}.{extension}"
         return self.outputs_dir / filename
 
     def _setup_main_logger(self) -> logging.Logger:
@@ -122,19 +189,31 @@ class ExperimentLogger:
         return logger
 
     def log_llm_interaction(
-        self, model: str, prompt: str, response: str, tokens: dict[str, int], request_id: str | None = None, **kwargs
+        self,
+        model: str,
+        prompt: str,
+        response: str,
+        tokens: dict[str, int],
+        request_id: str | None = None,
+        actual_model: str | None = None,
+        **kwargs,
     ):
         """
         Log detailed LLM interaction.
 
         Args:
-            model: Model name (e.g., "gpt-4", "claude-3")
+            model: Model name requested (e.g., "gpt-4o", "claude-3")
             prompt: Full prompt sent to model
             response: Full response from model
             tokens: Token usage dict with keys: input, output, total
             request_id: Optional request identifier
+            actual_model: Actual model that responded (e.g., "gpt-4o-2024-08-06")
             **kwargs: Additional metadata to log
         """
+        # Update actual model if provided and different
+        if actual_model and actual_model != self.model_requested:
+            self.update_model_actual(actual_model)
+
         timestamp = datetime.now().isoformat()
         separator = "=" * 100
 
@@ -142,9 +221,10 @@ class ExperimentLogger:
 {separator}
 TIMESTAMP: {timestamp}
 REQUEST_ID: {request_id or "N/A"}
-MODEL: {model}
+MODEL_REQUESTED: {model}
+MODEL_ACTUAL: {actual_model or model}
 TOKENS: Input={tokens.get("input", 0)} | Output={tokens.get("output", 0)} | Total={tokens.get("total", 0)}
-COST_EST: ${self._estimate_cost(model, tokens)}
+COST_EST: ${self._estimate_cost(actual_model or model, tokens)}
 
 ADDITIONAL_METADATA:
 {json.dumps(kwargs, indent=2) if kwargs else "None"}
@@ -164,7 +244,10 @@ RESPONSE:
         self.llm_trace.info(log_entry)
 
         # Also log summary to main logger
-        self.main.info(f"🤖 LLM Call: {model} | Tokens: {tokens.get('total', 0)} | Request: {request_id or 'N/A'}")
+        display_model = actual_model or model
+        self.main.info(
+            f"🤖 LLM Call: {display_model} | Tokens: {tokens.get('total', 0)} | Request: {request_id or 'N/A'}"
+        )
 
     def log_metrics(self, metrics: dict[str, Any]):
         """
@@ -207,22 +290,51 @@ RESPONSE:
             results: Dictionary of results to save
         """
         results_file = self._get_filename("results", "json")
+
+        # Enhanced metadata for hierarchical structure
+        full_results = {
+            "module": self.module_name,
+            "hash": self.module_hash,
+            "timestamp": self.timestamp,
+            "model_requested": self.model_requested,
+            "model_actual": self.model_actual,
+            "excel_file": str(self.excel_path) if self.excel_path else None,
+            "sheet_index": self.sheet_index,
+            "results": results,
+        }
+
         with open(results_file, "w", encoding="utf-8") as f:
-            json.dump(
-                {"module": self.module_name, "hash": self.module_hash, "timestamp": self.timestamp, "results": results},
-                f,
-                indent=2,
-                default=str,
-            )
+            json.dump(full_results, f, indent=2, default=str)
 
         self.main.info(f"💾 Results saved to: {results_file}")
+
+        # Also save run configuration
+        self.save_run_config()
+
+    def save_run_config(self):
+        """Save run configuration to a separate file for easy reference."""
+        config_file = self._get_filename("run_config", "json")
+
+        config = {
+            "module": self.module_name,
+            "module_hash": self.module_hash,
+            "timestamp": self.timestamp,
+            "model_requested": self.model_requested,
+            "model_actual": self.model_actual,
+            "excel_file": str(self.excel_path) if self.excel_path else None,
+            "sheet_index": self.sheet_index,
+            "output_directory": str(self.outputs_dir),
+        }
+
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, default=str)
 
     def _estimate_cost(self, model: str, tokens: dict[str, int]) -> float:
         """
         Rough cost estimation for different models.
 
         Args:
-            model: Model name
+            model: Model name (can be full version like gpt-4o-2024-08-06)
             tokens: Token usage dictionary
 
         Returns:
@@ -239,8 +351,15 @@ RESPONSE:
             "claude-3-opus": {"input": 0.015, "output": 0.075},
         }
 
+        # Handle full model names by extracting base name
+        base_model = model
+        for key in pricing:
+            if model.startswith(key):
+                base_model = key
+                break
+
         # Default to GPT-4 pricing if model not found
-        rates = pricing.get(model, pricing["gpt-4"])
+        rates = pricing.get(base_model, pricing["gpt-4"])
 
         input_cost = (tokens.get("input", 0) / 1000) * rates["input"]
         output_cost = (tokens.get("output", 0) / 1000) * rates["output"]
