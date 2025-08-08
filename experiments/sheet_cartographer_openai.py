@@ -375,6 +375,9 @@ class SheetCartographer:
         self.objects: list[ChartObject] = []
         self.unresolved: list[dict[str, str]] = []
 
+        # Sheet metadata for global context (will be populated in _orient)
+        self.sheet_metadata: dict[str, Any] = {}
+
     def run(self) -> dict[str, Any]:
         """Execute the cartographer workflow."""
         self.logger.main.info("🚀 Starting Sheet-Cartographer analysis")
@@ -421,7 +424,54 @@ class SheetCartographer:
         self.logger.main.info("📍 S0: ORIENT - Getting sheet dimensions")
         sheet_info = self.tool_handler.execute_tool("sheet_info", {})
         self.logger.main.info(f"   Sheet size: {sheet_info['rows']}x{sheet_info['cols']} ({sheet_info['usedRange']})")
+
+        # Store metadata for global LLM context
+        self.sheet_metadata = sheet_info
+        self.sheet_metadata["sheet_name"] = self.worksheet.title
+
+        # Create system metadata string for LLM
+        self.system_metadata = self._create_system_metadata(sheet_info)
+        self.logger.main.debug(f"System metadata for LLM:\n{self.system_metadata}")
+
         return sheet_info
+
+    def _create_system_metadata(self, sheet_info: dict[str, Any]) -> str:
+        """Create concise sheet metadata for system prompt.
+
+        This provides global spatial context to improve LLM reasoning about
+        where viewports sit within the full sheet grid.
+        """
+        rows = sheet_info["rows"]
+        cols = sheet_info["cols"]
+        used_range = sheet_info["usedRange"]
+
+        # Get column letters for better readability
+        max_col_letter = get_column_letter(cols)
+
+        metadata_parts = [
+            "You are the Sheet-Cartographer analyzing spreadsheet structure.",
+            "",
+            "SHEET METADATA:",
+            f"• Sheet name: {self.worksheet.title}",
+            f"• Dimensions: {rows} rows × {cols} columns (A–{max_col_letter})",
+            f"• Used range: {used_range}",
+        ]
+
+        # Add hidden rows/cols if any
+        if sheet_info.get("hiddenRows"):
+            metadata_parts.append(f"• Hidden rows: {sheet_info['hiddenRows']}")
+        if sheet_info.get("hiddenCols"):
+            metadata_parts.append(f"• Hidden columns: {sheet_info['hiddenCols']}")
+
+        metadata_parts.extend(
+            [
+                "",
+                "Always treat any viewport or range as a sub-region of this full grid.",
+                "This helps you understand where data likely continues beyond the current view.",
+            ]
+        )
+
+        return "\n".join(metadata_parts)
 
     def _sweep(self, sheet_info: dict[str, Any]) -> list[list[float]]:
         """S1: Sweep across sheet recording density."""
@@ -814,6 +864,54 @@ class SheetCartographer:
 
         return " | ".join(context_parts) if context_parts else "No additional context gathered"
 
+    def _create_range_breadcrumb(self, range_str: str) -> str:
+        """Create a breadcrumb context for where the range sits in the full sheet.
+
+        This helps the LLM understand spatial positioning within the full grid.
+        """
+        # Parse range
+        parts = range_str.split(":")
+        if len(parts) != 2:
+            return f"📍 Context: Examining range {range_str} within full sheet ({self.sheet_metadata.get('rows', '?')}×{self.sheet_metadata.get('cols', '?')})"
+
+        start_col, start_row = coordinate_from_string(parts[0])
+        end_col, end_row = coordinate_from_string(parts[1])
+
+        total_rows = self.sheet_metadata.get("rows", 1)
+        total_cols = self.sheet_metadata.get("cols", 1)
+
+        # Determine relative position
+        position_hints = []
+
+        # Vertical position
+        if start_row <= 5:
+            position_hints.append("near top")
+        elif end_row >= total_rows - 5:
+            position_hints.append("near bottom")
+        else:
+            position_hints.append(f"middle region (row {start_row}/{total_rows})")
+
+        # Horizontal position
+        start_col_idx = column_index_from_string(start_col)
+        end_col_idx = column_index_from_string(end_col)
+
+        if start_col_idx <= 3:
+            position_hints.append("left side")
+        elif end_col_idx >= total_cols - 3:
+            position_hints.append("right side")
+        else:
+            position_hints.append("center columns")
+
+        # Check if it spans full width or height
+        if end_col_idx - start_col_idx + 1 == total_cols:
+            position_hints.append("full width")
+        if end_row - start_row + 1 == total_rows:
+            position_hints.append("full height")
+
+        position_str = ", ".join(position_hints)
+
+        return f"📍 Context: Examining {range_str} ({position_str}) within full sheet ({total_rows}×{total_cols})"
+
     def _analyze_probes(
         self, probes: list[tuple[str, str, str]], full_range: str, total_rows: int
     ) -> tuple[str, float]:
@@ -915,8 +1013,10 @@ class SheetCartographer:
             }
         ]
 
-        system_prompt = """You are a spreadsheet structure analyzer. Classify the given block of cells into one of these types:
+        # Combine global metadata with classification instructions
+        system_prompt = f"""{self.system_metadata}
 
+CLASSIFICATION TYPES:
 - FactTable: Has header rows (often bold), multiple data rows, numeric columns, >60% density
 - HeaderBanner: Single row, often merged across columns, bold/centered text
 - KPISummary: Small (≤5 rows), text+number pairs, surrounded by whitespace
@@ -927,6 +1027,7 @@ class SheetCartographer:
 - Other: Doesn't clearly fit other categories
 
 Analyze the structure, not the content. Focus on layout patterns.
+Consider where this block sits within the full sheet when making your classification.
 
 When uncertain, provide specific open questions that would help clarify the classification.
 For example:
@@ -935,7 +1036,9 @@ For example:
 - "Does the sparse area at bottom indicate end of data?"
 """
 
-        user_content = f"Classify this spreadsheet block at range {range_str}:\n\n{range_text}"
+        # Add breadcrumb about current position in sheet
+        breadcrumb = self._create_range_breadcrumb(range_str)
+        user_content = f"{breadcrumb}\n\nClassify this spreadsheet block at range {range_str}:\n\n{range_text}"
 
         if additional_context:
             user_content += f"\n\nAdditional context from refinement:\n{additional_context}"
