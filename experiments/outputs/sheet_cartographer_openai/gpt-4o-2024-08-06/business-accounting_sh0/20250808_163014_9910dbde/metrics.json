@@ -1,0 +1,20 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "9910dbde",
+  "timestamp": "20250808_163014",
+  "metrics": {
+    "runtime_seconds": 37.303614377975464,
+    "total_tokens": 8305,
+    "blocks_detected": 2,
+    "tool_calls": {
+      "sheet_info": 1,
+      "window_grab": 3,
+      "range_peek": 9,
+      "cell_meta": 20,
+      "merged_list": 1,
+      "names_list": 1,
+      "object_scan": 1
+    },
+    "token_efficiency": 21.97089947089947
+  }
+}
