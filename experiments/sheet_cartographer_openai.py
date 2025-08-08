@@ -79,6 +79,19 @@ CHART_ANCHOR_CONFIDENCE: Final[float] = 1.00
 SUMMARY_CONFIDENCE: Final[float] = 0.80  # For totals sections
 UNKNOWN_CONFIDENCE: Final[float] = 0.20
 
+# Type mapping from string to enum
+TYPE_MAP: Final[dict[str, StructuralType]] = {
+    "DataTable": StructuralType.DATA_TABLE,
+    "HeaderZone": StructuralType.HEADER_ZONE,
+    "AggregationZone": StructuralType.AGGREGATION_ZONE,
+    "MetadataZone": StructuralType.METADATA_ZONE,
+    "VisualizationAnchor": StructuralType.VISUALIZATION_ANCHOR,
+    "FormInputZone": StructuralType.FORM_INPUT_ZONE,
+    "NavigationZone": StructuralType.NAVIGATION_ZONE,
+    "UnstructuredText": StructuralType.UNSTRUCTURED_TEXT,
+    "EmptyPadding": StructuralType.EMPTY_PADDING,
+}
+
 
 @dataclass
 class SheetInfo:
@@ -900,7 +913,7 @@ class SheetCartographer:
                 # Iterative refinement based on open questions and peek requests
                 refinement_count = 0
                 max_refinements = 3
-                peek_requests = []  # Track initial peek requests
+                # Keep initial peek_requests from first classification
                 peeked_ranges = set()  # Avoid duplicate peeks
                 prev_confidence = confidence  # Track confidence changes
                 prev_block_type = block_type  # Track type stability
@@ -994,6 +1007,7 @@ class SheetCartographer:
                     confidence = new_confidence
                     reasoning = new_reasoning
                     suggested_ops = suggested_ops  # Keep accumulating
+                    agg_subtype = agg_subtype  # Preserve aggregation subtype
                     prev_confidence = new_confidence
                     prev_block_type = new_block_type
 
@@ -1015,22 +1029,25 @@ class SheetCartographer:
                             )
 
                         deep_result = self._classify_block_with_llm(deep_region["text"], deep_region["range"])
-                        # Extract key fields from result
-                        deep_type = deep_result[0]
-                        deep_semantic = deep_result[1]
-                        deep_conf = deep_result[2]
-                        deep_reasoning = deep_result[3]
+                        # Extract ALL fields from the extended result tuple
+                        (
+                            deep_type,
+                            deep_semantic,
+                            deep_conf,
+                            deep_reasoning,
+                            deep_open_questions,
+                            deep_peek_requests,
+                            deep_suggested_ops,
+                            deep_agg_subtype,
+                        ) = deep_result
 
                         # Convert string type to enum for deep regions
-                        try:
-                            if deep_type == "DataTable":
-                                struct_type = StructuralType.DATA_TABLE
-                            elif deep_type == "AggregationZone":
-                                struct_type = StructuralType.AGGREGATION_ZONE
-                            else:
-                                struct_type = StructuralType.UNSTRUCTURED_TEXT
-                        except:
-                            struct_type = StructuralType.UNSTRUCTURED_TEXT
+                        struct_type = TYPE_MAP.get(deep_type, StructuralType.UNSTRUCTURED_TEXT)
+
+                        # Build data characteristics for deep splits
+                        deep_data_chars = self._infer_characteristics(deep_region["text"], deep_region["range"])
+                        if deep_agg_subtype and deep_agg_subtype != "none":
+                            deep_data_chars.aggregation_zone_subtype = deep_agg_subtype
 
                         self.blocks.append(
                             Block(
@@ -1040,6 +1057,8 @@ class SheetCartographer:
                                 semantic_description=deep_semantic or "Split region from mixed semantics",
                                 confidence=deep_conf,
                                 classification_reasoning=deep_reasoning or "Forced split due to mixed semantics",
+                                data_characteristics=deep_data_chars,
+                                suggested_operations=deep_suggested_ops,
                             )
                         )
                         self.logger.main.info(
@@ -1048,31 +1067,12 @@ class SheetCartographer:
                         block_id += 1
                 else:
                     # Add the classified block
-                    # Convert string type to enum
-                    try:
-                        if block_type == "DataTable":
-                            struct_type = StructuralType.DATA_TABLE
-                        elif block_type == "HeaderZone":
-                            struct_type = StructuralType.HEADER_ZONE
-                        elif block_type == "AggregationZone":
-                            struct_type = StructuralType.AGGREGATION_ZONE
-                        elif block_type == "MetadataZone":
-                            struct_type = StructuralType.METADATA_ZONE
-                        elif block_type == "VisualizationAnchor":
-                            struct_type = StructuralType.VISUALIZATION_ANCHOR
-                        elif block_type == "FormInputZone":
-                            struct_type = StructuralType.FORM_INPUT_ZONE
-                        elif block_type == "NavigationZone":
-                            struct_type = StructuralType.NAVIGATION_ZONE
-                        elif block_type == "EmptyPadding":
-                            struct_type = StructuralType.EMPTY_PADDING
-                        else:
-                            struct_type = StructuralType.UNSTRUCTURED_TEXT
-                    except:
-                        struct_type = StructuralType.UNSTRUCTURED_TEXT
+                    # Convert string type to enum using centralized mapping
+                    struct_type = TYPE_MAP.get(block_type, StructuralType.UNSTRUCTURED_TEXT)
 
-                    # Build data characteristics
-                    data_chars = DataCharacteristics()
+                    # Build data characteristics - infer from text content
+                    data_chars = self._infer_characteristics(sub_region["text"], sub_region["range"])
+                    # Add classification-specific fields
                     if agg_subtype and agg_subtype != "none":
                         data_chars.aggregation_zone_subtype = agg_subtype
 
@@ -1370,68 +1370,137 @@ class SheetCartographer:
 
         return f"📍 Context: Examining {range_str} ({position_str}) within full sheet ({total_rows}×{total_cols})"
 
-    def _analyze_probes(
-        self, probes: list[tuple[str, str, str]], full_range: str, total_rows: int
-    ) -> tuple[str, float]:
-        """Analyze multiple probes to determine block type with consensus and heuristics."""
+    def _infer_characteristics(self, viewport_text: str, range_str: str) -> DataCharacteristics:
+        """Infer data characteristics from viewport text for enrichment.
 
-        classifications = []
-        has_totals = False
-        blank_tail_ratio = 0.0
+        Analyzes the actual content to determine:
+        - Primary data type (financial, temporal, categorical)
+        - Header presence and structure
+        - Formula density
+        - Numeric ratio
+        - Time series patterns
+        """
+        chars = DataCharacteristics()
 
-        for probe_position, probe_text, probe_range in probes:
-            # Check for totals keywords
-            probe_lower = probe_text.lower()
-            if any(keyword in probe_lower for keyword in ["total", "grand total", "subtotal", "sum"]):
-                has_totals = True
+        # Parse the markdown table
+        lines = viewport_text.split("\n")
+        if len(lines) < 4:  # Need at least header + separator + 1 data row
+            return chars
 
-            # Count blank rows in tail probe
-            if probe_position == "tail":
-                lines = probe_text.split("\n")[3:]  # Skip headers
-                blank_rows = sum(1 for line in lines if all(cell.strip() in ["", "␀"] for cell in line.split("|")[1:]))
-                blank_tail_ratio = blank_rows / len(lines) if lines else 0
+        # Skip markdown header rows (first 3 lines)
+        data_lines = lines[3:]
+        if not data_lines:
+            return chars
 
-            # Classify this probe
-            block_type, confidence = self._classify_block_with_llm(probe_text, probe_range)
-            classifications.append((probe_position, block_type, confidence))
+        # Extract cells from each row
+        rows = []
+        for line in data_lines:
+            cells = [cell.strip() for cell in line.split("|")[1:-1]]  # Skip first/last empty
+            if cells:
+                rows.append(cells)
 
-        # Determine consensus
-        types_found = {cls[1] for cls in classifications}
+        if not rows:
+            return chars
 
-        # If we found totals, prioritize SUMMARY classification
-        if has_totals:
-            # Check if it's a pure summary section or mixed
-            if len(probes) == 1 or all(c[1] in ["HeaderBanner", "KPISummary", "Other"] for c in classifications):
-                return "Summary", SUMMARY_CONFIDENCE
+        # Analyze first row for headers
+        first_row = rows[0]
+        has_numeric_first_row = any(self._is_numeric(cell) for cell in first_row if cell and cell != "␀")
+        has_text_first_row = any(not self._is_numeric(cell) and cell and cell != "␀" for cell in first_row)
+
+        # If first row is mostly text and subsequent rows have numbers, likely headers
+        if len(rows) > 1 and has_text_first_row and not has_numeric_first_row:
+            chars.has_headers = True
+            chars.header_rows = 1
+
+        # Calculate numeric ratio
+        total_cells = 0
+        numeric_cells = 0
+        date_cells = 0
+        formula_cells = 0
+        empty_cells = 0
+
+        for row in rows[chars.header_rows :]:
+            for cell in row:
+                if not cell or cell == "␀":
+                    empty_cells += 1
+                    continue
+
+                total_cells += 1
+
+                # Check for formulas (simplified - starts with =)
+                if cell.startswith("="):
+                    formula_cells += 1
+                    numeric_cells += 1  # Formulas usually produce numbers
+                elif self._is_numeric(cell):
+                    numeric_cells += 1
+                elif self._is_date(cell):
+                    date_cells += 1
+
+        # Calculate ratios
+        if total_cells > 0:
+            chars.numeric_ratio = numeric_cells / total_cells
+            chars.formula_density = formula_cells / total_cells
+            chars.data_density = total_cells / (total_cells + empty_cells) if (total_cells + empty_cells) > 0 else 0
+
+            # Determine primary data type
+            if chars.numeric_ratio > 0.5:
+                # Check if financial (currency symbols, decimals)
+                has_currency = any(
+                    "$" in str(cell) or "€" in str(cell) or "," in str(cell) for row in rows for cell in row
+                )
+                if has_currency or chars.formula_density > 0.2:
+                    chars.primary_data_type = "financial"
+                else:
+                    chars.primary_data_type = "numeric"
+            elif date_cells / total_cells > 0.2:
+                chars.primary_data_type = "temporal"
+                chars.is_time_series = True
             else:
-                # Mixed region - return low confidence to trigger splitting
-                return "Other", 0.4
+                chars.primary_data_type = "categorical"
 
-        # If multiple different types detected, return low confidence to trigger splitting
-        if len(types_found) > 1:
-            self.logger.main.debug(f"Multiple types detected: {types_found} - triggering split")
-            return "Other", 0.4
+        # Check for totals row/column patterns
+        if rows:
+            last_row = rows[-1]
+            # Check if last row contains "total" keyword
+            if any("total" in str(cell).lower() for cell in last_row):
+                chars.has_totals_row = True
 
-        # Get the unanimous type
-        unanimous_type = classifications[0][1] if classifications else "Other"
-        base_confidence = (
-            sum(c[2] for c in classifications) / len(classifications) if classifications else UNKNOWN_CONFIDENCE
-        )
+        return chars
 
-        # Apply blank-tail penalty for FactTable
-        if unanimous_type == "FactTable" and blank_tail_ratio > BLANK_TAIL_THRESHOLD:
-            self.logger.main.debug(f"Applying blank-tail penalty: {blank_tail_ratio:.2f}")
-            base_confidence = max(base_confidence - 0.2, 0.5)
+    def _is_numeric(self, value: str) -> bool:
+        """Check if a string value represents a number."""
+        if not value or value == "␀":
+            return False
+        # Remove common formatting
+        cleaned = value.replace(",", "").replace("$", "").replace("%", "").strip()
+        try:
+            float(cleaned)
+            return True
+        except:
+            return False
 
-        return unanimous_type, base_confidence
+    def _is_date(self, value: str) -> bool:
+        """Check if a string value represents a date."""
+        if not value or value == "␀":
+            return False
+        # Simple date patterns
+        date_patterns = [
+            r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}",  # MM/DD/YYYY or DD-MM-YY
+            r"\d{4}[/-]\d{1,2}[/-]\d{1,2}",  # YYYY-MM-DD
+            r"[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}",  # Month DD, YYYY
+        ]
+        import re
+
+        return any(re.match(pattern, value.strip()) for pattern in date_patterns)
 
     def _classify_block_with_llm(
         self, range_text: str, range_str: str, additional_context: str | None = None
-    ) -> tuple[str, float, list[str]]:
+    ) -> tuple[str, str, float, str, list[str], list[dict], list[str], str]:
         """Use LLM to classify a block based on its content.
 
         Returns:
-            Tuple of (block_type, confidence, open_questions)
+            Tuple of (block_type, semantic_description, confidence, reasoning,
+                     open_questions, peek_requests, suggested_operations, aggregation_subtype)
         """
 
         # Define tools for classification with open questions AND peek requests

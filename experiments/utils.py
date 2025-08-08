@@ -81,15 +81,19 @@ class ExperimentLogger:
         model_dir = self.model_actual or self.model_requested or "unknown_model"
 
         # Sanitize Excel filename and create input identifier
-        if self.excel_path:
+        if self.excel_path and self.excel_path.exists():
             excel_name = self.excel_path.stem
             # Sanitize: remove spaces, special chars, lowercase
             excel_sanitized = excel_name.lower().replace(" ", "-").replace(".", "")
             # Remove any other special characters
             excel_sanitized = "".join(c if c.isalnum() or c == "-" else "" for c in excel_sanitized)
-            input_dir = f"{excel_sanitized}_sh{self.sheet_index if self.sheet_index is not None else 0}"
+            # Ensure we have a valid name after sanitization
+            if excel_sanitized:
+                input_dir = f"{excel_sanitized}_sh{self.sheet_index if self.sheet_index is not None else 0}"
+            else:
+                input_dir = f"unknown_sh{self.sheet_index if self.sheet_index is not None else 0}"
         else:
-            input_dir = "unknown_input"
+            input_dir = f"unknown_sh{self.sheet_index if self.sheet_index is not None else 0}"
 
         # Create full path: outputs/module/model/input/timestamp_hash/
         run_dir = base_dir / model_dir / input_dir / f"{self.timestamp}_{self.module_hash}"
