@@ -1,0 +1,90 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "c7e6e1b9",
+  "timestamp": "20250808_130838",
+  "model_requested": "gpt-4o-mini",
+  "model_actual": "gpt-4o-mini-2024-07-18",
+  "excel_file": "test_assets/collection/business-accounting/Business Accounting.xlsx",
+  "sheet_index": 0,
+  "results": {
+    "sheet": "Yiriden Transactions 2025",
+    "analyzedAt": "2025-08-08T13:09:00.390866Z",
+    "blocks": [
+      {
+        "id": "blk_01",
+        "range": "A1:F10",
+        "structural_type": "DataTable",
+        "semantic_description": "This region contains transaction records detailing dates, descriptions, amounts, types, and categories of expenses for the year 2025.",
+        "confidence": 0.9,
+        "classification_reasoning": "The structure consists of consistent rows and columns with headers and data entries, indicating a regular data table format.",
+        "data_characteristics": {
+          "primary_data_type": "temporal",
+          "has_headers": true,
+          "header_rows": 1,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": true,
+          "time_granularity": null,
+          "data_density": 0.8,
+          "numeric_ratio": 0.25,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "Review the data for accuracy",
+          "Consider adding filters for better data analysis",
+          "add_filters",
+          "check_duplicates",
+          "profile_columns"
+        ],
+        "named_range": null
+      },
+      {
+        "id": "blk_02",
+        "range": "G1:I10",
+        "structural_type": "AggregationZone",
+        "semantic_description": "This region summarizes total expenses for the dataset.",
+        "confidence": 0.9,
+        "classification_reasoning": "The presence of the label 'TOTAL EXPENSES' along with a numerical value indicates that this block is summarizing financial data, specifically expenses, which is characteristic of an aggregation zone.",
+        "data_characteristics": {
+          "primary_data_type": "categorical",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": false,
+          "time_granularity": null,
+          "data_density": 0.1,
+          "numeric_ratio": 0.5,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": "grand_total",
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "Verify if there are additional aggregation rows or columns nearby.",
+          "Check if the total is calculated from the data in the main table.",
+          "verify_calculations",
+          "extract_summary_values"
+        ],
+        "named_range": null
+      }
+    ],
+    "objects": [],
+    "unresolved": []
+  }
+}

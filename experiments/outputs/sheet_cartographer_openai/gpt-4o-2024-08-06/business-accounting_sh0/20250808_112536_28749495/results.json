@@ -1,0 +1,86 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "28749495",
+  "timestamp": "20250808_112536",
+  "model_requested": "gpt-4o",
+  "model_actual": "gpt-4o-2024-08-06",
+  "excel_file": "test_assets/collection/business-accounting/Business Accounting.xlsx",
+  "sheet_index": 0,
+  "results": {
+    "sheet": "Yiriden Transactions 2025",
+    "analyzedAt": "2025-08-08T11:26:02.305289Z",
+    "blocks": [
+      {
+        "id": "blk_01",
+        "range": "A1:F10",
+        "structural_type": "DataTable",
+        "semantic_description": "This block represents a table of financial transactions detailing expenses with dates, descriptions, amounts, transaction types, and categories.",
+        "confidence": 0.9,
+        "classification_reasoning": "The consistent structure of rows and columns with headers like 'Date', 'Description', and 'USD Amount' indicates a tabular format typical of a DataTable. The presence of transaction details suggests financial data.",
+        "data_characteristics": {
+          "primary_data_type": "temporal",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": true,
+          "time_granularity": null,
+          "data_density": 0.8,
+          "numeric_ratio": 0.25,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "Validate data consistency across rows",
+          "Check for missing or erroneous data entries",
+          "Summarize expenses by category or date"
+        ],
+        "named_range": null
+      },
+      {
+        "id": "blk_02",
+        "range": "G1:I10",
+        "structural_type": "AggregationZone",
+        "semantic_description": "This block represents a summary of total expenses, likely aggregating data from elsewhere in the sheet.",
+        "confidence": 0.9,
+        "classification_reasoning": "The presence of a label 'TOTAL EXPENSES' and a negative number suggests this is a financial summary, typical of an aggregation zone.",
+        "data_characteristics": {
+          "primary_data_type": null,
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": false,
+          "time_granularity": null,
+          "data_density": 0.0,
+          "numeric_ratio": 0.0,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": "subtotal",
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "Verify if this total is linked to other data in the sheet",
+          "Check for formulas referencing this cell"
+        ],
+        "named_range": null
+      }
+    ],
+    "objects": [],
+    "unresolved": []
+  }
+}

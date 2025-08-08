@@ -389,7 +389,7 @@ class ExcelToolHandler:
         Returns a value between 0 (heterogeneous) and 1 (homogeneous).
         Combines entropy of row densities and column patterns.
         """
-        lines = range_text.split("\n")[3:]  # Skip headers
+        lines = range_text.split("\n")[2:]  # Skip viewport header and column headers
         if not lines:
             return 1.0
 
@@ -1049,6 +1049,10 @@ class SheetCartographer:
                         if deep_agg_subtype and deep_agg_subtype != "none":
                             deep_data_chars.aggregation_zone_subtype = deep_agg_subtype
 
+                        # Combine suggested operations with default operations for this type
+                        deep_default_ops = self._get_default_operations(struct_type)
+                        deep_final_ops = list(dict.fromkeys(deep_suggested_ops + deep_default_ops))
+
                         self.blocks.append(
                             Block(
                                 id=f"blk_{block_id:02d}",
@@ -1058,7 +1062,7 @@ class SheetCartographer:
                                 confidence=deep_conf,
                                 classification_reasoning=deep_reasoning or "Forced split due to mixed semantics",
                                 data_characteristics=deep_data_chars,
-                                suggested_operations=deep_suggested_ops,
+                                suggested_operations=deep_final_ops,
                             )
                         )
                         self.logger.main.info(
@@ -1076,6 +1080,10 @@ class SheetCartographer:
                     if agg_subtype and agg_subtype != "none":
                         data_chars.aggregation_zone_subtype = agg_subtype
 
+                    # Combine accumulated operations with default operations for this type
+                    default_ops = self._get_default_operations(struct_type)
+                    final_ops = list(dict.fromkeys(accumulated_ops + default_ops))  # De-dupe preserving order
+
                     self.blocks.append(
                         Block(
                             id=f"blk_{block_id:02d}",
@@ -1085,7 +1093,7 @@ class SheetCartographer:
                             confidence=confidence,
                             classification_reasoning=reasoning,
                             data_characteristics=data_chars,
-                            suggested_operations=suggested_ops,
+                            suggested_operations=final_ops,
                         )
                     )
 
@@ -1308,7 +1316,7 @@ class SheetCartographer:
 
             # Check for sparse/empty area questions
             elif "sparse" in question_lower or "empty" in question_lower or "blank" in question_lower:
-                lines = range_text.split("\n")[3:]  # Skip headers
+                lines = range_text.split("\n")[2:]  # Skip viewport header and column headers
                 last_quarter = lines[-(len(lines) // 4) :] if len(lines) > 4 else lines
 
                 blank_rows = sum(
@@ -1376,19 +1384,50 @@ class SheetCartographer:
         Analyzes the actual content to determine:
         - Primary data type (financial, temporal, categorical)
         - Header presence and structure
-        - Formula density
+        - Formula density (via cell_meta sampling)
         - Numeric ratio
         - Time series patterns
         """
         chars = DataCharacteristics()
 
+        # Sample cells for formula detection since we opened with data_only=True
+        parts = range_str.split(":")
+        if len(parts) == 2:
+            start_col, start_row = coordinate_from_string(parts[0])
+            end_col, end_row = coordinate_from_string(parts[1])
+            start_col_idx = column_index_from_string(start_col)
+            end_col_idx = column_index_from_string(end_col)
+
+            # Sample first 2 header cells and last 2 body cells
+            sample_coords = []
+            # First two cells of first row
+            for col in range(start_col_idx, min(start_col_idx + 2, end_col_idx + 1)):
+                sample_coords.append((start_row, col))
+            # Last two cells of last row
+            for col in range(max(start_col_idx, end_col_idx - 1), end_col_idx + 1):
+                sample_coords.append((end_row, col))
+
+            formula_hits = 0
+            samples_taken = 0
+            for row, col in sample_coords[:4]:  # Limit to 4 samples
+                try:
+                    meta = self.tool_handler.execute_tool("cell_meta", {"row": row, "col": col})
+                    samples_taken += 1
+                    if meta.get("isFormula"):
+                        formula_hits += 1
+                except:
+                    pass  # Skip if cell_meta fails
+
+            if samples_taken > 0:
+                chars.formula_density = formula_hits / samples_taken
+
         # Parse the markdown table
         lines = viewport_text.split("\n")
-        if len(lines) < 4:  # Need at least header + separator + 1 data row
+        if len(lines) < 3:  # Need at least viewport header + column headers + 1 data row
             return chars
 
-        # Skip markdown header rows (first 3 lines)
-        data_lines = lines[3:]
+        # Skip markdown header rows (first 2 lines: viewport info + column headers)
+        data_lines = lines[2:]
         if not data_lines:
             return chars
 
@@ -1492,6 +1531,21 @@ class SheetCartographer:
         import re
 
         return any(re.match(pattern, value.strip()) for pattern in date_patterns)
+
+    def _get_default_operations(self, structural_type: StructuralType) -> list[str]:
+        """Get default suggested operations based on structural type."""
+        defaults = {
+            StructuralType.DATA_TABLE: ["add_filters", "check_duplicates", "profile_columns"],
+            StructuralType.HEADER_ZONE: ["extract_column_names", "validate_references"],
+            StructuralType.AGGREGATION_ZONE: ["verify_calculations", "extract_summary_values"],
+            StructuralType.METADATA_ZONE: ["extract_metadata", "parse_report_info"],
+            StructuralType.VISUALIZATION_ANCHOR: ["extract_chart_data", "analyze_visualization"],
+            StructuralType.FORM_INPUT_ZONE: ["validate_inputs", "extract_form_schema"],
+            StructuralType.NAVIGATION_ZONE: ["extract_links", "map_navigation"],
+            StructuralType.UNSTRUCTURED_TEXT: ["extract_text", "parse_notes"],
+            StructuralType.EMPTY_PADDING: [],  # No operations for padding
+        }
+        return defaults.get(structural_type, [])
 
     def _classify_block_with_llm(
         self, range_text: str, range_str: str, additional_context: str | None = None
