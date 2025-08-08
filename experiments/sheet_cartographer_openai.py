@@ -877,7 +877,7 @@ class SheetCartographer:
             for sub_region in sub_regions:
                 # Skip very sparse regions
                 if "text" in sub_region:
-                    lines = sub_region["text"].split("\n")[3:]  # Skip headers
+                    lines = sub_region["text"].split("\n")[2:]  # Skip viewport line + column headers
                     total_cells = sum(len(line.split("|")[1:]) for line in lines)
                     non_empty = sum(
                         1 for line in lines for cell in line.split("|")[1:] if cell.strip() and cell.strip() != "␀"
@@ -1000,7 +1000,7 @@ class SheetCartographer:
                         open_questions,
                         peek_requests,
                         suggested_ops,
-                        agg_subtype,
+                        new_agg_subtype,
                     ) = result
 
                     # Check for confidence plateau (no meaningful improvement)
@@ -1035,8 +1035,8 @@ class SheetCartographer:
                     # Accumulate suggested operations (de-dupe while preserving order)
                     running_ops = list(dict.fromkeys(running_ops + suggested_ops))
                     # Update aggregation subtype only if new one is specified
-                    if agg_subtype != "none":
-                        agg_subtype = agg_subtype
+                    if new_agg_subtype and new_agg_subtype != "none":
+                        agg_subtype = new_agg_subtype
                     prev_confidence = new_confidence
                     prev_block_type = new_block_type
 
@@ -1172,11 +1172,11 @@ class SheetCartographer:
                 first_row_cells = []
                 second_row_cells = []
 
-                for line in first_row_text.split("\n")[3:]:  # Skip headers
+                for line in first_row_text.split("\n")[2:]:  # Skip viewport line + column headers
                     cells = line.split("|")[1:]  # Skip row number
                     first_row_cells.extend([c.strip() for c in cells])
 
-                for line in second_row_text.split("\n")[3:]:  # Skip headers
+                for line in second_row_text.split("\n")[2:]:  # Skip viewport line + column headers
                     cells = line.split("|")[1:]  # Skip row number
                     second_row_cells.extend([c.strip() for c in cells])
 
