@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Sheet-Cartographer Agent (OpenAI Implementation) - Version 0.10
+Sheet-Cartographer Agent (OpenAI Implementation) - Version 0.11
 
 Adds a deterministic + LLM arbitration conflict resolver to robustly
-distinguish Header vs Aggregation (and more), and fixes a crash when
+distinguish Header vs Aggregation (and more), introduces a formulas-view
+peek, numeric consistency checks against nearby data, and fixes a crash when
 accessing hidden rows/cols on ReadOnlyWorksheet.
 
 Provider: OpenAI
 Models Supported: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
-Author: Sheet-Cartographer v0.10 (OpenAI)
+Author: Sheet-Cartographer v0.11 (OpenAI)
 Date: 2025-08-09
 """
 
@@ -44,7 +45,7 @@ from utils import ExperimentLogger
 DEFAULT_MODEL: Final[str] = "gpt-4o-mini"
 MAX_WINDOW_HEIGHT: Final[int] = 50
 MAX_WINDOW_WIDTH: Final[int] = 50
-MAX_CELL_META_CALLS: Final[int] = 120
+MAX_CELL_META_CALLS: Final[int] = 140
 MAX_RANGE_AREA: Final[int] = 10000
 MAX_LLM_TOKENS: Final[int] = 32000
 MAX_RUNTIME_SECONDS: Final[int] = 30
@@ -141,6 +142,8 @@ class ExcelToolHandler:
             return self._window_grab(**arguments)
         elif tool_name == "range_peek":
             return self._range_peek(**arguments)
+        elif tool_name == "range_formulas":
+            return self._range_formulas(**arguments)
         elif tool_name == "cell_meta":
             return self._cell_meta(**arguments)
         elif tool_name == "merged_list":
@@ -164,13 +167,13 @@ class ExcelToolHandler:
         hidden_rows = []
         hidden_cols = []
         try:
-            if hasattr(self.worksheet, "row_dimensions"):
+            if hasattr(self.worksheet, "row_dimensions") and isinstance(self.worksheet.row_dimensions, dict):
                 hidden_rows = [idx for idx, rd in self.worksheet.row_dimensions.items() if getattr(rd, "hidden", False)]
         except Exception as e:
             self.logger.main.debug(f"Hidden rows unavailable in read-only mode: {e}")
 
         try:
-            if hasattr(self.worksheet, "column_dimensions"):
+            if hasattr(self.worksheet, "column_dimensions") and isinstance(self.worksheet.column_dimensions, dict):
                 hidden_cols = [
                     column_index_from_string(col_letter)
                     for col_letter, cd in self.worksheet.column_dimensions.items()
@@ -242,6 +245,65 @@ class ExcelToolHandler:
             format=format,
         )
 
+    def _ensure_formula_workbook(self):
+        """Open a separate handle with data_only=False for formula access."""
+        if not hasattr(self, "_formula_workbook"):
+            # Using non-read-only to access full features and formulas
+            self._formula_workbook = openpyxl.load_workbook(self.excel_path, read_only=False, data_only=False)
+        return self._formula_workbook
+
+    def _range_formulas(self, range: str, format: str = "markdown") -> str:
+        """Peek a specific range but rendering formulas where present."""
+        parts = range.split(":")
+        if len(parts) != 2:
+            raise ValueError(f"Invalid range: {range}")
+
+        start_col, start_row = coordinate_from_string(parts[0])
+        end_col, end_row = coordinate_from_string(parts[1])
+        start_col_idx = column_index_from_string(start_col)
+        end_col_idx = column_index_from_string(end_col)
+
+        area = (end_row - start_row + 1) * (end_col_idx - start_col_idx + 1)
+        if area > MAX_RANGE_AREA:
+            raise ValueError(f"Range area {area} exceeds maximum {MAX_RANGE_AREA}")
+
+        # Prepare header
+        height = min(end_row - start_row + 1, MAX_WINDOW_HEIGHT)
+        width = min(end_col_idx - start_col_idx + 1, MAX_WINDOW_WIDTH)
+        lines = [f"# viewport(formulas): top={start_row} left={start_col_idx} height={height} width={width}"]
+        col_headers = ["# cols:"]
+        for col in range(start_col_idx, start_col_idx + width):
+            col_headers.append(f"{get_column_letter(col):>8}")
+        lines.append(" | ".join(col_headers))
+
+        # Access formulas workbook
+        try:
+            fwb = self._ensure_formula_workbook()
+            sheet_index = self.worksheet.parent.worksheets.index(self.worksheet)
+            fws = fwb.worksheets[sheet_index]
+        except Exception as e:
+            self.logger.main.debug(f"Failed to open formula workbook: {e}")
+            # Fallback to values view
+            return self._range_peek(range, format=format)
+
+        # Render rows
+        for r in range(start_row, start_row + height):
+            row_data = [f"{r:3d}"]
+            for c in range(start_col_idx, start_col_idx + width):
+                fcell = fws.cell(row=r, column=c)
+                val = fcell.value
+                s: str = ""
+                if isinstance(val, str) and val.startswith("="):
+                    s = val[:80] + ("↯" if len(val) > 80 else "")
+                else:
+                    s = self._safe_str(val)
+                if s == "":
+                    s = "␀"
+                row_data.append(f"{s:>8}")
+            lines.append(" | ".join(row_data))
+
+        return "\n".join(lines)
+
     def _cell_meta(self, row: int, col: int) -> dict[str, Any]:
         if self.tool_call_count["cell_meta"] > MAX_CELL_META_CALLS:
             raise ValueError(f"Exceeded maximum cell_meta calls ({MAX_CELL_META_CALLS})")
@@ -264,10 +326,9 @@ class ExcelToolHandler:
 
         is_formula = False
         try:
-            if not hasattr(self, "_formula_workbook"):
-                self._formula_workbook = openpyxl.load_workbook(self.excel_path, read_only=False, data_only=False)
+            fwb = self._ensure_formula_workbook()
             sheet_index = self.worksheet.parent.worksheets.index(self.worksheet)
-            formula_worksheet = self._formula_workbook.worksheets[sheet_index]
+            formula_worksheet = fwb.worksheets[sheet_index]
             fcell = formula_worksheet.cell(row=row, column=col)
             if hasattr(fcell, "value") and isinstance(fcell.value, str) and fcell.value.startswith("="):
                 is_formula = True
@@ -468,6 +529,7 @@ class SheetCartographer:
 
         # lightweight cache to avoid repeated peeks during conflict resolution
         self._peek_cache: dict[str, str] = {}
+        self._peek_formula_cache: dict[str, str] = {}
 
     # --------------------------
     # Run pipeline
@@ -481,7 +543,7 @@ class SheetCartographer:
             candidate_blocks = self._cluster(density_grid, sheet_info)
             self._probe(candidate_blocks)
 
-            # NEW: Conflict resolution pass
+            # Conflict resolution pass (deterministic + LLM arbitration)
             self._resolve_conflicts()
 
             self._overlay()
@@ -895,7 +957,16 @@ class SheetCartographer:
                                 "range_peek", {"range": deep_region["range"], "format": "markdown"}
                             )
                         deep_result = self._classify_block_with_llm(deep_region["text"], deep_region["range"])
-                        (deep_type, deep_sem, deep_conf, deep_reasoning, *_rest) = deep_result
+                        (
+                            deep_type,
+                            deep_sem,
+                            deep_conf,
+                            deep_reasoning,
+                            _open_q,
+                            _peek_reqs,
+                            deep_ops,
+                            _deep_subtype,
+                        ) = deep_result
                         struct_type = TYPE_MAP.get(deep_type, StructuralType.UNSTRUCTURED_TEXT)
 
                         deep_data_chars = self._infer_characteristics(deep_region["text"], deep_region["range"])
@@ -903,9 +974,7 @@ class SheetCartographer:
                             deep_data_chars.has_headers = True
                             deep_data_chars.header_rows = max(deep_data_chars.header_rows, 1)
                         deep_default_ops = self._get_default_operations(struct_type)
-                        deep_final_ops = (
-                            list(dict.fromkeys(_rest[4] + deep_default_ops)) if len(_rest) >= 5 else deep_default_ops
-                        )
+                        deep_final_ops = list(dict.fromkeys(deep_ops + deep_default_ops))
 
                         self.blocks.append(
                             Block(
@@ -969,7 +1038,16 @@ class SheetCartographer:
                     text = ""
                 self._peek_cache[rng] = text
 
-            ev = self._collect_block_evidence(block, text)
+            # also cache formulas view
+            ftext = self._peek_formula_cache.get(rng)
+            if ftext is None:
+                try:
+                    ftext = self.tool_handler.execute_tool("range_formulas", {"range": rng, "format": "markdown"})
+                except Exception:
+                    ftext = ""
+                self._peek_formula_cache[rng] = ftext
+
+            ev = self._collect_block_evidence(block, text, ftext)
 
             # Deterministic correction: Header mislabelled as Aggregation (and vice versa)
             dec = None
@@ -998,7 +1076,9 @@ class SheetCartographer:
 
             # Ambiguity heuristic: numbers/formulas present but not decisive -> ask LLM to decide
             ambiguous = block.structural_type in (StructuralType.HEADER_ZONE, StructuralType.AGGREGATION_ZONE) and (
-                (0.04 <= ev["formula_density"] <= 0.10) or (0.20 <= ev["numeric_ratio"] <= 0.40)
+                (0.04 <= ev["formula_density"] <= 0.10)
+                or (0.20 <= ev["numeric_ratio"] <= 0.40)
+                or ev["numeric_consistency"].get("checked_cols", 0) > 0
             )
             if ambiguous:
                 decision, new_conf, reasoning, agg_subtype = self._arbitrate_conflict_with_llm(block, text, ev)
@@ -1080,7 +1160,29 @@ class SheetCartographer:
         elif struct_type == StructuralType.HEADER_ZONE:
             block.semantic_description = block.semantic_description or "Column headers for the data that follows"
 
-    def _collect_block_evidence(self, block: Block, text: str) -> dict:
+    def _neighbor_row_peek(self, range_str: str) -> dict[str, str]:
+        """Peek one row above/below same width as range, best-effort."""
+        result = {"above": "", "below": ""}
+        try:
+            start_col, start_row = coordinate_from_string(range_str.split(":")[0])
+            end_col, end_row = coordinate_from_string(range_str.split(":")[1])
+            sidx = column_index_from_string(start_col)
+            eidx = column_index_from_string(end_col)
+
+            # above
+            if start_row > 1:
+                above = f"{start_col}{start_row - 1}:{end_col}{start_row - 1}"
+                result["above"] = self.tool_handler.execute_tool("range_peek", {"range": above, "format": "markdown"})
+            # below
+            total_rows = self.sheet_metadata.get("rows", 0)
+            if end_row < total_rows:
+                below = f"{start_col}{end_row + 1}:{end_col}{end_row + 1}"
+                result["below"] = self.tool_handler.execute_tool("range_peek", {"range": below, "format": "markdown"})
+        except Exception as e:
+            self.logger.main.debug(f"Neighbor row peek failed: {e}")
+        return result
+
+    def _collect_block_evidence(self, block: Block, text: str, formulas_text: str) -> dict:
         """Compute robust, sheet-aware evidence for conflict decisions."""
         rng = block.range
         dc = self._infer_characteristics(text, rng)
@@ -1125,12 +1227,24 @@ class SheetCartographer:
         # Position hints
         position = self._position_flags(rng)
 
+        # Neighbor context
+        neighbors = self._neighbor_row_peek(rng)
+
+        # Formulas view (truncated)
+        formulas_view = (formulas_text or "")[:2000]
+
+        # Numeric consistency check against the data region just below (generic, capped)
+        numeric_consistency = self._numeric_consistency_check(rng)
+
         return {
             "numeric_ratio": dc.numeric_ratio or 0.0,
             "formula_density": formula_density,
             "has_agg_keywords": any(k in keywords_present for k in ("total", "subtotal", "grand total")),
             "keywords": keywords_present,
             "position": position,
+            "neighbors": neighbors,
+            "formulas_view": formulas_view,
+            "numeric_consistency": numeric_consistency,
         }
 
     def _position_flags(self, range_str: str) -> dict[str, bool]:
@@ -1149,6 +1263,111 @@ class SheetCartographer:
             "full_width": (eidx - sidx + 1) == total_cols,
             "full_height": (end_row - start_row + 1) == total_rows,
         }
+
+    def _to_float(self, val) -> tuple[bool, float]:
+        """Try to coerce to float; return (ok, number)."""
+        if val is None:
+            return False, 0.0
+        if isinstance(val, (int, float)):
+            try:
+                return True, float(val)
+            except Exception:
+                return False, 0.0
+        s = str(val).strip()
+        if s == "" or s == "␀":
+            return False, 0.0
+        # handle accounting () negatives
+        if s.startswith("(") and s.endswith(")"):
+            s = "-" + s[1:-1]
+        # strip currency/commas/percent
+        s = s.replace("$", "").replace("€", "").replace(",", "")
+        try:
+            return True, float(s)
+        except Exception:
+            return False, 0.0
+
+    def _numeric_consistency_check(self, range_str: str) -> dict:
+        """Check if numbers in a suspected header/aggregation row match sums of the data below.
+
+        Generic, bounded runtime: scans at most 200 rows down, stops after 2 full-blank streak.
+        """
+        try:
+            (start_col, start_row) = coordinate_from_string(range_str.split(":")[0])
+            (end_col, end_row) = coordinate_from_string(range_str.split(":")[1])
+            sidx = column_index_from_string(start_col)
+            eidx = column_index_from_string(end_col)
+            total_rows = self.sheet_metadata.get("rows", 0)
+
+            # Only attempt when it's a single-row block near the top or has "total" keywords around
+            single_row = end_row == start_row
+            if not single_row:
+                return {"checked_cols": 0, "matches": 0, "details": []}
+
+            # Header/agg row numeric values
+            header_nums: dict[int, float] = {}
+            for c in range(sidx, eidx + 1):
+                ok, num = self._to_float(self.worksheet.cell(row=start_row, column=c).value)
+                if ok:
+                    header_nums[c] = num
+
+            if not header_nums:
+                return {"checked_cols": 0, "matches": 0, "details": []}
+
+            # Scan downward to collect sums
+            data_start = end_row + 1
+            max_scan_rows = min(200, max(0, total_rows - end_row))
+            blank_streak = 0
+            sums: dict[int, float] = dict.fromkeys(header_nums.keys(), 0.0)
+            scanned_rows = 0
+
+            for r in range(data_start, data_start + max_scan_rows):
+                scanned_rows += 1
+                all_blank = True
+                for c in range(sidx, eidx + 1):
+                    v = self.worksheet.cell(row=r, column=c).value
+                    ok, num = self._to_float(v)
+                    if ok:
+                        all_blank = False
+                        if c in sums:
+                            sums[c] += num
+                if all_blank:
+                    blank_streak += 1
+                    if blank_streak >= 2:
+                        break
+                else:
+                    blank_streak = 0
+
+            # Compare with tolerance
+            details = []
+            matches = 0
+            for c, hv in header_nums.items():
+                s = sums.get(c, 0.0)
+                # tolerance: $0.50 absolute OR 2% relative if abs(hv) >= 10, otherwise 5% for small totals
+                abs_tol = 0.5
+                rel_tol = 0.02 if abs(hv) >= 10 else 0.05
+                rel_err = abs(s - hv) / (abs(hv) if hv != 0 else 1.0)
+                ok_match = (abs(s - hv) <= abs_tol) or (rel_err <= rel_tol)
+                if ok_match:
+                    matches += 1
+                details.append(
+                    {
+                        "col": get_column_letter(c),
+                        "header_value": hv,
+                        "sum_below": s,
+                        "rel_err": rel_err,
+                        "match": ok_match,
+                    }
+                )
+
+            return {
+                "checked_cols": len(header_nums),
+                "matches": matches,
+                "details": details,
+                "rows_scanned": scanned_rows,
+            }
+        except Exception as e:
+            self.logger.main.debug(f"Numeric consistency check failed for {range_str}: {e}")
+            return {"checked_cols": 0, "matches": 0, "details": [], "error": str(e)}
 
     def _arbitrate_conflict_with_llm(
         self, block: Block, text: str, evidence: dict
@@ -1173,8 +1392,15 @@ Return concise reasoning (not chain-of-thought)."""
                 "has_agg_keywords": bool(evidence["has_agg_keywords"]),
                 "keywords": sorted(list(evidence["keywords"])),
                 "position": evidence["position"],
+                "neighbors": {
+                    "above_values": evidence.get("neighbors", {}).get("above", "")[:600],
+                    "below_values": evidence.get("neighbors", {}).get("below", "")[:600],
+                },
+                "numeric_consistency": evidence.get("numeric_consistency", {}),
             },
-            "snippet": text[:2000],  # cap for budget
+            # exact equivalent view of the zone but showing formulas
+            "formulas_view": evidence.get("formulas_view", ""),
+            "values_view": text[:1200],
         }
 
         tools = [

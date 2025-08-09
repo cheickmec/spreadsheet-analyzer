@@ -1,0 +1,85 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "560575c5",
+  "timestamp": "20250809_013743",
+  "model_requested": "gpt-5",
+  "model_actual": null,
+  "excel_file": "test_assets/collection/business-accounting/Business Accounting.xlsx",
+  "sheet_index": 0,
+  "results": {
+    "sheet": "Yiriden Transactions 2025",
+    "analyzedAt": "2025-08-09T01:37:45.785396Z",
+    "blocks": [
+      {
+        "id": "blk_01",
+        "range": "A1:I1",
+        "structural_type": "UnstructuredText",
+        "semantic_description": "Unable to classify region",
+        "confidence": 0.2,
+        "classification_reasoning": "Classification failed",
+        "data_characteristics": {
+          "primary_data_type": "categorical",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": true,
+          "formula_density": 0.25,
+          "has_merged_cells": false,
+          "is_time_series": false,
+          "time_granularity": null,
+          "data_density": 1.0,
+          "numeric_ratio": 0.2222222222222222,
+          "has_totals_row": true,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "extract_text",
+          "parse_notes"
+        ],
+        "named_range": null
+      },
+      {
+        "id": "blk_02",
+        "range": "A2:I10",
+        "structural_type": "UnstructuredText",
+        "semantic_description": "Unable to classify region",
+        "confidence": 0.2,
+        "classification_reasoning": "Classification failed",
+        "data_characteristics": {
+          "primary_data_type": "temporal",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": true,
+          "time_granularity": null,
+          "data_density": 0.4444444444444444,
+          "numeric_ratio": 0.25,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "extract_text",
+          "parse_notes"
+        ],
+        "named_range": null
+      }
+    ],
+    "objects": [],
+    "unresolved": []
+  }
+}
