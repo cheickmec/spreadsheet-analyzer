@@ -1,0 +1,88 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "d58a88ad",
+  "timestamp": "20250809_005010",
+  "model_requested": "gpt-4o-mini",
+  "model_actual": "gpt-4o-mini-2024-07-18",
+  "excel_file": "test_assets/collection/business-accounting/Business Accounting.xlsx",
+  "sheet_index": 0,
+  "results": {
+    "sheet": "Yiriden Transactions 2025",
+    "analyzedAt": "2025-08-09T00:50:17.734589Z",
+    "blocks": [
+      {
+        "id": "blk_01",
+        "range": "A1:I1",
+        "structural_type": "AggregationZone",
+        "semantic_description": "Column headers for a financial transaction record, indicating the type of data contained in each column.",
+        "confidence": 0.8,
+        "classification_reasoning": "The row contains titles that describe the data in the columns, which is typical for a header zone in a data table.\n[Rule-based] Rule-based decision using formula_density=0.33, numeric_ratio=0.22, keywords=['total']",
+        "data_characteristics": {
+          "primary_data_type": "categorical",
+          "has_headers": false,
+          "header_rows": 1,
+          "header_cols": 0,
+          "has_formulas": true,
+          "formula_density": 0.25,
+          "has_merged_cells": false,
+          "is_time_series": false,
+          "time_granularity": null,
+          "data_density": 1.0,
+          "numeric_ratio": 0.2222222222222222,
+          "has_totals_row": true,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": "kpi",
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "extract_column_names",
+          "validate_references",
+          "verify_calculations",
+          "extract_summary_values"
+        ],
+        "named_range": null
+      },
+      {
+        "id": "blk_02",
+        "range": "A2:I10",
+        "structural_type": "DataTable",
+        "semantic_description": "This block contains transaction records with dates, descriptions, amounts, and categories, indicating expense entries for the year 2025.",
+        "confidence": 0.9,
+        "classification_reasoning": "The rows and columns are consistently filled with data related to financial transactions, making it a clear data table.",
+        "data_characteristics": {
+          "primary_data_type": "temporal",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": true,
+          "time_granularity": null,
+          "data_density": 0.4444444444444444,
+          "numeric_ratio": 0.25,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "add_filters",
+          "check_duplicates",
+          "profile_columns"
+        ],
+        "named_range": null
+      }
+    ],
+    "objects": [],
+    "unresolved": []
+  }
+}
