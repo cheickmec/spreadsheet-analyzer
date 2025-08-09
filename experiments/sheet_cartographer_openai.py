@@ -1720,6 +1720,164 @@ IMPORTANT:
             "none",
         )
 
+    def _force_split_region(self, range_str: str) -> list[dict[str, Any]]:
+        parts = range_str.split(":")
+        if len(parts) != 2:
+            return [{"range": range_str, "homogeneity": 0.5}]
+        start_col, start_row = coordinate_from_string(parts[0])
+        end_col, end_row = coordinate_from_string(parts[1])
+        start_col_idx = column_index_from_string(start_col)
+        end_col_idx = column_index_from_string(end_col)
+        total_rows = end_row - start_row + 1
+        total_cols = end_col_idx - start_col_idx + 1
+
+        sub_regions: list[dict[str, Any]] = []
+
+        if total_rows >= 2:
+            try:
+                first_row_range = f"{start_col}{start_row}:{end_col}{start_row}"
+                second_row_range = f"{start_col}{start_row + 1}:{end_col}{start_row + 1}"
+                fr_text = self.tool_handler.execute_tool("range_peek", {"range": first_row_range, "format": "markdown"})
+                sr_text = self.tool_handler.execute_tool(
+                    "range_peek", {"range": second_row_range, "format": "markdown"}
+                )
+
+                fr_cells, sr_cells = [], []
+                for line in fr_text.split("\n")[2:]:
+                    fr_cells.extend([c.strip() for c in line.split("|")[1:]])
+                for line in sr_text.split("\n")[2:]:
+                    sr_cells.extend([c.strip() for c in line.split("|")[1:]])
+
+                fr_lower = " ".join(fr_cells).lower()
+                totals_count = sum(1 for k in ["total", "sum", "revenue", "expense"] if k in fr_lower)
+
+                def is_num(x: str) -> bool:
+                    if not x or x == "␀":
+                        return False
+                    cleaned = x.strip().replace(",", "").replace("$", "").replace("%", "")
+                    if cleaned.startswith("(") and cleaned.endswith(")"):
+                        cleaned = "-" + cleaned[1:-1]
+                    try:
+                        float(cleaned)
+                        return True
+                    except:
+                        return False
+
+                fr_num = sum(1 for c in fr_cells if is_num(c))
+                sr_num = sum(1 for c in sr_cells if is_num(c))
+
+                should_split_first = False
+                if totals_count >= 2 or (fr_num > len(fr_cells) * 0.5 and sr_num < len(sr_cells) * 0.3):
+                    should_split_first = True
+
+                if should_split_first:
+                    header_range = f"{start_col}{start_row}:{end_col}{start_row}"
+                    rest_range = f"{start_col}{start_row + 1}:{end_col}{end_row}"
+                    sub_regions.append({"range": header_range, "homogeneity": 0.9})
+                    sub_regions.append({"range": rest_range, "homogeneity": 0.8})
+                    return sub_regions
+
+            except Exception as e:
+                self.logger.main.debug(f"   First-row analysis error: {e}")
+
+        if total_cols >= 3:
+            if total_cols == 9:
+                split_col = start_col_idx + 5
+            else:
+                split_col = start_col_idx + (total_cols * 2 // 3)
+            left_range = f"{start_col}{start_row}:{get_column_letter(split_col)}{end_row}"
+            right_range = f"{get_column_letter(split_col + 1)}{start_row}:{end_col}{end_row}"
+            self.logger.main.debug(f"   Force split columns at {get_column_letter(split_col)}")
+            sub_regions.append({"range": left_range, "homogeneity": 0.8})
+            sub_regions.append({"range": right_range, "homogeneity": 0.8})
+        elif total_rows >= 2:
+            mid_row = (start_row + end_row) // 2
+            upper_range = f"{start_col}{start_row}:{end_col}{mid_row}"
+            lower_range = f"{start_col}{mid_row + 1}:{end_col}{end_row}"
+            self.logger.main.debug(f"   Force splitting rows at {mid_row}")
+            sub_regions.append({"range": upper_range, "homogeneity": 0.8})
+            sub_regions.append({"range": lower_range, "homogeneity": 0.8})
+        else:
+            sub_regions.append({"range": range_str, "homogeneity": 0.5})
+
+        return sub_regions
+
+    def _address_open_questions(self, questions: list[str], range_str: str, range_text: str) -> str:
+        """Heuristically answer the model's open questions (headers? totals? sparse tail?).
+        Returns a short, human-readable summary string or 'No additional context gathered'."""
+        context_parts: list[str] = []
+
+        # Parse range safely
+        parts = range_str.split(":")
+        if len(parts) != 2:
+            return "No additional context gathered"
+        start_col, start_row = coordinate_from_string(parts[0])
+        end_col, end_row = coordinate_from_string(parts[1])
+        start_col_idx = column_index_from_string(start_col)
+        end_col_idx = column_index_from_string(end_col)
+
+        for q in questions or []:
+            ql = (q or "").lower()
+
+            # 1) Header-y? Check bold on first row cells
+            if "header" in ql or "row 1" in ql or "row one" in ql:
+                try:
+                    style_sample = []
+                    sample_end = min(start_col_idx + 3, end_col_idx + 1)
+                    for c in range(start_col_idx, sample_end):
+                        meta = self.tool_handler.execute_tool("cell_meta", {"row": start_row, "col": c})
+                        style_sample.append("bold" if "bold" in meta.get("styleFlags", []) else "normal")
+                    if any(s == "bold" for s in style_sample):
+                        context_parts.append(f"Row {start_row} has bold labels → likely headers")
+                    else:
+                        context_parts.append(f"Row {start_row} not bolded → less likely headers")
+                except Exception as e:
+                    self.logger.main.debug(f"_address_open_questions header check failed: {e}")
+
+            # 2) Totals? Look for formulas near the bottom of the region
+            if "total" in ql or "sum" in ql or "subtotal" in ql:
+                try:
+                    has_formulas = False
+                    probe_rows = range(max(end_row - 2, start_row), end_row + 1)
+                    probe_cols = range(start_col_idx, min(start_col_idx + 3, end_col_idx + 1))
+                    for r in probe_rows:
+                        for c in probe_cols:
+                            meta = self.tool_handler.execute_tool("cell_meta", {"row": r, "col": c})
+                            if meta.get("isFormula"):
+                                has_formulas = True
+                                break
+                        if has_formulas:
+                            break
+                    if has_formulas:
+                        context_parts.append(
+                            f"Bottom rows of {range_str} contain formulas → likely summary/aggregation"
+                        )
+                    # also check if literal 'total' text appears in the values view
+                    if "total" in (range_text or "").lower():
+                        context_parts.append("Text includes 'total' keyword")
+                except Exception as e:
+                    self.logger.main.debug(f"_address_open_questions totals check failed: {e}")
+
+            # 3) Sparse tail? Check if the bottom quarter is mostly blank
+            if any(k in ql for k in ("sparse", "empty", "blank")):
+                try:
+                    lines = (range_text or "").split("\n")[2:]  # skip header lines from window renderer
+                    quarter = max(1, len(lines) // 4)
+                    tail = lines[-quarter:] if lines else []
+                    blank_rows = 0
+                    for line in tail:
+                        cells = [c.strip() for c in line.split("|")[1:]]
+                        if all(c in ("", "␀") for c in cells):
+                            blank_rows += 1
+                    if tail and blank_rows / len(tail) > 0.5:
+                        context_parts.append("Bottom portion is mostly blank → likely end of data")
+                    elif tail:
+                        context_parts.append("Bottom portion still has data → not just padding")
+                except Exception as e:
+                    self.logger.main.debug(f"_address_open_questions sparsity check failed: {e}")
+
+        return " | ".join(context_parts) if context_parts else "No additional context gathered"
+
     def _create_range_breadcrumb(self, range_str: str) -> str:
         parts = range_str.split(":")
         if len(parts) != 2:
