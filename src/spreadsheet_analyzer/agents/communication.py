@@ -9,7 +9,7 @@ systems. This module implements common patterns functionally.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from ..core.errors import AgentError
@@ -38,8 +38,6 @@ class MessageBus:
 
         Returns a new MessageBus with the message queued.
         """
-        from dataclasses import replace
-
         return replace(self, pending_messages=(*self.pending_messages, message))
 
     def broadcast(self, sender: AgentId, content: Any, topic: str) -> "MessageBus":
@@ -57,8 +55,6 @@ class MessageBus:
                 )
                 messages.append(msg)
 
-        from dataclasses import replace
-
         return replace(self, pending_messages=self.pending_messages + tuple(messages))
 
     def subscribe(self, agent_id: AgentId, topic: str) -> "MessageBus":
@@ -69,7 +65,6 @@ class MessageBus:
         current_subs = self.subscriptions.get(topic, ())
         if agent_id not in current_subs:
             new_subs = (*current_subs, agent_id)
-            from dataclasses import replace
 
             return replace(self, subscriptions={**self.subscriptions, topic: new_subs})
         return self
@@ -83,13 +78,10 @@ class MessageBus:
         new_subs = tuple(s for s in current_subs if s != agent_id)
 
         if new_subs:
-            from dataclasses import replace
-
             return replace(self, subscriptions={**self.subscriptions, topic: new_subs})
         else:
             # Remove topic if no subscribers
             new_subscriptions = {k: v for k, v in self.subscriptions.items() if k != topic}
-            from dataclasses import replace
 
             return replace(self, subscriptions=new_subscriptions)
 
@@ -110,7 +102,6 @@ class MessageBus:
         target_agent = self.agents.get(message.receiver)
         if not target_agent:
             error_result = err(AgentError(f"Agent not found: {message.receiver}"))
-            from dataclasses import replace
 
             return replace(self, pending_messages=tuple(rest)), [error_result]
 
@@ -127,8 +118,6 @@ class MessageBus:
             # Queue response if it's not a terminal message
             if response.receiver != response.sender:
                 new_bus = new_bus.send(response)
-
-        from dataclasses import replace
 
         return replace(new_bus, pending_messages=tuple(rest)), [result]
 
@@ -207,7 +196,6 @@ class RoundRobinRouter:
 
     def next_router(self) -> "RoundRobinRouter":
         """Get router with updated index."""
-        from dataclasses import replace
 
         next_index = (self.current_index + 1) % len(self.agent_ids)
         return replace(self, current_index=next_index)

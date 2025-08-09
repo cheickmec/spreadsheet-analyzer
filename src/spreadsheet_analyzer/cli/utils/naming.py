@@ -24,64 +24,66 @@ class FileNameConfig:
     max_rounds: int = 5
     session_id: str | None = None
     timestamp: datetime | None = None
+    prompt_hash: str | None = None  # Short hash of the prompt version used
+
+
+def get_short_hash(full_hash: str) -> str:
+    """Extract a short version of the prompt hash for file naming.
+
+    Takes a full SHA-256 hash in format "sha256:hexdigest" and returns
+    the first 8 characters of the hex portion for use in filenames.
+
+    Args:
+        full_hash: Full hash string like "sha256:531bcb715f64c7367..."
+
+    Returns:
+        First 8 characters of hex digest, e.g., "531bcb71"
+
+    Examples:
+        >>> get_short_hash("sha256:531bcb715f64c7367f8361a1b129c080771684a06b0bdaef32871cd7e0e26280")
+        '531bcb71'
+        >>> get_short_hash("sha256:988988e6c8b4421bc6f7ae15bf1c17ca9296acb2e6ff4e3a8dd1a5b6376f2675")
+        '988988e6'
+    """
+    # Remove the "sha256:" prefix if present
+    if full_hash.startswith("sha256:"):
+        hex_digest = full_hash[7:]  # Skip "sha256:"
+    else:
+        hex_digest = full_hash
+
+    # Return first 8 characters for brevity while maintaining uniqueness
+    return hex_digest[:8] if len(hex_digest) >= 8 else hex_digest
 
 
 def sanitize_model_name(model: str) -> str:
     """Sanitize model name for use in file names.
 
-    Extracts a simplified model identifier from various model name formats.
+    Preserves the full model identifier while making it filesystem-safe.
 
     Args:
         model: Raw model name (e.g., "claude-3-5-sonnet-20241022")
 
     Returns:
-        Sanitized model name (e.g., "claude_sonnet")
+        Sanitized model name (e.g., "claude_3_5_sonnet_20241022")
 
     Examples:
         >>> sanitize_model_name("claude-3-5-sonnet-20241022")
-        'claude_sonnet'
+        'claude_3_5_sonnet_20241022'
+        >>> sanitize_model_name("claude-sonnet-4-20250514")
+        'claude_sonnet_4_20250514'
         >>> sanitize_model_name("gpt-4-turbo")
-        'gpt4'
+        'gpt_4_turbo'
         >>> sanitize_model_name("ollama/mistral:latest")
-        'ollama_mistral'
+        'ollama_mistral_latest'
     """
-    # Remove version suffixes and special characters
+    # Replace filesystem-unsafe characters with underscores
     model_clean = model.replace("-", "_").replace(".", "_").replace("/", "_").replace(":", "_")
 
-    # Extract the main model name
-    if "claude" in model_clean.lower():
-        # Extract Claude model variant
-        if "opus" in model_clean.lower():
-            return "claude_opus"
-        elif "sonnet" in model_clean.lower():
-            return "claude_sonnet"
-        elif "haiku" in model_clean.lower():
-            return "claude_haiku"
-        else:
-            return "claude"
-    elif "gpt" in model_clean.lower():
-        # Extract GPT model variant
-        if "4" in model_clean:
-            return "gpt4"
-        elif "3" in model_clean:
-            return "gpt3"
-        else:
-            return "gpt"
-    elif any(name in model_clean.lower() for name in ["ollama", "mistral", "llama", "mixtral", "codellama"]):
-        # Extract Ollama/local model variant
-        if "mistral" in model_clean.lower():
-            return "ollama_mistral"
-        elif "llama" in model_clean.lower():
-            return "ollama_llama"
-        elif "mixtral" in model_clean.lower():
-            return "ollama_mixtral"
-        elif "codellama" in model_clean.lower():
-            return "ollama_codellama"
-        else:
-            return "ollama"
-    else:
-        # For other models, use a simplified version
-        return model_clean.split("_")[0] if "_" in model_clean else model_clean
+    # Remove multiple consecutive underscores and trim
+    model_clean = re.sub(r"_+", "_", model_clean).strip("_")
+
+    # Return the full sanitized model name to preserve version information
+    return model_clean.lower()
 
 
 def sanitize_sheet_name(sheet_name: str) -> str:
@@ -152,6 +154,10 @@ def generate_notebook_name(config: FileNameConfig, include_timestamp: bool = Fal
     # Add max rounds
     parts.append(f"r{config.max_rounds}")
 
+    # Add prompt hash if available
+    if config.prompt_hash:
+        parts.append(config.prompt_hash)
+
     # Add timestamp if requested
     if include_timestamp:
         timestamp = config.timestamp or datetime.now()
@@ -190,6 +196,10 @@ def generate_log_name(config: FileNameConfig, include_timestamp: bool = True) ->
 
     # Add max rounds
     parts.append(f"r{config.max_rounds}")
+
+    # Add prompt hash if available
+    if config.prompt_hash:
+        parts.append(config.prompt_hash)
 
     # Add log suffix
     parts.append("analysis")
@@ -268,6 +278,11 @@ def get_cost_tracking_path(config: FileNameConfig, output_dir: Path | None = Non
 
     parts.append(sanitize_model_name(config.model))
     parts.append(f"r{config.max_rounds}")
+
+    # Add prompt hash if available
+    if config.prompt_hash:
+        parts.append(config.prompt_hash)
+
     parts.append("cost_tracking")
 
     timestamp = config.timestamp or datetime.now()

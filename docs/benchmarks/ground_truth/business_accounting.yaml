@@ -1,0 +1,198 @@
+# Ground Truth Definitions for Business Accounting Excel File
+# This file defines the expected table boundaries for benchmark evaluation
+# All coordinates are 0-indexed
+
+metadata:
+  file_name: "Business Accounting.xlsx"
+  total_sheets: 10
+  created: "2025-01-07"
+  version: "1.0.0"
+
+sheets:
+  - sheet_index: 0
+    sheet_name: "Yiriden Transactions 2025"
+    total_rows: 10
+    total_cols: 9
+    expected_tables:
+      - table_id: "main_transactions"
+        description: "Transaction records with date, description, and amounts"
+        start_row: 0
+        end_row: 9
+        start_col: 0
+        end_col: 5
+        table_type: "DETAIL"
+        entity_type: "transactions"
+      - table_id: "header_totals"
+        description: "Summary totals embedded in header row"
+        start_row: 0
+        end_row: 0
+        start_col: 6
+        end_col: 8
+        table_type: "SUMMARY"
+        entity_type: "totals"
+    notes: "Unusual layout with totals (TOTAL REVENUE $0.00 TOTAL EXPENSES -$2,031.63) embedded in the header row (row 0, columns 6-8). This creates an ambiguous case where summary data coexists with headers."
+
+  - sheet_index: 1
+    sheet_name: "Yiriden Transactions 2023"
+    total_rows: 769
+    total_cols: 11
+    expected_tables:
+      - table_id: "main_transactions"
+        description: "Large transaction dataset with detailed records"
+        start_row: 0
+        end_row: 768
+        start_col: 0
+        end_col: 6
+        table_type: "DETAIL"
+        entity_type: "transactions"
+    notes: "Main data in columns 0-6, columns 7-10 have headers but minimal data (totals only)"
+
+  - sheet_index: 2
+    sheet_name: "Yiriden 2023 Loans"
+    total_rows: 121
+    total_cols: 14
+    expected_tables:
+      - table_id: "loan_details"
+        description: "Loan summary information with lender details"
+        start_row: 0
+        end_row: 1
+        start_col: 0
+        end_col: 6
+        table_type: "HEADER"
+        entity_type: "loan_details"
+      - table_id: "payment_schedule"
+        description: "Loan payment amortization schedule"
+        start_row: 0
+        end_row: 120
+        start_col: 8
+        end_col: 13
+        table_type: "DETAIL"
+        entity_type: "payment_schedule"
+    notes: "Classic side-by-side layout with empty column 7 as separator"
+
+  - sheet_index: 3
+    sheet_name: "Sanoun Transactions 2024"
+    total_rows: 167
+    total_cols: 11
+    expected_tables:
+      - table_id: "main_transactions"
+        description: "Transaction records with expenses and revenues"
+        start_row: 0
+        end_row: 161
+        start_col: 0
+        end_col: 10
+        table_type: "DETAIL"
+        entity_type: "transactions"
+      - table_id: "summary_totals"
+        description: "Summary totals section"
+        start_row: 162
+        end_row: 166
+        start_col: 7
+        end_col: 10
+        table_type: "SUMMARY"
+        entity_type: "totals"
+    notes: "Has bottom summary section with totals"
+
+  - sheet_index: 4
+    sheet_name: "Sanoun Transactions 2025"
+    total_rows: 48
+    total_cols: 10
+    expected_tables:
+      - table_id: "main_transactions"
+        description: "Transaction records for 2025"
+        start_row: 0
+        end_row: 47
+        start_col: 0
+        end_col: 9
+        table_type: "DETAIL"
+        entity_type: "transactions"
+    notes: "Standard transaction table"
+
+  - sheet_index: 5
+    sheet_name: "2024 Shea butter shipping"
+    total_rows: 38
+    total_cols: 7
+    expected_tables:
+      - table_id: "shipping_records"
+        description: "Shea butter shipping transactions"
+        start_row: 0
+        end_row: 33
+        start_col: 0
+        end_col: 3
+        table_type: "DETAIL"
+        entity_type: "shipping"
+      - table_id: "currency_conversion"
+        description: "Currency conversion calculations"
+        start_row: 0
+        end_row: 33
+        start_col: 4
+        end_col: 6
+        table_type: "DETAIL"
+        entity_type: "currency"
+    notes: "Two adjacent tables - shipping data and currency conversion"
+
+  - sheet_index: 6
+    sheet_name: "Yiriden mileages"
+    total_rows: 119
+    total_cols: 7
+    expected_tables:
+      - table_id: "mileage_log"
+        description: "Vehicle mileage tracking log"
+        start_row: 0
+        end_row: 118
+        start_col: 0
+        end_col: 6
+        table_type: "DETAIL"
+        entity_type: "mileage"
+    notes: "Single mileage tracking table, may have summary rows at bottom"
+
+  - sheet_index: 7
+    sheet_name: "Truck Revenue Projections"
+    total_rows: 37
+    total_cols: 14
+    expected_tables:
+      - table_id: "projection_model"
+        description: "Revenue projection model with parameters"
+        start_row: 0
+        end_row: 36
+        start_col: 0
+        end_col: 13
+        table_type: "MODEL"
+        entity_type: "projections"
+    notes: "Complex projection model, may have multiple sub-sections"
+
+  - sheet_index: 8
+    sheet_name: "Yiriden 2022"
+    total_rows: 355
+    total_cols: 6
+    expected_tables:
+      - table_id: "main_transactions"
+        description: "2022 transaction records"
+        start_row: 0
+        end_row: 354
+        start_col: 0
+        end_col: 5
+        table_type: "DETAIL"
+        entity_type: "transactions"
+    notes: "Large historical transaction dataset"
+
+  - sheet_index: 9
+    sheet_name: "Real Estate - Horton Rd"
+    total_rows: 100  # Approximate - needs verification
+    total_cols: 10   # Approximate - needs verification
+    expected_tables:
+      - table_id: "real_estate_records"
+        description: "Real estate transaction/expense records"
+        start_row: 0
+        end_row: 99
+        start_col: 0
+        end_col: 9
+        table_type: "DETAIL"
+        entity_type: "real_estate"
+    notes: "Need to verify actual structure and dimensions"
+
+# Evaluation thresholds
+evaluation:
+  iou_threshold: 0.5  # Minimum IoU to consider a match
+  coordinate_tolerance: 2  # Cells tolerance for boundary matching
+  confidence_threshold: 0.7  # Minimum confidence for valid detection

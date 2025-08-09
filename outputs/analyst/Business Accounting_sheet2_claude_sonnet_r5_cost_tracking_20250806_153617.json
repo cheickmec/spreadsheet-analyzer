@@ -1,0 +1,76 @@
+{
+  "summary": {
+    "total_cost_usd": 0.0,
+    "total_tokens": {
+      "input": 31068,
+      "output": 524,
+      "total": 31592
+    },
+    "cost_by_model": {
+      "claude-3-5-sonnet-20241022": 0.0
+    },
+    "tokens_by_model": {
+      "claude-3-5-sonnet-20241022": {
+        "input": 31068,
+        "output": 524,
+        "total": 31592
+      }
+    },
+    "call_count": 3,
+    "cost_limit": null,
+    "within_budget": true
+  },
+  "history": [
+    {
+      "timestamp": "2025-08-06T15:36:30.556613",
+      "model": "claude-3-5-sonnet-20241022",
+      "tokens": {
+        "input": 9795,
+        "output": 366,
+        "total": 10161
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    },
+    {
+      "timestamp": "2025-08-06T15:36:32.809862",
+      "model": "claude-3-5-sonnet-20241022",
+      "tokens": {
+        "input": 10596,
+        "output": 50,
+        "total": 10646
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    },
+    {
+      "timestamp": "2025-08-06T15:36:36.651945",
+      "model": "claude-3-5-sonnet-20241022",
+      "tokens": {
+        "input": 10677,
+        "output": 108,
+        "total": 10785
+      },
+      "cost": {
+        "input": 0.0,
+        "output": 0.0,
+        "total": 0.0
+      },
+      "metadata": {
+        "source": "notebook_cli"
+      }
+    }
+  ]
+}

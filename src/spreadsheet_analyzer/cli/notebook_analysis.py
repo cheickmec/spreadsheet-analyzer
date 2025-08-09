@@ -27,6 +27,7 @@ from ..observability import (
 )
 from ..pipeline import DeterministicPipeline
 from ..pipeline.types import PipelineResult
+from .thinking_config import ThinkingConfig
 from .utils.markdown import (
     create_header,
     formulas_to_markdown,
@@ -63,6 +64,13 @@ class AnalysisConfig:
     # Context compression configuration
     enable_compression: bool = True  # Enable progressive context compression
     compression_verbose: bool = False  # Log detailed compression info
+    # Table detection configuration
+    table_boundaries: str | None = None  # Pre-detected table boundaries for focused analysis
+    detector_max_rounds: int = 3  # Max rounds for table detection agent
+    detector_model: str | None = None  # Specific model for detector (defaults to main model)
+    detector_only: bool = False  # Run only detector without analyst
+    # Extended thinking configuration
+    thinking_config: ThinkingConfig | None = None  # Extended thinking parameters
 
 
 @dataclass(frozen=True)
@@ -242,10 +250,11 @@ async def cache_formula_analysis(excel_path: Path, formulas: Any) -> Path | None
             pickle.dump(formulas, f)
 
         logger.info(f"Saved formula analysis to cache: {cache_path}")
-        return cache_path
-    except Exception as e:
-        logger.error(f"Failed to cache formula analysis: {e}")
+    except Exception:
+        logger.exception("Failed to cache formula analysis")
         return None
+    else:
+        return cache_path
 
 
 async def add_pipeline_results_to_notebook(
@@ -593,8 +602,8 @@ def log_cost_summary(cost_tracker: Any, cost_limit: float | None) -> None:
         if cost_limit:
             status = "✅ Within" if cost_summary["within_budget"] else "❌ Exceeded"
             logger.info(f"  Budget Status: {status} limit (${cost_limit:.2f})")
-    except Exception as e:
-        logger.error(f"Failed to log cost summary: {e}")
+    except Exception:
+        logger.exception("Failed to log cost summary")
 
 
 # Main orchestration function
@@ -670,9 +679,24 @@ async def run_notebook_analysis(config: AnalysisConfig, artifacts: AnalysisArtif
         if setup_result.is_err():
             logger.warning(f"Failed to setup notebook basics: {setup_result.unwrap_err()}")
 
-        # Step 7: Run LLM analysis if requested
-        if config.max_rounds > 0:
-            # Import and run LLM analysis
+        # Step 7: Run LLM analysis if requested and not in detector-only mode
+        if config.detector_only:
+            # Run the multi-table detector workflow
+            logger.info("Running detector-only workflow (skipping analyst)...")
+            from ..workflows.multi_table_workflow import run_multi_table_analysis
+
+            workflow_result = await run_multi_table_analysis(
+                excel_path=config.excel_path,
+                sheet_index=config.sheet_index,
+                config=config,  # Pass the entire config which includes detector_only=True
+            )
+
+            if workflow_result.is_err():
+                logger.error(f"Detector workflow failed: {workflow_result.unwrap_err()}")
+            else:
+                logger.info("Detector workflow completed successfully")
+        elif config.max_rounds > 0:
+            # Run standard LLM analysis
             from .llm_interaction import run_llm_analysis
 
             llm_result = await run_llm_analysis(

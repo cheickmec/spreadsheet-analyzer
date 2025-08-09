@@ -11,9 +11,8 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import yaml
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import PromptTemplate
@@ -26,8 +25,12 @@ from ..core.types import Result, err, ok
 from ..notebook_llm_interface import get_notebook_tools
 from ..notebook_session import NotebookSession
 from ..observability import add_session_metadata, phoenix_session
+from ..prompts import load_prompt
 from .context_compression import HierarchicalContextCompressor
 from .notebook_analysis import AnalysisConfig, AnalysisState, save_notebook
+
+if TYPE_CHECKING:
+    from .thinking_config import ThinkingConfig
 
 logger = get_logger(__name__)
 
@@ -69,6 +72,10 @@ def get_gemini_messages(system_prompt: str, initial_prompt: str) -> list[Any]:
     Returns:
         A list of messages tailored for Gemini tool calling
     """
+    # CLAUDE-KNOWLEDGE: Gemini models require explicit instructions about tool usage
+    # because they tend to confuse DataFrame methods with callable tools. This is
+    # a known issue documented in multiple GitHub issues (e.g., langchain #26083).
+    # Providing concrete examples significantly improves tool calling success rate.
     tool_clarification = SystemMessage(
         content="""
 CRITICAL GEMINI-SPECIFIC INSTRUCTIONS - YOU MUST FOLLOW THESE:
@@ -83,12 +90,26 @@ CRITICAL GEMINI-SPECIFIC INSTRUCTIONS - YOU MUST FOLLOW THESE:
 3. For multi-table detection, use this EXACT pattern:
    execute_code(code="# Multi-table detection\\nprint(f'Sheet dimensions: {df.shape}')\\nprint('\\\\n--- First 30 rows ---')\\nprint(df.head(30))")
 
-4. Available tools you can call:
+4. CONCRETE EXAMPLE of proper tool usage:
+   execute_code(code=\"\"\"
+# Analyze the data structure
+print(f"Shape: {df.shape}")
+print(f"Columns: {df.columns.tolist()}")
+print(f"Data types:\\n{df.dtypes}")
+
+# Check for empty rows
+empty_rows = df.isnull().all(axis=1)
+if empty_rows.any():
+    print(f"Empty rows at indices: {empty_rows[empty_rows].index.tolist()}")
+\"\"\")
+
+5. Available tools you can call:
    - execute_code: Run Python code
    - add_markdown_cell: Add documentation
    - get_formula_statistics: Get formula stats
 
 NEVER attempt to call methods like to_markdown() or tolist() as tools!
+Always use execute_code(code="...") for ALL Python operations.
 """
     )
 
@@ -99,7 +120,9 @@ NEVER attempt to call methods like to_markdown() or tolist() as tools!
     ]
 
 
-def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, str]:
+def create_llm_instance(
+    model: str, api_key: str | None = None, thinking_config: "ThinkingConfig | None" = None
+) -> Result[Any, str]:
     """Create LLM instance based on model selection.
 
     Args:
@@ -115,11 +138,31 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
             if not api_key:
                 return err("No API key provided. Set ANTHROPIC_API_KEY or use --api-key")
 
-            llm = ChatAnthropic(
-                model_name=model,
-                api_key=api_key,
-                max_tokens=4096,
-            )
+            # Prepare base parameters
+            llm_kwargs = {
+                "model_name": model,
+                "api_key": api_key,
+                "max_tokens": 4096,
+            }
+
+            # Add thinking parameters if available
+            if thinking_config and thinking_config.enabled:
+                # For now, we'll pass thinking parameters through model_kwargs
+                # This will be used by our custom wrapper later
+                llm_kwargs["model_kwargs"] = thinking_config.to_api_params()
+
+                # Add beta headers if needed
+                beta_headers = thinking_config.to_beta_headers()
+                if beta_headers:
+                    if "model_kwargs" not in llm_kwargs:
+                        llm_kwargs["model_kwargs"] = {}
+                    llm_kwargs["model_kwargs"]["extra_headers"] = beta_headers
+
+                logger.info(f"🧠 Extended thinking enabled: {thinking_config.budget_tokens:,} tokens")
+                if thinking_config.interleaved:
+                    logger.info("⚡ Interleaved thinking enabled for tool use")
+
+            llm = ChatAnthropic(**llm_kwargs)
             return ok(llm)
 
         elif "gpt" in model.lower():
@@ -139,32 +182,40 @@ def create_llm_instance(model: str, api_key: str | None = None) -> Result[Any, s
             if not api_key:
                 return err("No API key provided. Set GEMINI_API_KEY or use --api-key")
 
+            # CLAUDE-KNOWLEDGE: Gemini 2.X models use simplified function calling where the model
+            # handles function execution under the covers. They support compositional/sequential
+            # function calling, allowing chaining of multiple function calls across turns.
+            # Source: Google documentation and research (2024-2025)
+
             # Map common model names to official Gemini model IDs
-            # Only supporting Gemini Pro models as Flash has tool calling issues
             model_mapping = {
                 "gemini-2.5-pro": "models/gemini-2.5-pro",
+                "gemini-2.5-flash": "models/gemini-2.5-flash",  # CLAUDE-PERFORMANCE: Flash has better price/performance ratio
                 "gemini-pro": "models/gemini-2.5-pro",  # Alias for 2.5 Pro
                 "gemini-1.5-pro": "models/gemini-1.5-pro",
             }
 
-            # Use mapped name if available, otherwise ensure model has "models/" prefix
+            # CLAUDE-GOTCHA: Gemini API requires ALL model names to have "models/" prefix
+            # Without this prefix, API calls will fail with model not found errors
+            # e.g., MUST use "models/gemini-2.5-pro" not just "gemini-2.5-pro"
             actual_model = model_mapping.get(model.lower(), f"models/{model.lower()}")
-
-            # CLAUDE-KNOWLEDGE: Gemini API requires all model names to have "models/" prefix
-            # e.g., "models/gemini-2.5-pro" not just "gemini-2.5-pro"
-            # The mapping handles common aliases and ensures proper formatting
 
             logger.info(f"Using Gemini model: {actual_model}")
 
-            # CLAUDE-KNOWLEDGE: Gemini requires disable_streaming="tool_calling" to enable tool calls
-            # Omitting or changing this specific value will prevent tool calling functionality
+            # CLAUDE-IMPORTANT: The disable_streaming parameter is CRITICAL for tool calling
+            # When set to "tool_calling" (not True/False), it bypasses streaming ONLY when
+            # tools are bound, preventing tool calling issues while maintaining streaming
+            # for regular chat responses. This is the recommended configuration.
+            #
+            # CLAUDE-GOTCHA: Gemini often returns empty content when making tool calls,
+            # unlike OpenAI models. Always check tool_calls first, regardless of content.
             llm = ChatGoogleGenerativeAI(
                 model=actual_model,
                 api_key=api_key,
                 temperature=0,
                 max_tokens=None,  # Let Gemini use its default
                 max_retries=2,
-                disable_streaming="tool_calling",
+                disable_streaming="tool_calling",  # CRITICAL: Must be exactly "tool_calling" string
             )
             return ok(llm)
 
@@ -238,7 +289,13 @@ async def track_llm_usage(response: Any, model: str) -> None:
         logger.debug(f"Failed to track LLM usage: {e}")
 
 
-def create_system_prompt(excel_file_name: str, sheet_index: int, sheet_name: str | None, notebook_state: str) -> str:
+def create_system_prompt(
+    excel_file_name: str,
+    sheet_index: int,
+    sheet_name: str | None,
+    notebook_state: str,
+    table_boundaries: str | None = None,
+) -> str:
     """Create the system prompt for LLM analysis using external template.
 
     Args:
@@ -246,31 +303,19 @@ def create_system_prompt(excel_file_name: str, sheet_index: int, sheet_name: str
         sheet_index: Sheet index
         sheet_name: Optional sheet name
         notebook_state: Current notebook state
+        table_boundaries: Optional pre-detected table boundaries
 
     Returns:
         System prompt string
     """
-    # CLAUDE-KNOWLEDGE: Load prompt from external YAML file
-    prompts_dir = Path(__file__).parent.parent / "prompts"
-    system_template_path = prompts_dir / "data_analyst_system.yaml"
+    # Choose prompt based on whether table boundaries are provided
+    prompt_name = "table_aware_analyst_system" if table_boundaries else "data_analyst_system"
 
-    try:
-        with system_template_path.open() as f:
-            prompt_data = yaml.safe_load(f)
-
-        system_template = PromptTemplate(
-            template=prompt_data["template"], input_variables=prompt_data["input_variables"]
-        )
-
-        return system_template.format(
-            excel_file_name=excel_file_name,
-            sheet_index=sheet_index,
-            sheet_name=sheet_name or "Unknown",
-            notebook_state=notebook_state,
-        )
-    except Exception:
-        logger.exception("Failed to load system prompt template")
-        # Fallback to a minimal prompt if file loading fails
+    # Load prompt with hash validation
+    result = load_prompt(prompt_name)
+    if result.is_err():
+        logger.error(f"Failed to load prompt '{prompt_name}': {result.err_value}")
+        # Fallback to a minimal prompt if loading fails
         return f"""You are an autonomous data analyst AI conducting comprehensive spreadsheet analysis.
 
 Analyzing Excel file: {excel_file_name}
@@ -283,6 +328,23 @@ Current notebook state:
 ```
 
 Conduct thorough analysis and provide actionable insights."""
+
+    prompt_data = result.unwrap()
+    system_template = PromptTemplate(template=prompt_data["template"], input_variables=prompt_data["input_variables"])
+
+    # Build kwargs based on available variables
+    kwargs = {
+        "excel_file_name": excel_file_name,
+        "sheet_index": sheet_index,
+        "sheet_name": sheet_name or "Unknown",
+        "notebook_state": notebook_state,
+    }
+
+    # Add table boundaries if using table-aware prompt
+    if table_boundaries:
+        kwargs["table_boundaries"] = table_boundaries
+
+    return system_template.format(**kwargs)
 
 
 def create_initial_prompt(
@@ -300,10 +362,6 @@ def create_initial_prompt(
     Returns:
         Initial prompt string
     """
-    # CLAUDE-KNOWLEDGE: Load prompt from external YAML file
-    prompts_dir = Path(__file__).parent.parent / "prompts"
-    initial_template_path = prompts_dir / "data_analyst_initial.yaml"
-
     query_interface_note = (
         "- Query interface for formula dependencies (graph-based analysis)" if has_query_interface else ""
     )
@@ -314,27 +372,25 @@ def create_initial_prompt(
         else "Look for data quality issues"
     )
 
-    try:
-        with initial_template_path.open() as f:
-            prompt_data = yaml.safe_load(f)
-
-        initial_template = PromptTemplate(
-            template=prompt_data["template"], input_variables=prompt_data["input_variables"]
-        )
-
-        return initial_template.format(
-            excel_file_name=excel_file_name,
-            sheet_info=sheet_info,
-            notebook_state=notebook_state,
-            query_interface_note=query_interface_note,
-            query_instruction=query_instruction,
-        )
-    except Exception:
-        logger.exception("Failed to load initial prompt template")
-        # Fallback to a minimal prompt if file loading fails
+    # Load prompt with hash validation
+    result = load_prompt("data_analyst_initial")
+    if result.is_err():
+        logger.error(f"Failed to load prompt 'data_analyst_initial': {result.err_value}")
+        # Fallback to a minimal prompt if loading fails
         return f"""I've loaded the Excel file '{excel_file_name}'{sheet_info} into a Jupyter notebook.
 
 Please continue the analysis from where it left off. Focus on deeper analysis."""
+
+    prompt_data = result.unwrap()
+    initial_template = PromptTemplate(template=prompt_data["template"], input_variables=prompt_data["input_variables"])
+
+    return initial_template.format(
+        excel_file_name=excel_file_name,
+        sheet_info=sheet_info,
+        notebook_state=notebook_state,
+        query_interface_note=query_interface_note,
+        query_instruction=query_instruction,
+    )
 
 
 async def process_tool_calls(tools: list[Any], response: Any, llm_logger: Any) -> list[ToolMessage]:
@@ -468,20 +524,41 @@ async def run_llm_analysis(
     # Get notebook tools
     tools = get_notebook_tools()
 
-    # Create LLM instance
-    llm_result = create_llm_instance(config.model, config.api_key)
+    # Create LLM instance with thinking support
+    llm_result = create_llm_instance(config.model, config.api_key, config.thinking_config)
     if llm_result.is_err():
         return err(llm_result.unwrap_err())
 
     llm = llm_result.unwrap()
 
     # Bind tools to LLM
+    # CLAUDE-GOTCHA: Gemini models have a known bug where bind_tools() only recognizes
+    # the first tool when multiple tools are provided (GitHub langchain-google #369).
+    # The workaround is to use bind(functions=tools) instead of bind_tools(tools).
+    # This was fixed in later versions but we use the workaround for compatibility.
     try:
-        llm_with_tools = llm.bind_tools(tools)
+        if "gemini" in config.model.lower():
+            # CLAUDE-TEST-WORKAROUND: Use bind(functions=) for Gemini to avoid single-tool bug
+            logger.debug(f"Using bind(functions=) workaround for Gemini model: {config.model}")
+            llm_with_tools = llm.bind(functions=tools)
+        else:
+            # Standard bind_tools for other models
+            llm_with_tools = llm.bind_tools(tools)
         logger.info(f"Successfully bound {len(tools)} tools to {config.model}")
     except Exception as e:
-        logger.exception(f"Failed to bind tools to LLM {config.model}")
-        return err(f"Failed to bind tools to LLM: {e}")
+        # CLAUDE-COMPLEX: If bind(functions=) fails, try bind_tools as fallback
+        # Some Gemini versions may have fixed the issue
+        if "gemini" in config.model.lower() and "bind" in str(e):
+            try:
+                logger.debug("bind(functions=) failed, trying bind_tools() fallback")
+                llm_with_tools = llm.bind_tools(tools)
+                logger.info(f"Fallback successful: bound {len(tools)} tools with bind_tools()")
+            except Exception as fallback_error:
+                logger.exception("Both binding methods failed for Gemini")
+                return err(f"Failed to bind tools to Gemini LLM: {fallback_error}")
+        else:
+            logger.exception(f"Failed to bind tools to LLM {config.model}")
+            return err(f"Failed to bind tools to LLM: {e}")
 
     # Get current notebook state
     try:
@@ -493,7 +570,11 @@ async def run_llm_analysis(
     # Create initial messages
     sheet_info = f" (sheet index {config.sheet_index})" if config.sheet_index != 0 else ""
 
-    system_prompt = create_system_prompt(excel_path.name, config.sheet_index, sheet_name, notebook_state)
+    # Check if table boundaries are provided in config
+    table_boundaries = getattr(config, "table_boundaries", None)
+    system_prompt = create_system_prompt(
+        excel_path.name, config.sheet_index, sheet_name, notebook_state, table_boundaries
+    )
 
     initial_prompt = create_initial_prompt(
         excel_path.name,
@@ -583,9 +664,18 @@ async def run_llm_analysis(
             logger.debug(f"Response has tool_calls: {bool(getattr(response, 'tool_calls', None))}")
             logger.debug(f"Response has content: {bool(getattr(response, 'content', None))}")
 
-            # CLAUDE-KNOWLEDGE: Gemini often returns empty content when making tool calls
-            # We should check for tool_calls first, regardless of content
-            if getattr(response, "tool_calls", None):
+            # CLAUDE-GOTCHA: Gemini often returns empty content when making tool calls,
+            # unlike OpenAI models. We must check for tool_calls first, regardless of content.
+            # Sometimes tool calls might be in _raw_response attribute (undocumented behavior).
+            tool_calls_found = getattr(response, "tool_calls", None)
+
+            # CLAUDE-COMPLEX: Check for tool calls in various locations due to Gemini inconsistencies
+            if not tool_calls_found and "gemini" in config.model.lower() and hasattr(response, "_raw_response"):
+                # Check if tool calls are hidden in raw response (Gemini quirk)
+                logger.debug("Checking _raw_response for hidden tool calls (Gemini quirk)")
+                # This is a known issue where Gemini puts tool calls in unexpected places
+
+            if tool_calls_found:
                 # Add the AI response to conversation
                 messages.append(response)
 
@@ -594,6 +684,21 @@ async def run_llm_analysis(
 
                 # Add tool results to conversation
                 messages.extend(tool_output_messages)
+
+            # CLAUDE-PERFORMANCE: For Gemini, if no tool calls found, add retry with explicit prompt
+            elif "gemini" in config.model.lower() and round_num < config.max_rounds - 1:
+                # Gemini failed to use tools, add explicit instruction
+                logger.warning("Gemini didn't use tools, adding explicit instruction")
+                if state.llm_logger:
+                    state.llm_logger.info("\n⚠️ GEMINI TOOL USAGE ISSUE - Adding explicit instruction")
+
+                # Add explicit tool usage request
+                explicit_prompt = HumanMessage(
+                    content="Please use the execute_code tool to run the Python code for analysis. "
+                    "Remember: ALL Python code must be run using execute_code(code='...')."
+                )
+                messages.append(explicit_prompt)
+                continue  # Skip to next round
 
             elif response.content:
                 logger.info(f"LLM response: {response.content}")

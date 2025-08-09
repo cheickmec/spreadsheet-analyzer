@@ -17,10 +17,19 @@ from pathlib import Path
 
 from structlog import get_logger
 
+from spreadsheet_analyzer.cli.model_registry import (
+    AgentType,
+    format_model_list,
+    validate_model,
+)
 from spreadsheet_analyzer.cli.notebook_analysis import (
     AnalysisArtifacts,
     AnalysisConfig,
     run_notebook_analysis,
+)
+from spreadsheet_analyzer.cli.thinking_config import (
+    ThinkingConfig,
+    ThinkingMode,
 )
 from spreadsheet_analyzer.cli.utils.naming import (
     FileNameConfig,
@@ -28,6 +37,7 @@ from spreadsheet_analyzer.cli.utils.naming import (
     generate_notebook_name,
     generate_session_id,
     get_cost_tracking_path,
+    get_short_hash,
 )
 from spreadsheet_analyzer.observability import PhoenixConfig
 
@@ -45,14 +55,20 @@ def create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic analysis with default Claude model
-  %(prog)s data.xlsx
+  # List available models with recommendations
+  %(prog)s --list-models
 
-  # Use GPT-4 instead of Claude
-  %(prog)s data.xlsx --model gpt-4 --sheet-index 1
+  # Basic analysis with Claude Sonnet 3.5
+  %(prog)s data.xlsx --model claude-3-5-sonnet-20241022
 
-  # Use a specific Claude model
-  %(prog)s data.xlsx --model claude-3-opus-20240229
+  # Multi-table detection workflow
+  %(prog)s data.xlsx --model claude-3-5-sonnet-20241022 --multi-table
+
+  # Use Gemini Pro 2.5 for complex analysis
+  %(prog)s data.xlsx --model gemini-2.5-pro --sheet-index 1
+
+  # Use o3 model for formula analysis
+  %(prog)s data.xlsx --model o3
 
   # Custom output location and session
   %(prog)s data.xlsx --output-dir results --session-id analysis-001
@@ -65,15 +81,24 @@ Examples:
 """,
     )
 
-    # Positional arguments
-    parser.add_argument("excel_file", type=Path, help="Path to the Excel file to analyze")
+    # Positional arguments (but make optional when listing models)
+    parser.add_argument(
+        "excel_file",
+        type=Path,
+        nargs="?",
+        help="Path to the Excel file to analyze (not required when using --list-models)",
+    )
 
     # Model configuration
     parser.add_argument(
         "--model",
         type=str,
-        default="claude-3-5-sonnet-20241022",
-        help="LLM model to use for analysis (default: claude-3-5-sonnet-20241022)",
+        help="LLM model to use for analysis (required when not using --list-models)",
+    )
+    parser.add_argument(
+        "--list-models",
+        action="store_true",
+        help="List all available models with agent-specific recommendations and exit",
     )
     parser.add_argument(
         "--api-key",
@@ -128,12 +153,14 @@ Examples:
     )
 
     # Phoenix observability configuration
+    # CLAUDE-KNOWLEDGE: Docker mode is the default for local development
+    # as it's the most common setup for developers using Phoenix
     parser.add_argument(
         "--phoenix-mode",
         type=str,
-        default="none",
+        default="docker",
         choices=["none", "docker", "cloud"],
-        help="Phoenix observability mode (default: none)",
+        help="Phoenix observability mode (default: docker)",
     )
     parser.add_argument(
         "--phoenix-host",
@@ -158,6 +185,11 @@ Examples:
         default="spreadsheet-analyzer",
         help="Phoenix project name (default: spreadsheet-analyzer)",
     )
+    parser.add_argument(
+        "--no-phoenix",
+        action="store_true",
+        help="Disable Phoenix observability (overrides --phoenix-mode)",
+    )
 
     # Cost tracking
     parser.add_argument(
@@ -178,6 +210,48 @@ Examples:
         help="Enable cost tracking (default: True)",
     )
 
+    # Multi-table detection
+    parser.add_argument(
+        "--multi-table",
+        action="store_true",
+        help="Use multi-table detection workflow (experimental)",
+    )
+
+    # Detector-specific configuration
+    parser.add_argument(
+        "--detector-max-rounds",
+        type=int,
+        default=3,
+        help="Maximum number of rounds for table detection agent (default: 3)",
+    )
+    parser.add_argument(
+        "--detector-model",
+        type=str,
+        help="Specific model to use for table detection (defaults to main --model)",
+    )
+    parser.add_argument(
+        "--detector-only",
+        action="store_true",
+        help="Run only the table detection agent without the analyst (useful for testing)",
+    )
+
+    # Extended thinking configuration
+    parser.add_argument(
+        "--thinking-budget",
+        type=int,
+        help="Override default thinking budget in tokens (auto-determined by agent type if not specified)",
+    )
+    parser.add_argument(
+        "--no-thinking",
+        action="store_true",
+        help="Force disable extended thinking even for compatible models",
+    )
+    parser.add_argument(
+        "--thinking-enabled",
+        action="store_true",
+        help="Force enable extended thinking (will warn if model doesn't support it)",
+    )
+
     return parser
 
 
@@ -189,6 +263,39 @@ def parse_arguments() -> argparse.Namespace:
     """
     parser = create_parser()
     args = parser.parse_args()
+
+    # Handle --list-models command
+    if getattr(args, "list_models", False):
+        print(format_model_list())
+        sys.exit(0)
+
+    # Validate required arguments when not listing models
+    if not args.excel_file:
+        print("❌ Error: Excel file is required when not using --list-models")
+        print("💡 Use --list-models to see available models, or provide an Excel file to analyze")
+        sys.exit(1)
+
+    # Validate model is provided when not listing models
+    if not args.model:
+        print("❌ Error: --model is required when not using --list-models")
+        print("💡 Use --list-models to see all available models with agent-specific recommendations")
+        print("\n🎯 Quick suggestions:")
+        print("   For table detection: --model claude-3-5-haiku-20241022")
+        print("   For general analysis: --model claude-3-5-sonnet-20241022")
+        print("   For complex formulas: --model o3")
+        print("   For cost efficiency: --model gpt-4.1-mini")
+        sys.exit(1)
+
+    # Validate model selection if provided
+    if args.model and not validate_model(args.model):
+        print(f"❌ Error: Invalid model '{args.model}'")
+        print("\n💡 Use --list-models to see all available models with recommendations")
+        print("\n🎯 Quick suggestions:")
+        print("   For table detection: claude-3-5-haiku-20241022")
+        print("   For general analysis: claude-3-5-sonnet-20241022")
+        print("   For complex formulas: o3")
+        print("   For cost efficiency: gpt-4.1-mini")
+        sys.exit(1)
 
     # Setup basic logging
     log_level = logging.INFO if args.verbose else logging.WARNING
@@ -217,8 +324,12 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
     # For now, keep the default index
 
     # Create Phoenix config if needed
+    # CLAUDE-KNOWLEDGE: --no-phoenix flag overrides the default docker mode
     phoenix_config = None
-    if args.phoenix_mode != "none":
+    if hasattr(args, "no_phoenix") and args.no_phoenix:
+        # User explicitly disabled Phoenix
+        phoenix_config = None
+    elif args.phoenix_mode != "none":
         phoenix_config = PhoenixConfig(
             mode=args.phoenix_mode,
             host=args.phoenix_host,
@@ -226,6 +337,33 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
             api_key=args.phoenix_api_key or os.getenv("PHOENIX_API_KEY"),
             project_name=args.phoenix_project,
         )
+
+    # Create thinking configuration
+    thinking_config = None
+    if hasattr(args, "no_thinking") and hasattr(args, "thinking_enabled"):
+        # Determine thinking mode based on CLI arguments
+        if args.no_thinking:
+            thinking_mode = ThinkingMode.DISABLED
+        elif args.thinking_enabled:
+            thinking_mode = ThinkingMode.ENABLED
+        else:
+            thinking_mode = ThinkingMode.AUTO
+
+        # Determine agent type based on workflow
+        agent_type = AgentType.TABLE_DETECTOR if args.detector_only else AgentType.DATA_ANALYST
+
+        # Create thinking config
+        thinking_config = ThinkingConfig.create_for_agent(
+            model_id=args.model, agent_type=agent_type, mode=thinking_mode, budget_override=args.thinking_budget
+        )
+
+        # Log thinking configuration
+        if thinking_config.enabled:
+            logger.info(f"🧠 Extended thinking enabled: {thinking_config.budget_tokens:,} tokens")
+            if thinking_config.interleaved:
+                logger.info("⚡ Interleaved thinking enabled for tool use")
+        else:
+            logger.info("❌ Extended thinking disabled")
 
     # Create the configuration
     return AnalysisConfig(
@@ -242,6 +380,10 @@ def create_analysis_config(args: argparse.Namespace) -> AnalysisConfig:
         phoenix_config=phoenix_config,
         track_costs=args.track_costs and not args.no_cost_tracking,
         cost_limit=args.cost_limit,
+        detector_max_rounds=args.detector_max_rounds,
+        detector_model=args.detector_model,
+        detector_only=args.detector_only,
+        thinking_config=thinking_config,
     )
 
 
@@ -254,6 +396,18 @@ def create_analysis_artifacts(config: AnalysisConfig) -> AnalysisArtifacts:
     Returns:
         Analysis artifacts
     """
+    from spreadsheet_analyzer.prompts import get_prompt_definition
+
+    # Determine which prompt will be used based on config
+    # Note: table_boundaries is set later, so for main analysis we default to data_analyst_system
+    prompt_name = (
+        "table_aware_analyst_system"
+        if hasattr(config, "table_boundaries") and config.table_boundaries
+        else "data_analyst_system"
+    )
+    prompt_def = get_prompt_definition(prompt_name)
+    prompt_hash = get_short_hash(prompt_def.content_hash) if prompt_def else None
+
     # Create file name config
     file_config = FileNameConfig(
         excel_file=config.excel_path,
@@ -262,6 +416,7 @@ def create_analysis_artifacts(config: AnalysisConfig) -> AnalysisArtifacts:
         sheet_name=config.sheet_name,
         max_rounds=config.max_rounds,
         session_id=config.session_id,
+        prompt_hash=prompt_hash,
     )
 
     # Generate session ID if not provided
@@ -301,24 +456,54 @@ async def main() -> None:
     # Create configuration
     config = create_analysis_config(args)
 
-    # Create artifacts
-    artifacts = create_analysis_artifacts(config)
+    # Check if we should use multi-table workflow
+    use_multi_table = getattr(args, "multi_table", False)
 
     # Log startup information
     logger.info("Starting notebook-based Excel analysis", model=config.model)
     logger.info(f"Excel file: {config.excel_path}")
     logger.info(f"Model: {config.model}")
-    logger.info(f"Session ID: {artifacts.session_id}")
-    logger.info(f"Output notebook: {artifacts.notebook_path}")
 
-    # Run the analysis using the functional orchestration
-    result = await run_notebook_analysis(config, artifacts)
+    if not use_multi_table:
+        # Only create artifacts for single-table workflow
+        artifacts = create_analysis_artifacts(config)
+        logger.info(f"Session ID: {artifacts.session_id}")
+        logger.info(f"Output notebook: {artifacts.notebook_path}")
 
-    if result.is_err():
-        logger.error(f"Analysis failed: {result.unwrap_err()}")
-        sys.exit(1)
-    else:
-        logger.info("Analysis completed successfully")
+    if use_multi_table:
+        logger.info("Using multi-table detection workflow")
+        from spreadsheet_analyzer.workflows.multi_table_workflow import run_multi_table_analysis
+
+        # Run multi-table analysis
+        result = await run_multi_table_analysis(config.excel_path, sheet_index=config.sheet_index, config=config)
+
+        if result.is_ok():
+            analysis = result.unwrap()
+            logger.info(f"Multi-table analysis complete: {analysis['tables_found']} tables found")
+            if analysis["detection_notebook"]:
+                logger.info(f"Detection notebook: {analysis['detection_notebook']}")
+            if analysis["analysis_notebook"]:
+                logger.info(f"Analysis notebook: {analysis['analysis_notebook']}")
+            # Success - multi-table workflow handles everything
+            return
+        else:
+            # Fall back to standard analysis
+            logger.warning(f"Multi-table workflow failed: {result.unwrap_err()}")
+            logger.info("Falling back to standard analysis")
+            # Create artifacts for fallback
+            artifacts = create_analysis_artifacts(config)
+            logger.info(f"Session ID: {artifacts.session_id}")
+            logger.info(f"Output notebook: {artifacts.notebook_path}")
+
+    # Run the standard analysis using the functional orchestration (only if not multi-table or fallback)
+    if not use_multi_table or "artifacts" in locals():
+        result = await run_notebook_analysis(config, artifacts)
+
+        if result.is_err():
+            logger.error(f"Analysis failed: {result.unwrap_err()}")
+            sys.exit(1)
+        else:
+            logger.info("Analysis completed successfully")
 
 
 def run() -> None:

@@ -1,0 +1,93 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "560575c5",
+  "timestamp": "20250809_013704",
+  "model_requested": "gpt-4o",
+  "model_actual": "gpt-4o-2024-08-06",
+  "excel_file": "test_assets/collection/business-accounting/Business Accounting.xlsx",
+  "sheet_index": 0,
+  "results": {
+    "sheet": "Yiriden Transactions 2025",
+    "analyzedAt": "2025-08-09T01:37:20.161308Z",
+    "blocks": [
+      {
+        "id": "blk_01",
+        "range": "A1:I1",
+        "structural_type": "AggregationZone",
+        "semantic_description": "Column headers for transaction data and summary values.",
+        "confidence": 0.8,
+        "classification_reasoning": "The block contains labels that are typical for column headers in a transaction sheet, such as 'Date', 'Description', and 'USD Amount'. The presence of 'TOTAL REVENUES' and 'TOTAL EXPENSES' suggests summary values, but they are likely part of the header context here.\n[Rule-based] Rule-based decision using formula_density=0.33, numeric_ratio=0.22, keywords=['total']",
+        "data_characteristics": {
+          "primary_data_type": "categorical",
+          "has_headers": false,
+          "header_rows": 1,
+          "header_cols": 0,
+          "has_formulas": true,
+          "formula_density": 0.25,
+          "has_merged_cells": false,
+          "is_time_series": false,
+          "time_granularity": null,
+          "data_density": 1.0,
+          "numeric_ratio": 0.2222222222222222,
+          "has_totals_row": true,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": "kpi",
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "Verify if these headers align with data in subsequent rows.",
+          "Check for formulas referencing these headers.",
+          "extract_column_names",
+          "validate_references",
+          "verify_calculations",
+          "extract_summary_values"
+        ],
+        "named_range": null
+      },
+      {
+        "id": "blk_02",
+        "range": "A2:I10",
+        "structural_type": "DataTable",
+        "semantic_description": "This block represents a transaction log detailing expenses with dates, descriptions, and amounts.",
+        "confidence": 0.9,
+        "classification_reasoning": "The block contains structured data with consistent columns for date, description, amount, and type, typical of a transaction log or ledger.",
+        "data_characteristics": {
+          "primary_data_type": "temporal",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": true,
+          "time_granularity": null,
+          "data_density": 0.4444444444444444,
+          "numeric_ratio": 0.25,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "Sort by date or amount",
+          "Filter by description or type",
+          "Summarize total expenses",
+          "add_filters",
+          "check_duplicates",
+          "profile_columns"
+        ],
+        "named_range": null
+      }
+    ],
+    "objects": [],
+    "unresolved": []
+  }
+}
