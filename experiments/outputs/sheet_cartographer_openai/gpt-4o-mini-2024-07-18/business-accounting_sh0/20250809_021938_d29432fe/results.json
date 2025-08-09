@@ -1,0 +1,120 @@
+{
+  "module": "sheet_cartographer_openai",
+  "hash": "d29432fe",
+  "timestamp": "20250809_021938",
+  "model_requested": "gpt-4o-mini",
+  "model_actual": "gpt-4o-mini-2024-07-18",
+  "excel_file": "test_assets/collection/business-accounting/Business Accounting.xlsx",
+  "sheet_index": 0,
+  "results": {
+    "sheet": "Yiriden Transactions 2025",
+    "analyzedAt": "2025-08-09T02:19:48.301182Z",
+    "blocks": [
+      {
+        "id": "blk_03",
+        "range": "A1:E1",
+        "structural_type": "HeaderZone",
+        "semantic_description": "Slice HeaderZone from blk_01",
+        "confidence": 0.8,
+        "classification_reasoning": "Contains column headers for the data table.",
+        "data_characteristics": {
+          "primary_data_type": "categorical",
+          "has_headers": true,
+          "header_rows": 1,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": false,
+          "time_granularity": null,
+          "data_density": 1.0,
+          "numeric_ratio": 0.0,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "extract_column_names",
+          "validate_references"
+        ],
+        "named_range": null
+      },
+      {
+        "id": "blk_04",
+        "range": "F1:I1",
+        "structural_type": "AggregationZone",
+        "semantic_description": "Slice AggregationZone from blk_01",
+        "confidence": 0.8,
+        "classification_reasoning": "Contains aggregation keywords and formulas summarizing the data.",
+        "data_characteristics": {
+          "primary_data_type": "categorical",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": true,
+          "formula_density": 0.5,
+          "has_merged_cells": false,
+          "is_time_series": false,
+          "time_granularity": null,
+          "data_density": 1.0,
+          "numeric_ratio": 0.5,
+          "has_totals_row": true,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": "subtotal",
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "verify_calculations",
+          "extract_summary_values"
+        ],
+        "named_range": null
+      },
+      {
+        "id": "blk_02",
+        "range": "A2:I10",
+        "structural_type": "DataTable",
+        "semantic_description": "This block contains transaction records detailing expenses with dates, descriptions, and amounts.",
+        "confidence": 0.95,
+        "classification_reasoning": "The rows consist of consistent data entries related to financial transactions, indicating a structured data table format.",
+        "data_characteristics": {
+          "primary_data_type": "temporal",
+          "has_headers": false,
+          "header_rows": 0,
+          "header_cols": 0,
+          "has_formulas": false,
+          "formula_density": 0.0,
+          "has_merged_cells": false,
+          "is_time_series": true,
+          "time_granularity": null,
+          "data_density": 0.4444444444444444,
+          "numeric_ratio": 0.25,
+          "has_totals_row": false,
+          "has_totals_col": false,
+          "likely_pivot_table": false,
+          "has_filters": false,
+          "aggregation_zone_subtype": null,
+          "has_data_validation": false,
+          "has_hyperlinks": false,
+          "cell_role_distribution": {}
+        },
+        "suggested_operations": [
+          "add_filters",
+          "check_duplicates",
+          "profile_columns"
+        ],
+        "named_range": null
+      }
+    ],
+    "objects": [],
+    "unresolved": []
+  }
+}

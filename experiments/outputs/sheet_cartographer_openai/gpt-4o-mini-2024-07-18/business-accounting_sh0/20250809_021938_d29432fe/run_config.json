@@ -1,0 +1,10 @@
+{
+  "module": "sheet_cartographer_openai",
+  "module_hash": "d29432fe",
+  "timestamp": "20250809_021938",
+  "model_requested": "gpt-4o-mini",
+  "model_actual": "gpt-4o-mini-2024-07-18",
+  "excel_file": "test_assets/collection/business-accounting/Business Accounting.xlsx",
+  "sheet_index": 0,
+  "output_directory": "/Users/cheickberthe/PycharmProjects/spreadsheet-analyzer/experiments/outputs/sheet_cartographer_openai/gpt-4o-mini-2024-07-18/business-accounting_sh0/20250809_021938_d29432fe"
+}
