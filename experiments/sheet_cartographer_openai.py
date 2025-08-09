@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-Sheet-Cartographer Agent (OpenAI Implementation) - Version 0.11
+Sheet-Cartographer Agent (OpenAI Implementation) - Version 0.11a
 
-Adds a deterministic + LLM arbitration conflict resolver to robustly
-distinguish Header vs Aggregation (and more), introduces a formulas-view
-peek, numeric consistency checks against nearby data, and fixes a crash when
-accessing hidden rows/cols on ReadOnlyWorksheet.
+LLM-first decide-or-split conflict resolution:
+- Removes rule-based relabels in S3.5
+- Adds formulas-view peek, numeric consistency evidence, and LLM-driven keep/relabel/split
 
 Provider: OpenAI
 Models Supported: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
-Author: Sheet-Cartographer v0.11 (OpenAI)
+Author: Sheet-Cartographer v0.11a (OpenAI)
 Date: 2025-08-09
 """
 
@@ -54,11 +53,11 @@ HIGH_DENSITY_THRESHOLD: Final[float] = 0.8
 BLANK_TAIL_THRESHOLD: Final[float] = 0.3
 HOMOGENEITY_THRESHOLD: Final[float] = 0.8
 
-# Conflict resolution thresholds (deterministic guardrails)
-HDR_MAX_FORMULA_DENSITY: Final[float] = 0.05  # headers rarely contain formulas
-HDR_MAX_NUMERIC_RATIO: Final[float] = 0.30  # headers are mostly text
-AGG_MIN_NUMERIC_RATIO: Final[float] = 0.30  # aggregations are mostly numeric
-AGG_MIN_FORMULA_DENSITY: Final[float] = 0.08  # aggregations often have formulas
+# Heuristic thresholds (now used only to *trigger* LLM review; not to override)
+HDR_MAX_FORMULA_DENSITY: Final[float] = 0.05
+HDR_MAX_NUMERIC_RATIO: Final[float] = 0.30
+AGG_MIN_NUMERIC_RATIO: Final[float] = 0.30
+AGG_MIN_FORMULA_DENSITY: Final[float] = 0.08
 AGG_KEYWORDS = ("total", "subtotal", "grand total", "kpi", "sum", "balance")
 
 # Confidence presets
@@ -543,7 +542,7 @@ class SheetCartographer:
             candidate_blocks = self._cluster(density_grid, sheet_info)
             self._probe(candidate_blocks)
 
-            # Conflict resolution pass (deterministic + LLM arbitration)
+            # LLM-first Conflict resolution pass
             self._resolve_conflicts()
 
             self._overlay()
@@ -1021,81 +1020,169 @@ class SheetCartographer:
                     block_id += 1
 
     # --------------------------
-    # S3.5: Conflict Resolution
+    # S3.5: Conflict Resolution (LLM-first decide-or-split)
     # --------------------------
     def _resolve_conflicts(self) -> None:
-        """Deterministic checks + LLM arbitration to correct mislabels."""
-        self.logger.main.info("🧭 S3.5: RESOLVE - Resolving classification conflicts")
+        """Ask the LLM to KEEP, RELABEL, or SPLIT when signals suggest uncertainty."""
+        self.logger.main.info("🧭 S3.5: RESOLVE - LLM-first decide-or-split")
 
-        updated_blocks: list[Block] = []
+        new_blocks: list[Block] = []
+        next_id = 1 + max([int(b.id.split("_")[1]) for b in self.blocks if b.id.startswith("blk_")] + [0])
+
         for block in self.blocks:
             rng = block.range
-            text = self._peek_cache.get(rng)
-            if text is None:
-                try:
-                    text = self.tool_handler.execute_tool("range_peek", {"range": rng, "format": "markdown"})
-                except Exception:
-                    text = ""
-                self._peek_cache[rng] = text
+            text = self._peek_cache.get(rng) or self.tool_handler.execute_tool(
+                "range_peek", {"range": rng, "format": "markdown"}
+            )
+            self._peek_cache[rng] = text
 
-            # also cache formulas view
-            ftext = self._peek_formula_cache.get(rng)
-            if ftext is None:
-                try:
-                    ftext = self.tool_handler.execute_tool("range_formulas", {"range": rng, "format": "markdown"})
-                except Exception:
-                    ftext = ""
-                self._peek_formula_cache[rng] = ftext
+            ftext = self._peek_formula_cache.get(rng) or self.tool_handler.execute_tool(
+                "range_formulas", {"range": rng, "format": "markdown"}
+            )
+            self._peek_formula_cache[rng] = ftext
 
             ev = self._collect_block_evidence(block, text, ftext)
 
-            # Deterministic correction: Header mislabelled as Aggregation (and vice versa)
-            dec = None
-            if block.structural_type == StructuralType.HEADER_ZONE:
+            # decide when to involve the LLM (no auto overrides!)
+            needs_review = False
+            if block.structural_type in (StructuralType.HEADER_ZONE, StructuralType.AGGREGATION_ZONE):
                 if (
-                    ev["formula_density"] > HDR_MAX_FORMULA_DENSITY
-                    or ev["numeric_ratio"] > HDR_MAX_NUMERIC_RATIO
-                    or (ev["has_agg_keywords"] and ev["numeric_ratio"] > 0.15)
+                    (0.04 <= ev["formula_density"] <= 0.12)
+                    or (0.20 <= ev["numeric_ratio"] <= 0.45)
+                    or ev["has_agg_keywords"]
+                    or ev["numeric_consistency"].get("checked_cols", 0) > 0
                 ):
-                    dec = "AggregationZone"
-            elif block.structural_type == StructuralType.AGGREGATION_ZONE:
-                if (
-                    ev["formula_density"] < AGG_MIN_FORMULA_DENSITY
-                    and ev["numeric_ratio"] < AGG_MIN_NUMERIC_RATIO
-                    and not ev["has_agg_keywords"]
-                    and ev["position"]["near_top"]
-                ):
-                    dec = "HeaderZone"
+                    needs_review = True
 
-            # If deterministic decision exists, apply it
-            if dec:
-                self.logger.main.info(f"   Deterministic relabel: {block.range} {block.structural_type} -> {dec}")
-                self._apply_decision(block, dec, ev, source="deterministic")
-                updated_blocks.append(block)
+            if not needs_review:
+                new_blocks.append(block)
                 continue
 
-            # Ambiguity heuristic: numbers/formulas present but not decisive -> ask LLM to decide
-            ambiguous = block.structural_type in (StructuralType.HEADER_ZONE, StructuralType.AGGREGATION_ZONE) and (
-                (0.04 <= ev["formula_density"] <= 0.10)
-                or (0.20 <= ev["numeric_ratio"] <= 0.40)
-                or ev["numeric_consistency"].get("checked_cols", 0) > 0
-            )
-            if ambiguous:
-                decision, new_conf, reasoning, agg_subtype = self._arbitrate_conflict_with_llm(block, text, ev)
-                if decision and TYPE_MAP.get(decision):
-                    self.logger.main.info(f"   LLM arbitration: {block.range} -> {decision} (conf: {new_conf:.2f})")
-                    self._apply_decision(
-                        block,
-                        decision,
-                        ev,
-                        new_confidence=new_conf,
-                        reason=reasoning,
-                        agg_subtype=agg_subtype,
-                        source="arbitration",
-                    )
-            updated_blocks.append(block)
+            decision, payload = self._decide_or_split_with_llm(block, text, ftext, ev)
 
-        self.blocks = updated_blocks
+            if decision == "keep":
+                self.logger.main.info(f"   LLM: keep {block.id} {block.range} as {block.structural_type}")
+                # May boost/adjust confidence slightly based on LLM confidence
+                llm_conf = float(payload.get("confidence", block.confidence))
+                block.confidence = max(block.confidence, min(1.0, llm_conf))
+                block.classification_reasoning = (
+                    f"{block.classification_reasoning}\n[LLM] {payload.get('reasoning', '')}".strip()
+                )
+                new_blocks.append(block)
+
+            elif decision == "relabel":
+                new_label = payload.get("new_label")
+                agg_subtype = payload.get("aggregation_subtype", "none")
+                conf = float(payload.get("confidence", SUMMARY_CONFIDENCE))
+                reason = payload.get("reasoning", "LLM relabel")
+                self._apply_decision(
+                    block,
+                    new_label,
+                    ev,
+                    new_confidence=conf,
+                    reason=reason,
+                    agg_subtype=agg_subtype,
+                    source="arbitration",
+                )
+                new_blocks.append(block)
+                self.logger.main.info(f"   LLM: relabel {block.id} {block.range} -> {new_label} (conf {conf:.2f})")
+
+            elif decision == "split":
+                slices: list[dict] = payload.get("slices", [])
+                applied = self._validate_and_apply_split(block, slices, ev, next_id)
+                if applied:
+                    created = applied["created"]
+                    next_id += len(created)
+                    new_blocks.extend(created)
+                    self.logger.main.info(
+                        f"   LLM: split {block.id} into {len(created)} blocks: {[b.range for b in created]}"
+                    )
+                else:
+                    # fallback if split was invalid: keep original unchanged but append reason
+                    block.classification_reasoning = (
+                        f"{block.classification_reasoning}\n[LLM] Split invalid; keeping.".strip()
+                    )
+                    new_blocks.append(block)
+            else:
+                # Arbitration failed or unknown -> keep
+                new_blocks.append(block)
+
+        self.blocks = new_blocks
+
+    def _validate_and_apply_split(self, block: Block, slices: list[dict], ev: dict, next_id: int) -> dict | None:
+        """Ensure slices are within the original range, non-overlapping, and well-typed; then create new blocks."""
+        if not slices:
+            return None
+        try:
+            # parse original range
+            (s_col, s_row) = coordinate_from_string(block.range.split(":")[0])
+            (e_col, e_row) = coordinate_from_string(block.range.split(":")[1])
+            sidx, eidx = column_index_from_string(s_col), column_index_from_string(e_col)
+
+            def _norm(r: str) -> tuple[int, int, int, int]:
+                (a_col, a_row) = coordinate_from_string(r.split(":")[0])
+                (b_col, b_row) = coordinate_from_string(r.split(":")[1])
+                return (column_index_from_string(a_col), a_row, column_index_from_string(b_col), b_row)
+
+            # bounds + overlap checks
+            boxes = []
+            for sl in slices:
+                if "range" not in sl or "label" not in sl:
+                    return None
+                x1, y1, x2, y2 = _norm(sl["range"])
+                if x1 < sidx or x2 > eidx or y1 < s_row or y2 > e_row:
+                    return None
+                if x1 > x2 or y1 > y2:
+                    return None
+                boxes.append((x1, y1, x2, y2, sl))
+
+            # check overlap
+            def _overlap(b1, b2):
+                return not (b1[2] < b2[0] or b2[2] < b1[0] or b1[3] < b2[1] or b2[3] < b1[1])
+
+            for i in range(len(boxes)):
+                for j in range(i + 1, len(boxes)):
+                    if _overlap(boxes[i], boxes[j]):
+                        return None
+
+            # build new blocks
+            created: list[Block] = []
+            for _, _, _, _, sl in sorted(boxes, key=lambda t: (t[1], t[0])):
+                rng = sl["range"]
+                lbl = sl["label"]
+                sub = sl.get("aggregation_subtype", "none")
+                # extract views and infer
+                text = self._peek_cache.get(rng) or self.tool_handler.execute_tool(
+                    "range_peek", {"range": rng, "format": "markdown"}
+                )
+                self._peek_cache[rng] = text
+                data_chars = self._infer_characteristics(text, rng)
+                if lbl == "AggregationZone" and sub and sub != "none":
+                    data_chars.aggregation_zone_subtype = sub
+                if lbl == "HeaderZone":
+                    data_chars.has_headers = True
+                    data_chars.header_rows = max(data_chars.header_rows, 1)
+                struct_type = TYPE_MAP.get(lbl, block.structural_type)
+                default_ops = self._get_default_operations(struct_type)
+
+                created.append(
+                    Block(
+                        id=f"blk_{next_id:02d}",
+                        range=rng,
+                        structural_type=struct_type,
+                        semantic_description=sl.get("semantic_description", f"Slice {lbl} from {block.id}"),
+                        confidence=float(sl.get("confidence", SUMMARY_CONFIDENCE)),
+                        classification_reasoning=sl.get("reasoning", "LLM split decision"),
+                        data_characteristics=data_chars,
+                        suggested_operations=default_ops,
+                    )
+                )
+                next_id += 1
+
+            return {"created": created}
+        except Exception as e:
+            self.logger.main.debug(f"Split validation failed: {e}")
+            return None
 
     def _apply_decision(
         self,
@@ -1122,7 +1209,6 @@ class SheetCartographer:
             if agg_subtype and agg_subtype != "none":
                 dc.aggregation_zone_subtype = agg_subtype
             else:
-                # infer subtype from keywords
                 if "grand total" in ev["keywords"]:
                     dc.aggregation_zone_subtype = "grand_total"
                 elif "subtotal" in ev["keywords"]:
@@ -1138,10 +1224,10 @@ class SheetCartographer:
                 SUMMARY_CONFIDENCE if struct_type == StructuralType.AGGREGATION_ZONE else HEADER_BANNER_CONFIDENCE
             )
 
-        src_tag = "Rule-based" if source == "deterministic" else "LLM arbitration"
+        src_tag = "LLM arbitration" if source != "deterministic" else "Rule-based"
         add_reason = (
             reason
-            or f"{src_tag} decision using formula_density={ev['formula_density']:.2f}, numeric_ratio={ev['numeric_ratio']:.2f}, keywords={list(ev['keywords'])}"
+            or f"{src_tag} using formula_density={ev['formula_density']:.2f}, numeric_ratio={ev['numeric_ratio']:.2f}, keywords={list(ev['keywords'])}"
         )
         block.classification_reasoning = f"{block.classification_reasoning}\n[{src_tag}] {add_reason}".strip()
 
@@ -1149,7 +1235,7 @@ class SheetCartographer:
         default_ops = self._get_default_operations(struct_type)
         block.suggested_operations = list(dict.fromkeys((block.suggested_operations or []) + default_ops))
 
-        # Adjust semantic description if too header-y/agg-y
+        # Semantic tweak
         if struct_type == StructuralType.AGGREGATION_ZONE and "total" in ev["keywords"]:
             if "grand total" in ev["keywords"]:
                 block.semantic_description = block.semantic_description or "Grand total summary section"
@@ -1166,9 +1252,6 @@ class SheetCartographer:
         try:
             start_col, start_row = coordinate_from_string(range_str.split(":")[0])
             end_col, end_row = coordinate_from_string(range_str.split(":")[1])
-            sidx = column_index_from_string(start_col)
-            eidx = column_index_from_string(end_col)
-
             # above
             if start_row > 1:
                 above = f"{start_col}{start_row - 1}:{end_col}{start_row - 1}"
@@ -1187,14 +1270,13 @@ class SheetCartographer:
         rng = block.range
         dc = self._infer_characteristics(text, rng)
 
-        # sample a few cells for formula detection beyond _infer_characteristics
+        # sample for formula detection beyond _infer_characteristics
         parts = rng.split(":")
         start_col, start_row = coordinate_from_string(parts[0])
         end_col, end_row = coordinate_from_string(parts[1])
         start_col_idx = column_index_from_string(start_col)
         end_col_idx = column_index_from_string(end_col)
 
-        # sample up to 8 cells (2 header cells + 2 last row cells + 2 left col cells + 2 right col cells)
         samples = []
         for col in range(start_col_idx, min(start_col_idx + 2, end_col_idx + 1)):
             samples.append((start_row, col))
@@ -1220,20 +1302,16 @@ class SheetCartographer:
         sampled_formula_density = (formula_hits / checked) if checked else 0.0
         formula_density = max(dc.formula_density or 0.0, sampled_formula_density)
 
-        # Keywords
+        # Keywords & position
         text_lower = text.lower()
         keywords_present = set(k for k in AGG_KEYWORDS if k in text_lower)
-
-        # Position hints
         position = self._position_flags(rng)
 
-        # Neighbor context
+        # Neighbor context & formulas view
         neighbors = self._neighbor_row_peek(rng)
-
-        # Formulas view (truncated)
         formulas_view = (formulas_text or "")[:2000]
 
-        # Numeric consistency check against the data region just below (generic, capped)
+        # Numeric consistency check
         numeric_consistency = self._numeric_consistency_check(rng)
 
         return {
@@ -1276,10 +1354,8 @@ class SheetCartographer:
         s = str(val).strip()
         if s == "" or s == "␀":
             return False, 0.0
-        # handle accounting () negatives
         if s.startswith("(") and s.endswith(")"):
             s = "-" + s[1:-1]
-        # strip currency/commas/percent
         s = s.replace("$", "").replace("€", "").replace(",", "")
         try:
             return True, float(s)
@@ -1287,10 +1363,7 @@ class SheetCartographer:
             return False, 0.0
 
     def _numeric_consistency_check(self, range_str: str) -> dict:
-        """Check if numbers in a suspected header/aggregation row match sums of the data below.
-
-        Generic, bounded runtime: scans at most 200 rows down, stops after 2 full-blank streak.
-        """
+        """Check if numbers in a suspected header/aggregation row match sums of the data below (typed totals welcome)."""
         try:
             (start_col, start_row) = coordinate_from_string(range_str.split(":")[0])
             (end_col, end_row) = coordinate_from_string(range_str.split(":")[1])
@@ -1298,22 +1371,18 @@ class SheetCartographer:
             eidx = column_index_from_string(end_col)
             total_rows = self.sheet_metadata.get("rows", 0)
 
-            # Only attempt when it's a single-row block near the top or has "total" keywords around
             single_row = end_row == start_row
             if not single_row:
                 return {"checked_cols": 0, "matches": 0, "details": []}
 
-            # Header/agg row numeric values
             header_nums: dict[int, float] = {}
             for c in range(sidx, eidx + 1):
                 ok, num = self._to_float(self.worksheet.cell(row=start_row, column=c).value)
                 if ok:
                     header_nums[c] = num
-
             if not header_nums:
                 return {"checked_cols": 0, "matches": 0, "details": []}
 
-            # Scan downward to collect sums
             data_start = end_row + 1
             max_scan_rows = min(200, max(0, total_rows - end_row))
             blank_streak = 0
@@ -1337,12 +1406,10 @@ class SheetCartographer:
                 else:
                     blank_streak = 0
 
-            # Compare with tolerance
             details = []
             matches = 0
             for c, hv in header_nums.items():
                 s = sums.get(c, 0.0)
-                # tolerance: $0.50 absolute OR 2% relative if abs(hv) >= 10, otherwise 5% for small totals
                 abs_tol = 0.5
                 rel_tol = 0.02 if abs(hv) >= 10 else 0.05
                 rel_err = abs(s - hv) / (abs(hv) if hv != 0 else 1.0)
@@ -1369,55 +1436,87 @@ class SheetCartographer:
             self.logger.main.debug(f"Numeric consistency check failed for {range_str}: {e}")
             return {"checked_cols": 0, "matches": 0, "details": [], "error": str(e)}
 
-    def _arbitrate_conflict_with_llm(
-        self, block: Block, text: str, evidence: dict
-    ) -> tuple[str | None, float, str, str]:
-        """Present structured evidence and force a decision."""
+    def _decide_or_split_with_llm(
+        self, block: Block, values_text: str, formulas_text: str, evidence: dict
+    ) -> tuple[str, dict]:
+        """Ask the LLM to keep, relabel, or split (with slices)."""
         system_prompt = f"""{self.system_metadata}
 
-You are a conflict arbiter for spreadsheet structure. Decide between HeaderZone and AggregationZone.
+You are deciding if a block is labelled correctly or should be split.
+Outcomes:
+- keep: leave the label as-is.
+- relabel: change to HeaderZone or AggregationZone (with optional subtype).
+- split: return 2-4 non-overlapping slices with explicit ranges and labels.
 
-Rules of thumb:
-- Headers are mostly text, rarely contain formulas, usually at the top of a data table.
-- Aggregations contain many numbers and often formulas; keywords like TOTAL/SUBTOTAL/GRAND TOTAL are strong signals.
-- Choose exactly one label. Provide subtype if Aggregation: kpi/subtotal/grand_total.
-Return concise reasoning (not chain-of-thought)."""
+Guidelines:
+- 'HeaderZone' is mostly text, rarely formulas; usually top of a table.
+- 'AggregationZone' is numbers and often formulas; keywords TOTAL/SUBTOTAL/GRAND TOTAL are strong signals.
+- Typed totals (numbers without formulas) still count as Aggregation if they summarize the region.
+- Prefer 'split' when a single row/region mixes headers and totals/KPIs.
+Return concise reasoning (no chain-of-thought)."""
 
-        user_payload = {
+        payload = {
             "range": block.range,
             "current_label": str(block.structural_type),
+            "values_view": values_text[:1600],
+            "formulas_view": (formulas_text or "")[:1600],
+            "neighbors": {
+                "above": evidence.get("neighbors", {}).get("above", "")[:600],
+                "below": evidence.get("neighbors", {}).get("below", "")[:600],
+            },
             "evidence": {
                 "numeric_ratio": round(evidence["numeric_ratio"], 4),
                 "formula_density": round(evidence["formula_density"], 4),
                 "has_agg_keywords": bool(evidence["has_agg_keywords"]),
                 "keywords": sorted(list(evidence["keywords"])),
                 "position": evidence["position"],
-                "neighbors": {
-                    "above_values": evidence.get("neighbors", {}).get("above", "")[:600],
-                    "below_values": evidence.get("neighbors", {}).get("below", "")[:600],
-                },
                 "numeric_consistency": evidence.get("numeric_consistency", {}),
             },
-            # exact equivalent view of the zone but showing formulas
-            "formulas_view": evidence.get("formulas_view", ""),
-            "values_view": text[:1200],
         }
 
         tools = [
             {
                 "type": "function",
                 "function": {
-                    "name": "resolve_conflict",
-                    "description": "Force a single decision between HeaderZone and AggregationZone",
+                    "name": "decide_or_split",
+                    "description": "Keep, relabel, or split a block into slices",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "decision": {"type": "string", "enum": ["HeaderZone", "AggregationZone"]},
+                            "decision": {"type": "string", "enum": ["keep", "relabel", "split"]},
                             "confidence": {"type": "number"},
                             "reasoning": {"type": "string"},
+                            "new_label": {
+                                "type": "string",
+                                "enum": ["HeaderZone", "AggregationZone"],
+                                "description": "Required if decision=relabel",
+                            },
                             "aggregation_subtype": {
                                 "type": "string",
                                 "enum": ["kpi", "subtotal", "grand_total", "none"],
+                            },
+                            "slices": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "range": {"type": "string"},
+                                        "label": {
+                                            "type": "string",
+                                            "enum": ["HeaderZone", "AggregationZone", "DataTable", "MetadataZone"],
+                                        },
+                                        "aggregation_subtype": {
+                                            "type": "string",
+                                            "enum": ["kpi", "subtotal", "grand_total", "none"],
+                                        },
+                                        "reasoning": {"type": "string"},
+                                        "semantic_description": {"type": "string"},
+                                        "confidence": {"type": "number"},
+                                    },
+                                    "required": ["range", "label"],
+                                },
+                                "minItems": 2,
+                                "maxItems": 4,
                             },
                         },
                         "required": ["decision", "confidence", "reasoning"],
@@ -1428,7 +1527,7 @@ Return concise reasoning (not chain-of-thought)."""
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ]
 
         try:
@@ -1439,9 +1538,9 @@ Return concise reasoning (not chain-of-thought)."""
                 model=self.model,
                 messages=messages,
                 tools=tools,
-                tool_choice={"type": "function", "function": {"name": "resolve_conflict"}},
+                tool_choice={"type": "function", "function": {"name": "decide_or_split"}},
                 temperature=0.1,
-                max_tokens=250,
+                max_tokens=350,
             )
 
             actual_model = getattr(resp, "model", None)
@@ -1465,179 +1564,15 @@ Return concise reasoning (not chain-of-thought)."""
 
             if resp.choices[0].message.tool_calls:
                 args = json.loads(resp.choices[0].message.tool_calls[0].function.arguments)
-                return (
-                    args.get("decision"),
-                    float(args.get("confidence", SUMMARY_CONFIDENCE)),
-                    args.get("reasoning", ""),
-                    args.get("aggregation_subtype", "none"),
-                )
+                decision = args.get("decision", "keep")
+                return decision, args
         except Exception as e:
-            self.logger.error.error(f"LLM arbitration failed: {e}")
+            self.logger.error.error(f"LLM decide_or_split failed: {e}")
 
-        return None, block.confidence, "Arbitration failed; keeping original label", "none"
-
-    # --------------------------
-    # S3 helpers reused
-    # --------------------------
-    def _force_split_region(self, range_str: str) -> list[dict[str, Any]]:
-        parts = range_str.split(":")
-        if len(parts) != 2:
-            return [{"range": range_str, "homogeneity": 0.5}]
-        start_col, start_row = coordinate_from_string(parts[0])
-        end_col, end_row = coordinate_from_string(parts[1])
-        start_col_idx = column_index_from_string(start_col)
-        end_col_idx = column_index_from_string(end_col)
-        total_rows = end_row - start_row + 1
-        total_cols = end_col_idx - start_col_idx + 1
-
-        sub_regions: list[dict[str, Any]] = []
-
-        if total_rows >= 2:
-            try:
-                first_row_range = f"{start_col}{start_row}:{end_col}{start_row}"
-                second_row_range = f"{start_col}{start_row + 1}:{end_col}{start_row + 1}"
-                fr_text = self.tool_handler.execute_tool("range_peek", {"range": first_row_range, "format": "markdown"})
-                sr_text = self.tool_handler.execute_tool(
-                    "range_peek", {"range": second_row_range, "format": "markdown"}
-                )
-
-                fr_cells, sr_cells = [], []
-                for line in fr_text.split("\n")[2:]:
-                    fr_cells.extend([c.strip() for c in line.split("|")[1:]])
-                for line in sr_text.split("\n")[2:]:
-                    sr_cells.extend([c.strip() for c in line.split("|")[1:]])
-
-                fr_lower = " ".join(fr_cells).lower()
-                totals_count = sum(1 for k in ["total", "sum", "revenue", "expense"] if k in fr_lower)
-
-                def is_num(x: str) -> bool:
-                    if not x or x == "␀":
-                        return False
-                    cleaned = x.strip().replace(",", "").replace("$", "").replace("%", "")
-                    if cleaned.startswith("(") and cleaned.endswith(")"):
-                        cleaned = "-" + cleaned[1:-1]
-                    try:
-                        float(cleaned)
-                        return True
-                    except:
-                        return False
-
-                fr_num = sum(1 for c in fr_cells if is_num(c))
-                sr_num = sum(1 for c in sr_cells if is_num(c))
-
-                should_split_first = False
-                if totals_count >= 2 or (fr_num > len(fr_cells) * 0.5 and sr_num < len(sr_cells) * 0.3):
-                    should_split_first = True
-
-                if should_split_first:
-                    header_range = f"{start_col}{start_row}:{end_col}{start_row}"
-                    rest_range = f"{start_col}{start_row + 1}:{end_col}{end_row}"
-                    sub_regions.append({"range": header_range, "homogeneity": 0.9})
-                    sub_regions.append({"range": rest_range, "homogeneity": 0.8})
-                    return sub_regions
-
-            except Exception as e:
-                self.logger.main.debug(f"   First-row analysis error: {e}")
-
-        if total_cols >= 3:
-            if total_cols == 9:
-                split_col = start_col_idx + 5
-            else:
-                split_col = start_col_idx + (total_cols * 2 // 3)
-            left_range = f"{start_col}{start_row}:{get_column_letter(split_col)}{end_row}"
-            right_range = f"{get_column_letter(split_col + 1)}{start_row}:{end_col}{end_row}"
-            self.logger.main.debug(f"   Force split columns at {get_column_letter(split_col)}")
-            sub_regions.append({"range": left_range, "homogeneity": 0.8})
-            sub_regions.append({"range": right_range, "homogeneity": 0.8})
-        elif total_rows >= 2:
-            mid_row = (start_row + end_row) // 2
-            upper_range = f"{start_col}{start_row}:{end_col}{mid_row}"
-            lower_range = f"{start_col}{mid_row + 1}:{end_col}{end_row}"
-            self.logger.main.debug(f"   Force splitting rows at {mid_row}")
-            sub_regions.append({"range": upper_range, "homogeneity": 0.8})
-            sub_regions.append({"range": lower_range, "homogeneity": 0.8})
-        else:
-            sub_regions.append({"range": range_str, "homogeneity": 0.5})
-
-        return sub_regions
-
-    def _address_open_questions(self, questions: list[str], range_str: str, range_text: str) -> str:
-        context_parts = []
-        parts = range_str.split(":")
-        if len(parts) != 2:
-            return ""
-        start_col, start_row = coordinate_from_string(parts[0])
-        end_col, end_row = coordinate_from_string(parts[1])
-        start_col_idx = column_index_from_string(start_col)
-        end_col_idx = column_index_from_string(end_col)
-
-        for question in questions:
-            q = question.lower()
-            if "header" in q or "row 1" in q or "row 2" in q:
-                sample_cells = []
-                for col in range(start_col_idx, min(start_col_idx + 3, end_col_idx + 1)):
-                    meta = self.tool_handler.execute_tool("cell_meta", {"row": start_row, "col": col})
-                    sample_cells.append("bold" if ("bold" in meta.get("styleFlags", [])) else "normal")
-                context_parts.append(
-                    f"Row {start_row} contains bold text, likely headers"
-                    if any(s == "bold" for s in sample_cells)
-                    else f"Row {start_row} has normal formatting, not headers"
-                )
-            elif "total" in q or "sum" in q:
-                has_formulas = False
-                for row in range(max(end_row - 2, start_row), end_row + 1):
-                    for col in range(start_col_idx, min(start_col_idx + 3, end_col_idx + 1)):
-                        meta = self.tool_handler.execute_tool("cell_meta", {"row": row, "col": col})
-                        if meta.get("isFormula"):
-                            has_formulas = True
-                            break
-                    if has_formulas:
-                        break
-                if has_formulas:
-                    context_parts.append(f"Rows near {end_row} contain formulas, likely summary calculations")
-                if "total" in range_text.lower():
-                    context_parts.append("Text contains 'total' keyword, confirming summary section")
-            elif any(k in q for k in ("sparse", "empty", "blank")):
-                lines = range_text.split("\n")[2:]
-                last_quarter = lines[-(len(lines) // 4) :] if len(lines) > 4 else lines
-                blank_rows = sum(
-                    1 for line in last_quarter if all(cell.strip() in ["", "␀"] for cell in line.split("|")[1:])
-                )
-                if blank_rows > len(last_quarter) * 0.5:
-                    context_parts.append("Bottom portion is mostly blank, indicating end of data")
-                else:
-                    context_parts.append("Bottom portion contains data, not just padding")
-
-        return " | ".join(context_parts) if context_parts else "No additional context gathered"
-
-    def _create_range_breadcrumb(self, range_str: str) -> str:
-        parts = range_str.split(":")
-        if len(parts) != 2:
-            return f"📍 Context: Examining range {range_str} within full sheet ({self.sheet_metadata.get('rows', '?')}×{self.sheet_metadata.get('cols', '?')})"
-        start_col, start_row = coordinate_from_string(parts[0])
-        end_col, end_row = coordinate_from_string(parts[1])
-        total_rows = self.sheet_metadata.get("rows", 1)
-        total_cols = self.sheet_metadata.get("cols", 1)
-        start_col_idx = column_index_from_string(start_col)
-        end_col_idx = column_index_from_string(end_col)
-        position_hints = []
-        position_hints.append(
-            "near top"
-            if start_row <= 5
-            else ("near bottom" if end_row >= total_rows - 5 else f"middle region (row {start_row}/{total_rows})")
-        )
-        position_hints.append(
-            "left side" if start_col_idx <= 3 else ("right side" if end_col_idx >= total_cols - 3 else "center columns")
-        )
-        if end_col_idx - start_col_idx + 1 == total_cols:
-            position_hints.append("full width")
-        if end_row - start_row + 1 == total_rows:
-            position_hints.append("full height")
-        position_str = ", ".join(position_hints)
-        return f"📍 Context: Examining {range_str} ({position_str}) within full sheet ({total_rows}×{total_cols})"
+        return "keep", {"confidence": block.confidence, "reasoning": "Arbitration failed; keeping"}
 
     # --------------------------
-    # LLM calls
+    # LLM calls (classification)
     # --------------------------
     def _classify_block_with_llm(
         self, range_text: str, range_str: str, additional_context: str | None = None
@@ -1784,6 +1719,32 @@ IMPORTANT:
             [],
             "none",
         )
+
+    def _create_range_breadcrumb(self, range_str: str) -> str:
+        parts = range_str.split(":")
+        if len(parts) != 2:
+            return f"📍 Context: Examining range {range_str} within full sheet ({self.sheet_metadata.get('rows', '?')}×{self.sheet_metadata.get('cols', '?')})"
+        start_col, start_row = coordinate_from_string(parts[0])
+        end_col, end_row = coordinate_from_string(parts[1])
+        total_rows = self.sheet_metadata.get("rows", 1)
+        total_cols = self.sheet_metadata.get("cols", 1)
+        start_col_idx = column_index_from_string(start_col)
+        end_col_idx = column_index_from_string(end_col)
+        position_hints = []
+        position_hints.append(
+            "near top"
+            if start_row <= 5
+            else ("near bottom" if end_row >= total_rows - 5 else f"middle region (row {start_row}/{total_rows})")
+        )
+        position_hints.append(
+            "left side" if start_col_idx <= 3 else ("right side" if end_col_idx >= total_cols - 3 else "center columns")
+        )
+        if end_col_idx - start_col_idx + 1 == total_cols:
+            position_hints.append("full width")
+        if end_row - start_row + 1 == total_rows:
+            position_hints.append("full height")
+        position_str = ", ".join(position_hints)
+        return f"📍 Context: Examining {range_str} ({position_str}) within full sheet ({total_rows}×{total_cols})"
 
     # --------------------------
     # S4: Overlay
