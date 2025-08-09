@@ -140,9 +140,17 @@ class ExcelToolHandler:
         elif tool_name == "window_grab":
             return self._window_grab(**arguments)
         elif tool_name == "range_peek":
-            return self._range_peek(**arguments)
+            # avoid shadowing Python built-in `range` by mapping to `cell_range`
+            return self._range_peek(
+                cell_range=arguments.get("range") or arguments.get("cell_range"),
+                format=arguments.get("format", "markdown"),
+            )
         elif tool_name == "range_formulas":
-            return self._range_formulas(**arguments)
+            # idem
+            return self._range_formulas(
+                cell_range=arguments.get("range") or arguments.get("cell_range"),
+                format=arguments.get("format", "markdown"),
+            )
         elif tool_name == "cell_meta":
             return self._cell_meta(**arguments)
         elif tool_name == "merged_list":
@@ -222,10 +230,10 @@ class ExcelToolHandler:
 
         return "\n".join(lines)
 
-    def _range_peek(self, range: str, format: str = "markdown") -> str:
-        parts = range.split(":")
+    def _range_peek(self, cell_range: str, format: str = "markdown") -> str:
+        parts = cell_range.split(":")
         if len(parts) != 2:
-            raise ValueError(f"Invalid range: {range}")
+            raise ValueError(f"Invalid range: {cell_range}")
 
         start_col, start_row = coordinate_from_string(parts[0])
         end_col, end_row = coordinate_from_string(parts[1])
@@ -251,11 +259,11 @@ class ExcelToolHandler:
             self._formula_workbook = openpyxl.load_workbook(self.excel_path, read_only=False, data_only=False)
         return self._formula_workbook
 
-    def _range_formulas(self, range: str, format: str = "markdown") -> str:
+    def _range_formulas(self, cell_range: str, format: str = "markdown") -> str:
         """Peek a specific range but rendering formulas where present."""
-        parts = range.split(":")
+        parts = cell_range.split(":")
         if len(parts) != 2:
-            raise ValueError(f"Invalid range: {range}")
+            raise ValueError(f"Invalid range: {cell_range}")
 
         start_col, start_row = coordinate_from_string(parts[0])
         end_col, end_row = coordinate_from_string(parts[1])
@@ -283,7 +291,7 @@ class ExcelToolHandler:
         except Exception as e:
             self.logger.main.debug(f"Failed to open formula workbook: {e}")
             # Fallback to values view
-            return self._range_peek(range, format=format)
+            return self._range_peek(cell_range, format=format)
 
         # Render rows
         for r in range(start_row, start_row + height):
